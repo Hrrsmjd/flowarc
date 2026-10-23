@@ -28,11 +28,11 @@ def main():
         "--domain",
         type=float,
         nargs=3,
-        default=[16.0, 2.0, 12.0],
+        default=[20.0, 2.0, 24.0],
         help="box in diameters, y is the span",
     )
     p.add_argument("--startup", type=float, default=60.0, help="discarded spin-up time in D/U")
-    p.add_argument("--record", type=float, default=80.0, help="recorded time in D/U")
+    p.add_argument("--record", type=float, default=160.0, help="recorded time in D/U")
     p.add_argument("--quick", action="store_true", help="short smoke test")
     a = p.parse_args()
     a.out.mkdir(parents=True, exist_ok=True)
