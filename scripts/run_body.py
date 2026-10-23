@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 
 from flowarc.mesh.primitives import aircraft
+from flowarc.package import pack, size_bytes
 from flowarc.sim.fluidx3d import FluidX3D
 from flowarc.sim.solver import SimConfig
 
@@ -32,7 +33,8 @@ def main():
     if a.quick:
         cfg.startup_time, cfg.record_time = 1.0, 1.0
     r = FluidX3D().run(mesh, cfg, a.out / "sim", a.gpu)
-    print(json.dumps({"ok": r.ok, **r.stats, **r.cost}))
+    gb = size_bytes(pack(r, cfg, a.out / "sample.zarr", {"mesh": a.mesh})) / 1e9 if r.ok else None
+    print(json.dumps({"ok": r.ok, **r.stats, **r.cost, "zarr_gb": gb}))
 
 
 if __name__ == "__main__":
