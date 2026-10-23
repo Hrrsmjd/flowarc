@@ -53,16 +53,17 @@ def argon(prompt, schema=None, thinking="medium", **kw):
     return ask(prompt, model=config.LEAD_MODEL, schema=schema, thinking=thinking, **kw)
 
 
-def image_part(png: bytes, mime="image/png") -> dict:
-    return {"type": "image", "data": base64.b64encode(png).decode(), "mime_type": mime}
+def image_part(img: bytes, mime="image/jpeg") -> dict:
+    return {"type": "image", "data": base64.b64encode(img).decode(), "mime_type": mime}
 
 
 def generate_image(prompt, refs: list[bytes] = (), aspect="1:1") -> bytes:
+    """Returns JPEG bytes; refs are JPEGs the image should match."""
     parts = [{"type": "text", "text": prompt}] + [image_part(r) for r in refs]
     it = client().interactions.create(
         model=config.IMAGE_MODEL,
         input=parts,
-        response_format={"type": "image", "mime_type": "image/png", "aspect_ratio": aspect},
+        response_format={"type": "image", "mime_type": "image/jpeg", "aspect_ratio": aspect},
     )
     if it.output_image is None:
         raise RuntimeError(f"no image returned ({it.id})")
