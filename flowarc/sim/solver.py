@@ -9,8 +9,12 @@ from typing import Protocol
 class SimConfig:
     reynolds: float
     cells_per_length: int
-    domain: tuple[float, float, float] = (6.0, 3.0, 3.0)  # in body lengths
-    body_offset: float = 1.5  # body nose distance from inlet, in body lengths
+    domain: tuple[float, float, float] = (
+        8.0,
+        4.0,
+        4.0,
+    )  # 6x3x3 over-predicts sphere drag by ~17%  # in body lengths
+    body_offset: float = 2.0  # body nose distance from inlet, in body lengths
     ground: bool = False
     lattice_velocity: float = 0.075
     les: bool = True  # Smagorinsky subgrid model

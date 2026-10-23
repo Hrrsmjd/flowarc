@@ -151,7 +151,7 @@ class FluidX3D:
             "cam_rx": -50.0,
             "cam_ry": 25.0,
             "cam_fov": 50.0,
-            "cam_zoom": 2.5,
+            "cam_zoom": 2.0,
         }
         (out / "fluidx3d.cfg").write_text("".join(f"{k} {v}\n" for k, v in keys.items()))
         exe = self.bin_dir / ("fluidx3d-les" if cfg.les else "fluidx3d-dns")

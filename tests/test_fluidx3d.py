@@ -8,12 +8,12 @@ from flowarc.sim.solver import SimConfig
 def test_lattice_and_placement():
     cfg = SimConfig(reynolds=100, cells_per_length=20)
     lat = lattice(cfg)
-    assert (lat["Nx"], lat["Ny"], lat["Nz"]) == (120, 60, 60)
+    assert (lat["Nx"], lat["Ny"], lat["Nz"]) == (160, 80, 80)
     assert np.isclose(lat["nu"], 0.075 * 20 / 100)
     assert lat["frame_every"] == round(0.1 * 20 / 0.075)
     m = place(trimesh.creation.icosphere(radius=0.5), cfg, lat)
     lo, hi = m.bounds
-    assert np.isclose(lo[0], 30) and np.allclose((lo[1:] + hi[1:]) / 2, 30)
+    assert np.isclose(lo[0], 40) and np.allclose((lo[1:] + hi[1:]) / 2, 40)
     assert abs(frontal_area(m) - np.pi * 10**2) / (np.pi * 10**2) < 0.15
 
 
