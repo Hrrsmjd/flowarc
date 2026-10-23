@@ -9,7 +9,7 @@ Rule: get one object through the whole chain first, then widen. Keep `main` runn
 - Solver: **FluidX3D** (Harris holds a commercial licence), D3Q19 with FP16 storage, voxelized body, Smagorinsky LES at high Re. Our setup file and build script are in `flowarc/sim/fluidx3d/`; the backend sits behind `Solver`, so it can be swapped.
 - Time in convective units L/U: drop ~10 L/U of start-up, record 30 L/U at 0.1 L/U (300 frames).
 - Convergence is statistical: running means stable in time, QoIs within tolerance across grid levels. Hitting the resolution cap → keep, flag "not converged".
-- Storage: Zarr, float16, one folder per sample under `FLOWARC_DATA`. MongoDB Atlas is an optional mirror of the registry. Finished samples go to a private Hugging Face dataset; the local copy is deleted once the upload is checked, so RDS only holds runs in progress. Public only after Harris approves.
+- Storage: Zarr, float16, one folder per sample under `FLOWARC_DATA`. **MongoDB Atlas is the registry** (sample records, check results, logs, concept embeddings); Atlas Vector Search does the novelty check. JSON files are the offline fallback. Finished samples go to a private Hugging Face dataset; the local copy is deleted once the upload is checked, so RDS only holds runs in progress. Public only after Harris approves.
 - Human approval before publishing the dataset and before any run over the compute budget.
 
 ## Phases

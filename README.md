@@ -35,7 +35,19 @@ Every stage has a pass/fail check. On failure the evidence goes back to Argon, w
 | `gemini-nano-banana-2.1` | Reference images |
 | `gemini-embedding-2` | Novelty check and diversity map |
 
+Embeddings are stored in MongoDB Atlas and searched with Atlas Vector Search (see below).
+
 All calls use the Interactions API (`client.interactions.create`, `google-genai>=2.30`).
+
+## Data: MongoDB Atlas
+
+Atlas is the dataset registry. Each sample is one document in `samples`: stage, status, concept, every check result, attempts, solver settings and the concept's embedding. Agent events go to `logs`. All GPU workers and the dashboard read and write the same registry.
+
+- **Novelty.** A new concept is embedded with `gemini-embedding-2` and checked against every existing sample with Atlas Vector Search (`concept_vectors` index, cosine). Too close to an existing sample → rejected, with the nearest neighbours recorded as evidence.
+- **Coverage.** An aggregation counts samples per taxonomy bucket, so Argon can aim new concepts at the gaps.
+- Bulk outputs (Zarr, video, meshes) stay on disk under `FLOWARC_DATA`; Atlas holds the record.
+
+Without `MONGODB_URI` the registry falls back to JSON files in each sample folder (used by the tests).
 
 ## Compute
 
@@ -48,6 +60,7 @@ All calls use the Interactions API (`client.interactions.create`, `google-genai>
 flowarc/         Python package
   config.py      paths and phase settings
   sample.py      sample record, state and log (the registry)
+  store.py       MongoDB Atlas: registry, vector search, coverage
   gemini.py      thin Gemini wrapper
   concepts.py    stage 1
   images.py      stage 2
@@ -66,7 +79,8 @@ docs/GOAL.md     the full brief
 
 ```bash
 uv venv --python 3.12 && uv pip install -e '.[dev]'   # add '.[sim]' on a GPU box
-cp .env.example .env                                   # add GEMINI_API_KEY
+cp .env.example .env                                   # add GEMINI_API_KEY and MONGODB_URI
+python scripts/setup_atlas.py                          # once: indexes + vector search index
 pytest
 ```
 
