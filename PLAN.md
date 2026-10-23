@@ -21,7 +21,9 @@ Rule: get one object through the whole chain first, then widen. Keep `main` runn
 
 ## Build order
 1. [ ] **H** Solver slice: FluidX3D, sphere drag vs Re and cylinder/sphere Strouhal checks, one aircraft mesh → video + point cloud. Measure time and GB per sample.
-   - Done: sphere drag within 3–8% in a 12×6×6 box (6×3×3 read ~17% high, so the default is now 8×4×4). Test jet at 64 cells/L: 236 s on one A100, 0.55 GB Zarr + 6 MB video. To do: Strouhal, cylinder, Ahmed body.
+   - Done: sphere drag within 3–8% in a 12×6×6 box; Re 300 at 48 cells/D gives Cd 0.657 (Johnson & Patel: 0.656). 6×3×3 read ~17% high, so the default box is now 8×4×4. Test jet at 64 cells/L: 236 s on one A100, 0.55 GB Zarr + 6 MB video.
+   - Open: in the 8×4×4 box at Re ≥ 1e5 (SRT + LES), drag rings with a 24-step period (RMS 25% of the mean). No ringing at Re 1e4 or in 6×3×3. TRT removes it but gives Mach 0.5 hot spots on the jet and blows up on a coarse sphere, so SRT stays for now. Sphere St at Re 300 reads 0.05 (expected ~0.137); the wake likely needs a longer spin-up.
+   - To do: fix the ringing, Strouhal, cylinder, Ahmed body.
 2. [ ] **H** Mesh bake-off (~10 objects through Hunyuan3D-2.1 / 2mv / TRELLIS.2), mesh checks, Argon review and repair loop.
 3. [ ] **H+O** One hand-picked object through all stages.
 4. [ ] **O** Argon orchestration, Flash subagents, GPU pool. Phase 1: 10–20 samples, then 100.
