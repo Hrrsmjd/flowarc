@@ -52,7 +52,7 @@ flowarc/         Python package
   concepts.py    stage 1
   images.py      stage 2
   mesh/          stage 3: generators, checks, repair
-  sim/           stage 4: solver interface, LBM, statistics
+  sim/           stage 4: solver interface, FluidX3D backend, statistics
   render.py      stage 5
   package.py     stage 6
   pipeline.py    runs samples through the stages

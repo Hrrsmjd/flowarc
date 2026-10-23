@@ -9,7 +9,7 @@ Rule: get one object through the whole chain first, then widen. Keep `main` runn
 - Solver: **FluidX3D** (Harris holds a commercial licence), D3Q19 with FP16 storage, voxelized body, Smagorinsky LES at high Re. Our setup file and build script are in `flowarc/sim/fluidx3d/`; the backend sits behind `Solver`, so it can be swapped.
 - Time in convective units L/U: drop ~10 L/U of start-up, record 30 L/U at 0.1 L/U (300 frames).
 - Convergence is statistical: running means stable in time, QoIs within tolerance across grid levels. Hitting the resolution cap → keep, flag "not converged".
-- Storage: Zarr, float16, one folder per sample under `FLOWARC_DATA`. MongoDB Atlas is an optional mirror of the registry.
+- Storage: Zarr, float16, one folder per sample under `FLOWARC_DATA`. MongoDB Atlas is an optional mirror of the registry. Finished samples go to a private Hugging Face dataset; the local copy is deleted once the upload is checked, so RDS only holds runs in progress. Public only after Harris approves.
 - Human approval before publishing the dataset and before any run over the compute budget.
 
 ## Phases
@@ -21,6 +21,7 @@ Rule: get one object through the whole chain first, then widen. Keep `main` runn
 
 ## Build order
 1. [ ] **H** Solver slice: FluidX3D, sphere drag vs Re and cylinder/sphere Strouhal checks, one aircraft mesh → video + point cloud. Measure time and GB per sample.
+   - Done: sphere drag within 3–8% in a 12×6×6 box (6×3×3 read ~17% high, so the default is now 8×4×4). Test jet at 64 cells/L: 236 s on one A100, 0.55 GB Zarr + 6 MB video. To do: Strouhal, cylinder, Ahmed body.
 2. [ ] **H** Mesh bake-off (~10 objects through Hunyuan3D-2.1 / 2mv / TRELLIS.2), mesh checks, Argon review and repair loop.
 3. [ ] **H+O** One hand-picked object through all stages.
 4. [ ] **O** Argon orchestration, Flash subagents, GPU pool. Phase 1: 10–20 samples, then 100.
