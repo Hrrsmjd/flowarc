@@ -108,17 +108,32 @@ def _table(path: Path, cols: int) -> np.ndarray:
     return np.array(rows, float).reshape(-1, cols)
 
 
+ST_MAX = 5.0  # fastest physical force content, as St = f L / U
+
+
+def _smooth(x: np.ndarray, w: int) -> np.ndarray:
+    """Moving average over w samples along time (axis 0)."""
+    if w <= 1 or len(x) < w:
+        return x
+    k = np.ones(w) / w
+    return np.stack([np.convolve(c, k, mode="valid") for c in x.T], axis=1)
+
+
 def stats(forces: np.ndarray, cfg: SimConfig, lat: dict, area: float) -> dict:
     """Force coefficients over the recorded window, plus a half-vs-half convergence check."""
     t, F = forces[:, 0], forces[:, 1:]
     rec = t > lat["startup_steps"]
     q = 0.5 * lat["u"] ** 2 * area
     C = F[rec] / q
+    # Force ringing faster than St_max is a lattice artefact (fixed in steps, not in L/U), so RMS is low-passed.
+    w = max(1, round(cfg.cells_per_length / (lat["u"] * ST_MAX) / lat["force_every"]))
+    Cs = _smooth(C, w)
     out = {"area_cells": area, "samples": int(rec.sum())}
     for i, name in enumerate(["cd", "cs", "cl"]):
         c = C[:, i]
         out[f"{name}_mean"] = float(c.mean()) if len(c) else float("nan")
-        out[f"{name}_rms"] = float(c.std()) if len(c) else float("nan")
+        out[f"{name}_rms"] = float(Cs[:, i].std()) if len(Cs) else float("nan")
+        out[f"{name}_rms_raw"] = float(c.std()) if len(c) else float("nan")
     if len(C) >= 4:
         h = len(C) // 2
         a, b = C[:h, 0].mean(), C[h:, 0].mean()
