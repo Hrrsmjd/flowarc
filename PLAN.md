@@ -6,7 +6,7 @@ Rule: get one object through the whole chain first, then widen. Keep `main` runn
 
 ## Decisions
 - Objects come from **images → image-to-3D** (Hunyuan3D-2.1 default), not from Argon writing mesh code.
-- Solver: **our own D3Q19 lattice Boltzmann in NVIDIA Warp**, voxelized body, Smagorinsky LES at high Re. FluidX3D is the speed reference only (its licence bans commercial use and needs changed source published).
+- Solver: **FluidX3D** (Harris holds a commercial licence), D3Q19 with FP16 storage, voxelized body, Smagorinsky LES at high Re. Our setup file and build script are in `flowarc/sim/fluidx3d/`; the backend sits behind `Solver`, so it can be swapped.
 - Time in convective units L/U: drop ~10 L/U of start-up, record 30 L/U at 0.1 L/U (300 frames).
 - Convergence is statistical: running means stable in time, QoIs within tolerance across grid levels. Hitting the resolution cap → keep, flag "not converged".
 - Storage: Zarr, float16, one folder per sample under `FLOWARC_DATA`. MongoDB Atlas is an optional mirror of the registry.
@@ -20,7 +20,7 @@ Rule: get one object through the whole chain first, then widen. Keep `main` runn
 | 3 reference | ~256 | as time allows | reference-video quality |
 
 ## Build order
-1. [ ] **H** Solver slice: Warp LBM, sphere drag vs Re and cylinder/sphere Strouhal checks, one aircraft mesh → video + point cloud. Measure time and GB per sample.
+1. [ ] **H** Solver slice: FluidX3D, sphere drag vs Re and cylinder/sphere Strouhal checks, one aircraft mesh → video + point cloud. Measure time and GB per sample.
 2. [ ] **H** Mesh bake-off (~10 objects through Hunyuan3D-2.1 / 2mv / TRELLIS.2), mesh checks, Argon review and repair loop.
 3. [ ] **H+O** One hand-picked object through all stages.
 4. [ ] **O** Argon orchestration, Flash subagents, GPU pool. Phase 1: 10–20 samples, then 100.
