@@ -17,6 +17,7 @@ class SimConfig:
     startup_time: float = 10.0  # L/U
     record_time: float = 30.0  # L/U
     frame_interval: float = 0.1  # L/U; 0 = no frames
+    render: bool = True  # write Q-criterion video frames
     justification: str = ""
 
 
