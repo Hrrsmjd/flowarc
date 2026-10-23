@@ -8,7 +8,7 @@ credentials.json
 service-account*.json
 
 # ---- python ----
-_pycache_/
+__pycache__/
 *.py[cod]
 *.egg-info/
 .eggs/
@@ -37,3 +37,9 @@ datasets/
 *.vtk
 *.vtu
 *.h5
+
+# ---- flowarc outputs ----
+*.zarr/
+*.mp4
+*.stl
+*.glb

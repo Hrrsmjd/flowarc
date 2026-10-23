@@ -1,72 +1,35 @@
 # FlowArc — build plan
 
-Deadline: **Sunday 25 Oct, 12:00 midday.** Owners: **O** = Ose (agent/platform + demo), **H** = Harris (physics/solver).
+Deadline: **Sunday 25 Oct, 12:00.** Owners: **O** = Ose (agent, platform, demo), **H** = Harris (physics, solver). Full brief: [docs/GOAL.md](docs/GOAL.md).
 
-The one rule: **get ONE object through the whole chain tonight, then widen.** Keep `main` runnable; pull before you push.
+Rule: get one object through the whole chain first, then widen. Keep `main` runnable.
 
-**Pipeline (primary):** Argon generates mesh (code) → repair/validate → voxelise → LBM solve → store → target gaps → repeat.
-**Stretch (Sat, for visual variety):** nano banana (image) → Hunyuan3D (mesh) as an alternative front end.
+## Decisions
+- Objects come from **images → image-to-3D** (Hunyuan3D-2.1 default), not from Argon writing mesh code.
+- Solver: **our own D3Q19 lattice Boltzmann in NVIDIA Warp**, voxelized body, Smagorinsky LES at high Re. FluidX3D is the speed reference only (its licence bans commercial use and needs changed source published).
+- Time in convective units L/U: drop ~10 L/U of start-up, record 30 L/U at 0.1 L/U (300 frames).
+- Convergence is statistical: running means stable in time, QoIs within tolerance across grid levels. Hitting the resolution cap → keep, flag "not converged".
+- Storage: Zarr, float16, one folder per sample under `FLOWARC_DATA`. MongoDB Atlas is an optional mirror of the registry.
+- Human approval before publishing the dataset and before any run over the compute budget.
 
----
+## Phases
+| Phase | Cells along body | Samples | Goal |
+|---|---|---|---|
+| 1 pilot | ~64 (ladder 48 → 64) | 10–20, then 100 | every stage and check works |
+| 2 first dataset | ~100–128 | 100 in a few hours on 7 A100s | real data |
+| 3 reference | ~256 | as time allows | reference-video quality |
 
-## 0. Lock scope (do this first, ~10 min)
-- [ ] Objects: **Argon generates meshes via code** (procedural/parametric — cars, wings, ducts), CFD-ready by construction. Narrow class first — **O + H**
-- [ ] Solver: **voxelise the mesh + lattice-Boltzmann / immersed boundary** (robust, fast; NOT body-fitted, NOT RANS/LES) — **H confirm**
-- [ ] Repair/validate: trimesh — watertight / manifold / normals; keep one red→green case — **H**
-- [ ] Gates: mesh valid + LBM residual < tol = "converged" — **H set numbers**
-- [ ] Gap targeting: embed shape/params, vector-search Atlas, generate where coverage thin — **O**
-- [ ] Interface contract: a `sample` = {params} → {mesh, voxel grid, flow field, residual, valid flag} — **O + H**
+## Build order
+1. [ ] **H** Solver slice: Warp LBM, sphere drag vs Re and cylinder/sphere Strouhal checks, one aircraft mesh → video + point cloud. Measure time and GB per sample.
+2. [ ] **H** Mesh bake-off (~10 objects through Hunyuan3D-2.1 / 2mv / TRELLIS.2), mesh checks, Argon review and repair loop.
+3. [ ] **H+O** One hand-picked object through all stages.
+4. [ ] **O** Argon orchestration, Flash subagents, GPU pool. Phase 1: 10–20 samples, then 100.
+5. [ ] **H** Report measured throughput, propose Phase 2 resolution. Run Phase 2 after approval.
+6. [ ] **O** Dashboard: live agent activity, review requests, sample viewer, video gallery, diversity map.
+7. [ ] **O+H** README for submission: problem, user, architecture, Gemini usage, how to run, limits.
 
-## 1. Tonight (Fri) — de-risk the chain. Nothing else matters.
-- [x] **O:** repo up, `pyproject.toml`, `.env` wired
-- [ ] **O:** Argon generates one mesh via code
-- [ ] **H:** voxelise + LBM solve on one object → flow field + residual
-- [ ] **H:** define "valid mesh" and "converged solve"
-- [ ] **O:** one full document written to MongoDB Atlas
-- [ ] **GOAL:** `pipeline.smoke` runs generate → repair → voxelise → solve → store for ONE object ✅
-- [ ] (stretch, only if above done) spike nano banana → Hunyuan3D hosting
-
-## 2. Saturday AM — the loop
-- [ ] **H:** solver robust across a range of generated objects; convergence reliable
-- [ ] **O:** full loop as one autonomous run (generate → repair → voxelise → solve → store → repeat, `background=True`)
-
-## 3. Saturday — split: Harris scales the science, Ose builds the demo
-**H (science):**
-- [ ] Flash subagents for parallel generation/eval
-- [ ] repair step polished — detect + fix one malformed mesh (clean red→green)
-- [ ] 2–3 validation checks → say "sanity-checked," not "accurate"
-- [ ] (stretch) nano banana + Hunyuan3D path for visual variety
-
-**O (demo + autonomy viz — the Agents That Ship story):**
-- [ ] Control-room UI: live activity feed, parallel agent tiles, counter, coverage map
-- [ ] Atlas vector-search targeting shown filling the coverage map live
-- [ ] The "runs while I talk" device: loop keeps producing during the pitch
-- [ ] Human-in-the-loop gate shown once (approval before anything external)
-
-## 4. Saturday night — polish, then FREEZE
-- [ ] End-to-end runs unattended and produces a growing library
-- [ ] **Feature freeze** — no new scope after this point
-
-## 5. Sunday AM → 11:00 — ship
-- [ ] Rehearse the 3-min demo (loop running live, repair red→green, residual converging, library + coverage growing)
-- [ ] Record the backup demo video
-- [ ] Write the submission (name models/agents used + how: Argon, Flash, Atlas; nano banana/Hunyuan if used)
-- [ ] Buffer 11:00–12:00 before deadline
-
----
-
-## Critical path
-Tonight's smoke test on the Argon-generates-mesh path. It has no external hosting dependency, so it's the safe core. Hunyuan is a stretch, never on the critical path.
-
-## Kill-list (these sink the weekend)
-- [ ] NOT body-fitted meshing — voxelise instead
-- [ ] NOT a high-fidelity solver (no RANS/LES) — LBM / immersed boundary only
-- [ ] NOT putting Hunyuan hosting on the critical path — it's a stretch
-- [ ] NOT claiming "accurate" data — say "approximate, sanity-checked"
-
-## Demo must-haves (what judges score)
-- [ ] Autonomy is visible: agents working live + the "ran while I talked" moment
-- [ ] One verification loop with a number (residual converging, or repair red→green)
-- [ ] A named user (ML-for-science / CFD researcher)
-- [ ] Argon clearly load-bearing (generates meshes + orchestrates + targets gaps)
-- [ ] Human-in-the-loop line (nothing external acted on without approval)
+## Demo (under 3 min)
+- A live sample runs at Phase 1 resolution while the batch is pre-computed.
+- Show one failed check going back to Argon and getting fixed.
+- Show convergence numbers and the diversity map against a car-only baseline.
+- Show the human approval gate.
