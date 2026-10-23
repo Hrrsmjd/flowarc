@@ -104,7 +104,8 @@ def stats(forces: np.ndarray, cfg: SimConfig, lat: dict, area: float) -> dict:
         out["cd_half_change"] = float(abs(a - b) / max(abs(b), 1e-9))
         dt = lat["force_every"]
         L = cfg.cells_per_length
-        out["st"] = strouhal(C[:, 1:], dt, L, lat["u"])
+        unsteady = C[:, 1:].std(axis=0).max() > 1e-3  # steady wakes have no shedding frequency
+        out["st"] = strouhal(C[:, 1:], dt, L, lat["u"]) if unsteady else 0.0
     return out
 
 

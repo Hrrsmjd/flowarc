@@ -21,6 +21,7 @@ for variant in les dns; do
   sed -i 's|^\t\tstd::atomic_int running_encoders = 0;|\tpublic:\n\t\tstd::atomic_int running_encoders = 0;\n\tprivate:|' "$work/src/lbm.hpp"
   k="$work/src/kernel.cpp"
   sed -i 's|^)+R(int shading(const int c|)+R(int colorscale_flowarc(float x) { return color_mix(0xE63946, 0x2A9D8F, clamp(6.0f*(x-0.75f), 0.0f, 1.0f)); }\n)+R(int shading(const int c|' "$k"
+  sed -i 's|int c0=0xDFDFDF, c1=0xDFDFDF, c2=0xDFDFDF;|int c0=0x34383C, c1=0x34383C, c2=0x34383C;|' "$k"
   sed -i 's|shading(colorscale_rainbow(def_scale_u\*length(v\([012]\)))|shading(colorscale_flowarc(def_scale_u*length(v\1))|' "$k"
   grep -q "colorscale_flowarc(def_scale_u" "$k" && grep -q "52<<16" "$work/src/lbm.cpp" || { echo "patch failed"; exit 1; }
   (cd "$work" && make Linux -j"$(nproc)" >build.log 2>&1) || { tail -30 "$work/build.log"; rm -rf "$work"; exit 1; }
