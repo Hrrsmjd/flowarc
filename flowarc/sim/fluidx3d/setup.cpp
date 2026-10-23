@@ -102,6 +102,9 @@ void main_setup() {
 			frame++;
 		}
 	}
+#ifdef GRAPHICS
+	while(lbm.graphics.running_encoders>0) sleep(0.01); // wait for queued .png writes
+#endif
 	std::ofstream status(out+"status.txt");
 	status<<"ok "<<(blown?0:1)<<"\nsteps "<<lbm.get_t()<<"\nseconds "<<clock.stop()<<"\ncells "<<lbm.get_N()<<"\nframes "<<frame<<"\n";
 	status.close();

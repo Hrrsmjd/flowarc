@@ -25,5 +25,5 @@ def test_stats_recovers_strouhal():
     q = 0.5 * lat["u"] ** 2 * 100
     forces = np.column_stack([t, q * np.ones_like(t), q * 0.1 * np.sin(2 * np.pi * f * t), 0 * t])
     s = stats(forces, cfg, lat, 100)
-    assert np.isclose(s["cd_mean"], 1) and abs(s["st_side"] - 0.2) < 0.02
-    assert strouhal(np.zeros(100), 1, 1, 1) == 0
+    assert np.isclose(s["cd_mean"], 1) and abs(s["st"] - 0.2) < 0.02
+    assert strouhal(np.zeros((100, 2)), 1, 1, 1) == 0

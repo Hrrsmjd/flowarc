@@ -69,14 +69,22 @@ def probes(m: trimesh.Trimesh, lat: dict, n_surface: int, n_volume: int, seed: i
     return pts, surf.astype(np.float32), vol.astype(np.float32)
 
 
-def strouhal(signal: np.ndarray, dt: float, L: float, u: float) -> float:
-    """Dominant frequency of a force signal, as St = f L / U."""
-    s = signal - signal.mean()
-    if len(s) < 16 or not np.any(s):
+def strouhal(signals: np.ndarray, dt: float, L: float, u: float, st_min: float = 0.05) -> float:
+    """Dominant shedding frequency of one or more force signals (columns), as St = f L / U.
+
+    Signals are detrended; the summed power spectrum is searched above st_min to skip slow drift.
+    """
+    s = np.atleast_2d(np.asarray(signals, float).T).T
+    if len(s) < 16:
         return 0.0
-    spec = np.abs(np.fft.rfft(s * np.hanning(len(s))))
-    f = np.fft.rfftfreq(len(s), dt)
-    return float(f[1 + spec[1:].argmax()] * L / u)
+    t = np.arange(len(s))
+    s = s - np.polyval(np.polyfit(t, s, 1), t[:, None])
+    power = (np.abs(np.fft.rfft(s * np.hanning(len(s))[:, None], axis=0)) ** 2).sum(axis=1)
+    st = np.fft.rfftfreq(len(s), dt) * L / u
+    band = st >= st_min
+    if not band.any() or not power[band].any():
+        return 0.0
+    return float(st[band][power[band].argmax()])
 
 
 def stats(forces: np.ndarray, cfg: SimConfig, lat: dict, area: float) -> dict:
@@ -96,16 +104,22 @@ def stats(forces: np.ndarray, cfg: SimConfig, lat: dict, area: float) -> dict:
         out["cd_half_change"] = float(abs(a - b) / max(abs(b), 1e-9))
         dt = lat["force_every"]
         L = cfg.cells_per_length
-        out["st_side"] = strouhal(C[:, 1], dt, L, lat["u"])
-        out["st_lift"] = strouhal(C[:, 2], dt, L, lat["u"])
+        out["st"] = strouhal(C[:, 1:], dt, L, lat["u"])
     return out
 
 
 class FluidX3D:
     """Runs the FlowArc FluidX3D build (see build.sh) on one GPU."""
 
-    def __init__(self, bin_dir: Path = BIN, n_surface: int = 50_000, n_volume: int = 200_000):
+    def __init__(
+        self,
+        bin_dir: Path = BIN,
+        n_surface: int = 50_000,
+        n_volume: int = 200_000,
+        q_star: float = 5.0,
+    ):
         self.bin_dir = Path(bin_dir)
+        self.q_star = q_star  # Q-criterion isosurface level in units of (U/L)^2
         self.n_surface = n_surface
         self.n_volume = n_volume
 
@@ -133,14 +147,15 @@ class FluidX3D:
             "stl": out / "body.stl",
             "probes": out / "probes.f32",
             "out": out,
-            "cam_rx": 30.0,
-            "cam_ry": 20.0,
-            "cam_fov": 60.0,
-            "cam_zoom": 1.0,
+            "cam_rx": 130.0,
+            "cam_ry": 25.0,
+            "cam_fov": 50.0,
+            "cam_zoom": 2.0,
         }
         (out / "fluidx3d.cfg").write_text("".join(f"{k} {v}\n" for k, v in keys.items()))
         exe = self.bin_dir / ("fluidx3d-les" if cfg.les else "fluidx3d-dns")
-        env = {**os.environ, "FLOWARC_CFG": str(out / "fluidx3d.cfg")}
+        q = self.q_star * (cfg.lattice_velocity / cfg.cells_per_length) ** 2
+        env = {**os.environ, "FLOWARC_CFG": str(out / "fluidx3d.cfg"), "FLOWARC_Q": f"{q:.6g}"}
         with open(out / "fluidx3d.log", "w") as log:
             proc = subprocess.run(
                 [str(exe), str(gpu)], check=False, env=env, stdout=log, stderr=subprocess.STDOUT
