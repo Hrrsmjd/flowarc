@@ -13,6 +13,7 @@ class SimConfig:
     domain: tuple[float, float, float] = (8.0, 4.0, 4.0)
     body_offset: float = 2.0  # body nose distance from inlet, in body lengths
     ground: bool = False
+    periodic_span: bool = False  # periodic in y, for spanwise-uniform bodies like a cylinder
     lattice_velocity: float = 0.075
     les: bool = True  # Smagorinsky subgrid model
     startup_time: float = 10.0  # L/U
