@@ -4,7 +4,7 @@
 
 Datasets like DrivAerNet++ hold one kind of shape (cars). Neural physics models trained on them fail on anything else. FlowArc uses Gemini to invent objects of every kind (animals, aircraft, furniture, buildings, abstract shapes), turns each into a checked 3D mesh, and runs a time-resolved GPU flow simulation around it. Every sample ships with proof that it is sound: mesh checks, a stable solve and converged statistics.
 
-Built at **Encode London 2026** (Google DeepMind Gemini 4 Argon bounty). All code was written during the hackathon. The full brief is in [docs/GOAL.md](docs/GOAL.md); the build plan is in [PLAN.md](PLAN.md).
+Built at **Encode London 2026** (Google DeepMind Gemini 4 Argon bounty). All code was written during the hackathon. The full brief is in [docs/GOAL.md](docs/GOAL.md); the target look is [docs/fullflow_loop_1920x1080.mp4](docs/fullflow_loop_1920x1080.mp4); the build plan is in [PLAN.md](PLAN.md).
 
 ## Who it is for
 
