@@ -10,13 +10,13 @@ dependencies = [
     "pydantic>=2",
     "pillow",
     "trimesh",
+    "rtree",
     "manifold3d",
     "zarr>=3",
     "python-dotenv",
 ]
 
 [project.optional-dependencies]
-sim = ["warp-lang>=1.10"]
 store = ["pymongo>=4.8"]
 dev = ["ruff", "pytest"]
 

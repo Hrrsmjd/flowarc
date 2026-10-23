@@ -52,7 +52,7 @@ flowarc/         Python package
   concepts.py    stage 1
   images.py      stage 2
   mesh/          stage 3: generators, checks, repair
-  sim/           stage 4: solver interface, LBM, statistics
+  sim/           stage 4: solver interface, FluidX3D backend, statistics
   render.py      stage 5
   package.py     stage 6
   pipeline.py    runs samples through the stages
@@ -81,3 +81,7 @@ All data goes under `FLOWARC_DATA` (on w7830 this must be inside `~/RDS`).
 
 - **@Esoiya** — platform, agent and demo
 - **@Hrrsmjd** — physics, solver, ML for science
+
+## Known limits
+
+- No wall model. At high Re the boundary layer is thinner than a few cells, so Re is nominal. Each sample records this under `resolution` in its Zarr attributes (`tau`, `bl_cells`, `re_nominal`).
