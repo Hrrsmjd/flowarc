@@ -23,7 +23,8 @@ Rule: get one object through the whole chain first, then widen. Keep `main` runn
 1. [ ] **H** Solver slice: FluidX3D, sphere drag vs Re and cylinder/sphere Strouhal checks, one aircraft mesh → video + point cloud. Measure time and GB per sample.
    - Done: sphere drag within 3–8% in a 12×6×6 box; Re 300 at 48 cells/D gives Cd 0.657 (Johnson & Patel: 0.656). 6×3×3 read 15–27% high. The default box is now 8×4×4: at 32 cells/D it reads +8% at Re 20, +3% at Re 100 and 0% at Re 300. Test jet at 64 cells/L: 236 s on one A100, 0.55 GB Zarr + 6 MB video.
    - Open: in the 8×4×4 box at Re ≥ 1e5 (SRT + LES), drag rings with a 12-step period (RMS ~25% of the mean); sampling every 8 steps had aliased it to 24. No ringing at Re 1e4 or in 6×3×3. Same in FP32, so it isn't FP16 storage. TRT removes it but gives Mach 0.5 hot spots on the jet and blows up on a coarse sphere, so SRT stays. Next test: a sponge layer at the outlet. Sphere St at Re 300 is 0.1375 with a 60 D/U spin-up and 80 D/U record (`--st`), vs ~0.137 expected.
-   - To do: fix the ringing, Strouhal, cylinder, Ahmed body.
+   - To do: fix the ringing (sponge layer), cylinder, Ahmed body.
+   - Speed, after the hackathon: step in chunks instead of one `lbm.run` per step, do mass and Mach checks on the GPU instead of full-domain readback, and stream frames into `pack()` instead of loading them all.
 2. [ ] **H** Mesh bake-off (~10 objects through Hunyuan3D-2.1 / 2mv / TRELLIS.2), mesh checks, Argon review and repair loop.
 3. [ ] **H+O** One hand-picked object through all stages.
 4. [ ] **O** Argon orchestration, Flash subagents, GPU pool. Phase 1: 10–20 samples, then 100.
