@@ -18,7 +18,7 @@ The one rule: **get ONE object through the whole chain tonight, then widen.** Ke
 - [ ] Interface contract: a `sample` = {params} → {mesh, voxel grid, flow field, residual, valid flag} — **O + H**
 
 ## 1. Tonight (Fri) — de-risk the chain. Nothing else matters.
-- [ ] **O:** repo up, `pyproject.toml`, `.env` wired
+- [x] **O:** repo up, `pyproject.toml`, `.env` wired
 - [ ] **O:** Argon generates one mesh via code
 - [ ] **H:** voxelise + LBM solve on one object → flow field + residual
 - [ ] **H:** define "valid mesh" and "converged solve"
