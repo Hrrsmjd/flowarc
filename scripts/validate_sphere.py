@@ -36,7 +36,14 @@ def main():
     rows = []
     for re in a.re:
         cfg = SimConfig(
-            reynolds=re, cells_per_length=a.cells, les=False, render=False, frame_interval=1.0
+            reynolds=re,
+            cells_per_length=a.cells,
+            domain=tuple(a.domain),
+            body_offset=a.domain[0] / 4,
+            record_time=a.record,
+            les=False,
+            render=False,
+            frame_interval=1.0,
         )
         if a.quick:
             cfg.startup_time, cfg.record_time = 2.0, 2.0

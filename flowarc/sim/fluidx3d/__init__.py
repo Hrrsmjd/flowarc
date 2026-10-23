@@ -117,7 +117,7 @@ class FluidX3D:
         bin_dir: Path = BIN,
         n_surface: int = 50_000,
         n_volume: int = 200_000,
-        q_star: float = 5.0,
+        q_star: float = 50.0,
     ):
         self.bin_dir = Path(bin_dir)
         self.q_star = q_star  # Q-criterion isosurface level in units of (U/L)^2
@@ -148,10 +148,10 @@ class FluidX3D:
             "stl": out / "body.stl",
             "probes": out / "probes.f32",
             "out": out,
-            "cam_rx": 130.0,
+            "cam_rx": -50.0,
             "cam_ry": 25.0,
             "cam_fov": 50.0,
-            "cam_zoom": 2.0,
+            "cam_zoom": 2.5,
         }
         (out / "fluidx3d.cfg").write_text("".join(f"{k} {v}\n" for k, v in keys.items()))
         exe = self.bin_dir / ("fluidx3d-les" if cfg.les else "fluidx3d-dns")
