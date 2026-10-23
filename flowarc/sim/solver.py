@@ -9,11 +9,8 @@ from typing import Protocol
 class SimConfig:
     reynolds: float
     cells_per_length: int
-    domain: tuple[float, float, float] = (
-        8.0,
-        4.0,
-        4.0,
-    )  # 6x3x3 over-predicts sphere drag by ~17%  # in body lengths
+    # In body lengths. 6x3x3 reads sphere drag 15-27% high (wall blockage).
+    domain: tuple[float, float, float] = (8.0, 4.0, 4.0)
     body_offset: float = 2.0  # body nose distance from inlet, in body lengths
     ground: bool = False
     lattice_velocity: float = 0.075
@@ -21,6 +18,7 @@ class SimConfig:
     startup_time: float = 10.0  # L/U
     record_time: float = 30.0  # L/U
     frame_interval: float = 0.1  # L/U; 0 = no frames
+    force_interval: float = 0.005  # L/U between force samples
     render: bool = True  # write Q-criterion video frames
     justification: str = ""
 

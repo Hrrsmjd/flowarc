@@ -1,7 +1,7 @@
 import numpy as np
 import trimesh
 
-from flowarc.sim.fluidx3d import frontal_area, lattice, place, stats, strouhal
+from flowarc.sim.fluidx3d import _table, frontal_area, lattice, place, stats, strouhal
 from flowarc.sim.solver import SimConfig
 
 
@@ -27,3 +27,17 @@ def test_stats_recovers_strouhal():
     s = stats(forces, cfg, lat, 100)
     assert np.isclose(s["cd_mean"], 1) and abs(s["st"] - 0.2) < 0.02
     assert strouhal(np.zeros((100, 2)), 1, 1, 1) == 0
+
+
+def test_forces_sampled_without_frames():
+    lat = lattice(SimConfig(reynolds=100, cells_per_length=64, frame_interval=0))
+    assert lat["force_every"] == round(0.005 * 64 / 0.075)
+
+
+def test_strouhal_band_edge_is_nan():
+    t = np.arange(1000) * 0.1
+    assert np.isnan(strouhal(np.sin(2 * np.pi * 0.02 * t), 0.1, 1.0, 1.0))
+
+
+def test_missing_table_is_empty(tmp_path):
+    assert _table(tmp_path / "forces.csv", 4).shape == (0, 4)

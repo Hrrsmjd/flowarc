@@ -9,7 +9,7 @@ static std::map<string, string> read_cfg(const string& path) {
 	std::ifstream f(path);
 	if(!f.is_open()) print_error("cannot open config "+path);
 	string k, v;
-	while(f>>k>>v) cfg[k] = v;
+	while(f>>k&&std::getline(f>>std::ws, v)) cfg[k] = v; // value is the rest of the line
 	return cfg;
 }
 

@@ -4,6 +4,7 @@ The mesh must already be normalized: length 1 along x, flow along +x.
 With `ground`, z=0 is the ground plane. Everything is converted to lattice units here.
 """
 
+import math
 import os
 import subprocess
 from pathlib import Path
@@ -13,7 +14,7 @@ import trimesh
 
 from flowarc.sim.solver import SimConfig, SimResult
 
-BIN = Path(os.environ.get("FLOWARC_FLUIDX3D_BIN", "bin"))
+BIN = Path(os.environ.get("FLOWARC_FLUIDX3D_BIN", Path(__file__).resolve().parents[3] / "bin"))
 
 
 def lattice(cfg: SimConfig) -> dict:
@@ -31,7 +32,7 @@ def lattice(cfg: SimConfig) -> dict:
         "startup_steps": round(cfg.startup_time * steps),
         "record_steps": round(cfg.record_time * steps),
         "frame_every": frame_every,
-        "force_every": max(1, frame_every // 10),
+        "force_every": max(1, round(cfg.force_interval * steps)),
     }
 
 
@@ -84,7 +85,18 @@ def strouhal(signals: np.ndarray, dt: float, L: float, u: float, st_min: float =
     band = st >= st_min
     if not band.any() or not power[band].any():
         return 0.0
-    return float(st[band][power[band].argmax()])
+    i = power[band].argmax()
+    if i == 0:
+        return float("nan")  # peak on the band edge: drift or unfinished transient, not shedding
+    return float(st[band][i])
+
+
+def _table(path: Path, cols: int) -> np.ndarray:
+    """CSV with a header row; empty if the file is missing or has no rows."""
+    try:
+        return np.loadtxt(path, delimiter=",", skiprows=1, ndmin=2).reshape(-1, cols)
+    except (OSError, ValueError):
+        return np.empty((0, cols))
 
 
 def stats(forces: np.ndarray, cfg: SimConfig, lat: dict, area: float) -> dict:
@@ -138,7 +150,7 @@ class FluidX3D:
             else (None, None, None)
         )
         if pts is not None:
-            np.save(out / "surface_points.npy", pts.astype(np.float32))
+            np.save(out / "surface_points.npy", surf)
             np.save(out / "volume_points.npy", vol)
             np.concatenate([surf, vol]).tofile(out / "probes.f32")
         keys = {
@@ -155,6 +167,10 @@ class FluidX3D:
         }
         (out / "fluidx3d.cfg").write_text("".join(f"{k} {v}\n" for k, v in keys.items()))
         exe = self.bin_dir / ("fluidx3d-les" if cfg.les else "fluidx3d-dns")
+        if not exe.exists():
+            raise FileNotFoundError(
+                f"{exe} missing: run flowarc/sim/fluidx3d/build.sh or set FLOWARC_FLUIDX3D_BIN"
+            )
         q = self.q_star * (cfg.lattice_velocity / cfg.cells_per_length) ** 2
         env = {**os.environ, "FLOWARC_CFG": str(out / "fluidx3d.cfg"), "FLOWARC_Q": f"{q:.6g}"}
         with open(out / "fluidx3d.log", "w") as log:
@@ -166,8 +182,8 @@ class FluidX3D:
             if (out / "status.txt").exists()
             else {}
         )
-        forces = np.loadtxt(out / "forces.csv", delimiter=",", skiprows=1, ndmin=2)
-        frames = np.loadtxt(out / "frames.csv", delimiter=",", skiprows=1, ndmin=2)
+        forces = _table(out / "forces.csv", 4)
+        frames = _table(out / "frames.csv", 5)
         st = stats(forces, cfg, lat, area) if len(forces) else {}
         if len(frames):
             mass = frames[:, 2]
@@ -181,35 +197,40 @@ class FluidX3D:
             "seconds": seconds,
             "cells": cells,
             "steps": steps,
-            "mlups": cells * steps / seconds / 1e6 if seconds else 0,
+            "mlups": cells * steps / seconds / 1e6 if math.isfinite(seconds) and seconds > 0 else 0,
             "gpu": gpu,
         }
         ok = proc.returncode == 0 and status.get("ok") == "1"
         video = None
         if ok and cfg.render and any((out / "render").glob("*.png")):
             video = out / "video.mp4"
-            subprocess.run(
-                [
-                    "ffmpeg",
-                    "-y",
-                    "-loglevel",
-                    "error",
-                    "-framerate",
-                    "30",
-                    "-pattern_type",
-                    "glob",
-                    "-i",
-                    str(out / "render/*.png"),
-                    "-c:v",
-                    "libx264",
-                    "-pix_fmt",
-                    "yuv420p",
-                    "-crf",
-                    "20",
-                    str(video),
-                ],
-                check=True,
-            )
+            try:
+                enc = subprocess.run(
+                    [
+                        "ffmpeg",
+                        "-y",
+                        "-loglevel",
+                        "error",
+                        "-framerate",
+                        "30",
+                        "-pattern_type",
+                        "glob",
+                        "-i",
+                        str(out / "render/*.png"),
+                        "-c:v",
+                        "libx264",
+                        "-pix_fmt",
+                        "yuv420p",
+                        "-crf",
+                        "20",
+                        str(video),
+                    ],
+                    check=False,
+                )
+                if enc.returncode:
+                    video = None
+            except OSError:
+                video = None
         return SimResult(
             ok=ok,
             forces=out / "forces.csv",

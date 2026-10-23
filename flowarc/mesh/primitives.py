@@ -15,13 +15,13 @@ def aircraft() -> trimesh.Trimesh:
     nose.apply_translation([0.2, 0, 0])
     parts = [fuselage, nose]
     for side in (-1, 1):
-        wing = box(extents=[0.28, 0.32, 0.018])
+        wing = box(extents=[0.28, 0.32, 0.05])
         wing.apply_transform(rotation_matrix(side * 0.6, [0, 0, 1]))
         wing.apply_translation([0.62, side * 0.17, -0.01])
-        fin = box(extents=[0.14, 0.012, 0.15])
+        fin = box(extents=[0.14, 0.05, 0.15])
         fin.apply_transform(rotation_matrix(side * 0.35, [1, 0, 0]))
         fin.apply_translation([0.9, side * 0.06, 0.08])
-        tail = box(extents=[0.12, 0.14, 0.012])
+        tail = box(extents=[0.12, 0.14, 0.05])
         tail.apply_translation([0.93, side * 0.1, 0.0])
         parts += [wing, fin, tail]
     m = trimesh.boolean.union(parts, engine="manifold")

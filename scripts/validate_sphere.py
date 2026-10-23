@@ -25,7 +25,11 @@ def main():
     p.add_argument("--re", type=float, nargs="+", default=[20, 100, 300])
     p.add_argument("--gpu", type=int, default=0)
     p.add_argument(
-        "--domain", type=float, nargs=3, default=[6.0, 3.0, 3.0], help="box size in diameters"
+        "--domain",
+        type=float,
+        nargs=3,
+        default=list(SimConfig(reynolds=1, cells_per_length=1).domain),
+        help="box size in diameters",
     )
     p.add_argument("--record", type=float, default=30.0, help="recorded time in D/U")
     p.add_argument("--startup", type=float, default=10.0, help="discarded spin-up time in D/U")
