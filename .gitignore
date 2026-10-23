@@ -1,0 +1,39 @@
+# ---- secrets ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+service-account*.json
+
+# ---- python ----
+_pycache_/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- node / web ----
+node_modules/
+dist/
+build/
+.vite/
+.next/
+*.log
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ---- data & model artefacts ----
+data/
+datasets/
+*.vtk
+*.vtu
+*.h5
