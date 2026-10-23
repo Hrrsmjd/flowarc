@@ -92,11 +92,20 @@ def strouhal(signals: np.ndarray, dt: float, L: float, u: float, st_min: float =
 
 
 def _table(path: Path, cols: int) -> np.ndarray:
-    """CSV with a header row; empty if the file is missing or has no rows."""
+    """CSV with a header row. Keeps only whole rows, so a crash mid-write loses just the last line."""
     try:
-        return np.loadtxt(path, delimiter=",", skiprows=1, ndmin=2).reshape(-1, cols)
-    except (OSError, ValueError):
+        lines = path.read_text().splitlines()[1:]
+    except OSError:
         return np.empty((0, cols))
+    rows = []
+    for line in lines:
+        try:
+            r = [float(v) for v in line.split(",")]
+        except ValueError:
+            continue
+        if len(r) == cols:
+            rows.append(r)
+    return np.array(rows, float).reshape(-1, cols)
 
 
 def stats(forces: np.ndarray, cfg: SimConfig, lat: dict, area: float) -> dict:

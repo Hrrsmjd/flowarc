@@ -28,6 +28,19 @@ def _put(g, name: str, a: np.ndarray, dtype) -> None:
     g.create_array(name, data=a, chunks=chunks)
 
 
+def resolution(cfg: SimConfig) -> dict:
+    """How well the walls are resolved. There is no wall model, so Re is nominal when the boundary layer is thin."""
+    L = cfg.cells_per_length
+    bl_cells = 5 * L / cfg.reynolds**0.5  # laminar boundary-layer thickness in cells
+    return {
+        "tau": 3 * cfg.lattice_velocity * L / cfg.reynolds + 0.5,
+        "les": cfg.les,
+        "wall_model": "none",
+        "bl_cells": bl_cells,
+        "re_nominal": bl_cells < 4,
+    }
+
+
 def pack(result: SimResult, cfg: SimConfig, out: Path, meta: dict | None = None) -> Path:
     sim = Path(result.forces).parent
     L, U = cfg.cells_per_length, cfg.lattice_velocity
@@ -50,6 +63,7 @@ def pack(result: SimResult, cfg: SimConfig, out: Path, meta: dict | None = None)
             json.dumps(
                 {
                     "config": asdict(cfg),
+                    "resolution": resolution(cfg),
                     "stats": result.stats,
                     "cost": result.cost,
                     "meta": meta or {},

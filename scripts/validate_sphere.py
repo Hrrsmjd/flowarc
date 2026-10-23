@@ -34,7 +34,14 @@ def main():
     p.add_argument("--record", type=float, default=30.0, help="recorded time in D/U")
     p.add_argument("--startup", type=float, default=10.0, help="discarded spin-up time in D/U")
     p.add_argument("--quick", action="store_true", help="short run for smoke tests")
+    p.add_argument(
+        "--st",
+        action="store_true",
+        help="long run for shedding frequency: 60 D/U spin-up, 80 D/U record",
+    )
     a = p.parse_args()
+    if a.st:
+        a.startup, a.record = 60.0, 80.0
     a.out.mkdir(parents=True, exist_ok=True)
     mesh = a.out / "sphere.stl"
     trimesh.creation.icosphere(subdivisions=4, radius=0.5).export(mesh)

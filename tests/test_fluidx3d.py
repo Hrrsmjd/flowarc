@@ -41,3 +41,9 @@ def test_strouhal_band_edge_is_nan():
 
 def test_missing_table_is_empty(tmp_path):
     assert _table(tmp_path / "forces.csv", 4).shape == (0, 4)
+
+
+def test_truncated_table_keeps_good_rows(tmp_path):
+    p = tmp_path / "forces.csv"
+    p.write_text("t,fx,fy,fz\n1,2,3,4\n2,3,4,5\n3,4,")
+    assert _table(p, 4).tolist() == [[1, 2, 3, 4], [2, 3, 4, 5]]

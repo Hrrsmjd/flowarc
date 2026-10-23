@@ -81,3 +81,7 @@ All data goes under `FLOWARC_DATA` (on w7830 this must be inside `~/RDS`).
 
 - **@Esoiya** — platform, agent and demo
 - **@Hrrsmjd** — physics, solver, ML for science
+
+## Known limits
+
+- No wall model. At high Re the boundary layer is thinner than a few cells, so Re is nominal. Each sample records this under `resolution` in its Zarr attributes (`tau`, `bl_cells`, `re_nominal`).
