@@ -28,6 +28,7 @@ def main():
         "--domain", type=float, nargs=3, default=[6.0, 3.0, 3.0], help="box size in diameters"
     )
     p.add_argument("--record", type=float, default=30.0, help="recorded time in D/U")
+    p.add_argument("--startup", type=float, default=10.0, help="discarded spin-up time in D/U")
     p.add_argument("--quick", action="store_true", help="short run for smoke tests")
     a = p.parse_args()
     a.out.mkdir(parents=True, exist_ok=True)
@@ -41,6 +42,7 @@ def main():
             domain=tuple(a.domain),
             body_offset=a.domain[0] / 4,
             record_time=a.record,
+            startup_time=a.startup,
             les=False,
             render=False,
             frame_interval=1.0,
