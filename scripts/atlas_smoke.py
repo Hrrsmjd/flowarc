@@ -1,13 +1,18 @@
 """Run every Atlas query once against the real cluster, on throwaway samples.
 
 Usage: python scripts/atlas_smoke.py   (after setup_atlas.py; needs MONGODB_URI, GEMINI_API_KEY)
+If Gemini is unavailable (quota, billing), concept embeddings fall back to fixed fake vectors
+of the index's size, so every Atlas feature can still be checked.
 Inserts three `smoke-*` samples and a repair, waits for the search indexes to catch up,
 prints each result, then deletes what it inserted.
 """
 
+import hashlib
 import time
 
-from flowarc import concepts, store
+import numpy as np
+
+from flowarc import concepts, gemini, store
 from flowarc.sample import Sample
 
 SAMPLES = [
@@ -55,11 +60,32 @@ def wait_for_indexes(d, minutes: int = 15) -> None:
     raise SystemExit(f"indexes not READY after {minutes} min; check Atlas Search in the UI")
 
 
+def offline_embed(d):
+    """Fake but stable vectors of the vector index's size, for when Gemini is unavailable."""
+    idx = next(i for i in d.samples.list_search_indexes() if i["name"] == store.VECTOR_INDEX)
+    fields = idx.get("latestDefinition", idx.get("definition", {}))["fields"]
+    dims = next(f["numDimensions"] for f in fields if f["type"] == "vector")
+
+    def embed(texts):
+        out = []
+        for t in texts:
+            seed = int.from_bytes(hashlib.sha256(t.encode()).digest()[:4], "big")
+            out.append(np.random.default_rng(seed).standard_normal(dims).tolist())
+        return out
+
+    return embed
+
+
 def main():
     d = store.db()
     if d is None:
         raise SystemExit("set MONGODB_URI in .env")
     wait_for_indexes(d)
+    try:
+        gemini.embed(["probe"])
+    except Exception as e:  # noqa: BLE001 -- any Gemini failure: test Atlas without it
+        print(f"Gemini unavailable ({type(e).__name__}); using fake vectors for novelty")
+        gemini.embed = offline_embed(d)
     for i, (name, bucket, desc) in enumerate(SAMPLES):
         s = Sample(id=f"smoke-{i}", concept={"name": name, "bucket": bucket, "description": desc})
         concepts.check_novelty(s)
