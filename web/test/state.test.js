@@ -90,3 +90,13 @@ test("similar shapes are the nearest embeddings, most alike first, never the sam
   assert.ok(!near.some((s) => s.id === "s0001"));
   assert.ok(near.every((s, i) => i === 0 || near[i - 1].similarity >= s.similarity));
 });
+
+test("a batch-wide Argon call shows on every sample but counts once in the totals", () => {
+  const sample = (id) => ({ _id: id, stage: "done", status: "done", concept: { name: id }, meta: {} });
+  const call = (id, copy) => ({ sample: id, t: T0, msg: "gemini gemini-4-argon", stage: "concept", actor: "gemini", model: "gemini-4-argon", tokens: 100, shared: 2, copy });
+  const st = buildState({ samples: [sample("s00001"), sample("s00002")], logs: [call("s00001", false), call("s00002", true)], mode: "atlas", now: T0 + 10 });
+  assert.deepEqual(st.samples.map((s) => s.gemini.calls), [1, 1]);
+  assert.deepEqual(st.samples.map((s) => s.gemini.copies?.tokens || 0), [0, 100]);
+  assert.equal(st.run.gemini.calls, 1);
+  assert.equal(st.run.gemini.tokens, 100);
+});

@@ -120,8 +120,11 @@ export function buildState({ run = {}, samples, logs, approvals = [], media = []
     if (e.msg === "advanced") continue; // stage moves show in the progress table
     if (e.actor === "gemini") {
       if (!calls.has(e.sample)) calls.set(e.sample, noCalls());
-      addCall(calls.get(e.sample), e);
-      if (!e.copy) addCall(total, e); // a batch-wide call is logged on every sample, counted once
+      const u = calls.get(e.sample);
+      addCall(u, e);
+      if (e.copy) { // a batch-wide call is logged on every sample, counted once in totals
+        u.copies = { calls: (u.copies?.calls || 0) + 1, tokens: (u.copies?.tokens || 0) + (e.tokens || 0) };
+      } else addCall(total, e);
       continue; // shown under Prompts, not in the activity feed
     }
     if (!bySample.has(e.sample)) bySample.set(e.sample, []);
