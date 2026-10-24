@@ -144,7 +144,7 @@ export function buildState({ run = {}, samples, logs, approvals = [], media = []
         status: s.status,
         concept: c,
         attempts: s.attempts || {},
-        gpu: s.meta?.gpu ?? null,
+        gpu: s.meta?.gpu >= 0 ? s.meta.gpu : null, // the runner writes -1 for stages off the GPU
         gpu_seconds: s.status === "running" || s.status === "pending" ? 0 : s.meta?.gpu_seconds || 0,
         convergence: past ? s.meta?.convergence || null : null,
         sim: pick(s.meta?.sim?.stats, STAT_KEYS),

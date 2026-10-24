@@ -32,7 +32,7 @@ const CHECKS = {
 function line(e) {
   if (/^advanced$/.test(e.msg)) return null;
   if (e.actor === "gemini") return null; // calls show as "typing" instead
-  if (e.fix) return { who: "argon", kind: "fix", text: e.msg.replace(/^repair:\s*/, "Fix: "), sub: e.diagnosis };
+  if (e.fix) return { who: "argon", kind: "fix", text: `Fix: ${fixText(e.msg)}`, sub: e.diagnosis };
   if (e.check === "novel" || e.check === "novelty") {
     const sim = e.similarity != null ? ` The closest is ${Math.round(e.similarity * 100)}% alike.` : "";
     return e.failed

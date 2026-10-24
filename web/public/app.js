@@ -9,6 +9,8 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const fmtRe = (re) => { const e = Math.floor(Math.log10(re)); const m = re / 10 ** e; return e < 4 ? Math.round(re).toLocaleString() : `${m.toFixed(1)}×10${sup(e)}`; };
 const sup = (n) => String(n).split("").map((d) => "⁰¹²³⁴⁵⁶⁷⁸⁹"[d]).join("");
 const fmtDur = (s) => (s < 60 ? `${Math.round(s)}s` : s < 3600 ? `${Math.floor(s / 60)}m ${String(Math.round(s % 60)).padStart(2, "0")}s` : `${(s / 3600).toFixed(1)}h`);
+// Argon's fix as a line: "repair: retry: retry mesh generation" -> "retry mesh generation".
+const fixText = (msg) => msg.replace(/^repair:\s*/, "").replace(/^(\w+):\s*(?=\1\b)/i, "");
 // Wall-clock time in words, for "N shapes in 19 hours".
 const fmtSpan = (s) => {
   const n = (x, unit) => `${x} ${unit}${x === 1 ? "" : "s"}`;
@@ -221,7 +223,7 @@ function bubble(s) {
   const e = recent.find((x) => x.fix || (x.failed && !x.soft)) || s.log[s.log.length - 1];
   if (!e) return "";
   if (e.fix) {
-    return `<div class="bubble argon"><span class="who">Argon</span><b>${esc(e.msg.replace(/^repair:\s*/, "Fix: "))}</b>${e.diagnosis ? `<p>${esc(e.diagnosis)}</p>` : ""}</div>`;
+    return `<div class="bubble argon"><span class="who">Argon</span><b>Fix: ${esc(fixText(e.msg))}</b>${e.diagnosis ? `<p>${esc(e.diagnosis)}</p>` : ""}</div>`;
   }
   if (e.failed) {
     const what = e.check ? `${e.check} check failed` : e.msg;
@@ -356,7 +358,8 @@ function stageState(s, stage) {
 // A run can have 100+ samples: the funnel and the dots show all of them at a glance, the table
 // only the ones that need a look unless you ask for all.
 const FILTERS = {
-  active: ["Needs a look", (s) => ["running", "flagged", "failed"].includes(s.status)],
+  active: ["Needs a look", (s) => s.status === "flagged" || s.status === "failed"],
+  running: ["Running", (s) => s.status === "running"],
   waiting: ["Waiting", (s) => s.status === "pending"],
   done: ["Done", (s) => s.status === "done"],
   all: ["All", () => true],
@@ -796,12 +799,21 @@ function renderDiversity() {
   $("coverage").innerHTML = Object.entries(buckets).sort((a, b) => b[1] - a[1]).map(([b, k]) => `<div class="cov-row"><span>${esc(b)}</span><div class="bar-track"><div class="bar-fill" style="width:${(100 * k) / max}%"></div></div><span class="n">${k}</span></div>`).join("");
 }
 
-// ---------- approvals ----------
+// ---------- needs a look ----------
+// Flagged and failed shapes with the reason, newest first, plus any approval the pipeline asks for.
+function lookReason(s) {
+  const e = [...s.log].reverse().find((x) => x.failed && !x.soft) || [...s.log].reverse().find((x) => x.failed) || s.log[s.log.length - 1];
+  if (!e) return { what: s.status, why: "" };
+  const tries = s.attempts?.[e.stage] > 1 ? ` after ${s.attempts[e.stage]} attempts` : "";
+  return { what: `${e.stage} · ${e.check ? `${e.check} check failed` : e.msg}${tries}`, why: e.reason || e.diagnosis || "" };
+}
 function renderApprovals() {
   const kinds = { publish: "Publish dataset", over_budget: "Over compute budget", flagged: "Flagged sample" };
   const list = state.approvals;
-  $("approve-count").textContent = `${list.filter((a) => a.status === "pending").length} pending`;
-  $("approvals").innerHTML = list.map((a) => `
+  const pending = list.filter((a) => a.status === "pending").length;
+  const look = state.samples.filter((s) => s.status === "flagged" || s.status === "failed").sort((a, b) => b.last_t - a.last_t);
+  $("approve-count").textContent = [look.length && `${look.length} shape${look.length === 1 ? "" : "s"}`, pending && `${pending} to approve`].filter(Boolean).join(" · ");
+  const asks = list.map((a) => `
     <div class="approval ${a.status !== "pending" ? "decided" : ""}">
       <div class="kind">${esc(kinds[a.kind] || a.kind)}</div>
       <h3>${esc(a.title)}</h3>
@@ -809,9 +821,16 @@ function renderApprovals() {
       <div class="actions">${a.status === "pending"
         ? `<button class="btn approve" data-id="${a.id}" data-d="approved">Approve</button><button class="btn reject" data-id="${a.id}" data-d="rejected">Reject</button>${a.sample ? `<button class="ghost small" data-open="${a.sample}">Open sample</button>` : ""}`
         : `<span class="verdict ${a.status === "approved" ? "ok" : "bad"}">${a.status === "approved" ? "✓ Approved" : "✕ Rejected"}</span>`}</div>
-    </div>`).join("") || "<p class='muted'>Nothing waiting.</p>";
+    </div>`).join("");
+  const rows = look.map((s) => {
+    const r = lookReason(s);
+    return `<button type="button" class="look ${s.status}" data-open="${esc(s.id)}"><span class="look-tag">${s.status === "failed" ? "✕ failed" : "⚑ flagged"}</span><b>${esc(s.title)}</b><span class="look-what">${esc(r.what)}</span>${r.why ? `<span class="look-why">${esc(r.why)}</span>` : ""}</button>`;
+  }).join("");
+  const html = asks + (rows ? `<div class="looks">${rows}</div>` : "") || "<p class='muted'>Nothing needs a look. Every check has passed or Argon fixed it.</p>";
+  if ($("approvals").dataset.html === html) return;
+  $("approvals").innerHTML = $("approvals").dataset.html = html;
   $("approvals").querySelectorAll("[data-d]").forEach((b) => b.addEventListener("click", () => decide(b.dataset.id, b.dataset.d)));
-  $("approvals").querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => { select(b.dataset.open); $("h-sample").scrollIntoView({ behavior: "smooth" }); }));
+  $("approvals").querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => select(b.dataset.open)));
 }
 
 async function decide(id, decision) {
@@ -832,6 +851,7 @@ async function decide(id, decision) {
     localApprovals[id] = { status: decision };
     Object.assign(state.approvals.find((a) => a.id === id), localApprovals[id]);
     toast(decision === "approved" ? "✓ Approved by a human" : "✕ Rejected", decision === "approved" ? "good" : "bad");
+    $("approvals").dataset.html = "";
     return renderApprovals();
   }
 }
@@ -983,7 +1003,7 @@ function slides() {
      <ol class="pipe">${step(1, "Concept", "Argon", "invents a new shape for a gap in the dataset")}${step(2, "Images", "Nano Banana", "draws it from four sides")}${step(3, "Mesh", "Hunyuan3D", "builds the 3D mesh; Flash checks it against the drawings")}${step(4, "Simulation", "FluidX3D", "runs the airflow on two grids until drag agrees")}${step(5, "Package", "Atlas", "stores the result and remembers the shape")}</ol>`,
     `<p class="kick">Argon, the supervisor</p><h2>When a check fails, Argon reads why and fixes it.</h2>
      <div class="facts"><div><b>${fixes.length}</b><span>${fixes.length === 1 ? "problem" : "problems"} fixed without a person</span></div><div><b>${samples.reduce((a, s) => a + (s.gemini?.calls || 0), 0)}</b><span>Gemini calls</span></div></div>
-     ${last ? `<blockquote><b>${esc(last.s.title)}</b>: ${esc(last.e.msg.replace(/^repair:\s*/, ""))}${last.e.diagnosis ? `<small>${esc(last.e.diagnosis)}</small>` : ""}</blockquote>` : ""}`,
+     ${last ? `<blockquote><b>${esc(last.s.title)}</b>: ${esc(fixText(last.e.msg))}${last.e.diagnosis ? `<small>${esc(last.e.diagnosis)}</small>` : ""}</blockquote>` : ""}`,
     `<p class="kick">MongoDB Atlas</p><h2>Atlas is the agent's memory.</h2>
      <ul class="uses"><li><b>Vector Search</b> on 3072-d Gemini embeddings, so Argon never repeats a shape</li><li><b>Hybrid search</b> with Voyage AI and <code>$rankFusion</code>, to find any shape by meaning</li><li><b>GridFS</b> for every view, mesh and flow video</li><li><b>The agent log</b>, every step and every fix</li></ul>
      <div class="facts"><div><b>${samples.length}</b><span>shapes remembered</span></div><div><b>${media}</b><span>files in GridFS</span></div></div>`,
