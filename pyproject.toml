@@ -17,6 +17,7 @@ dependencies = [
     "python-dotenv",
     "pymongo>=4.8",
     "huggingface_hub>=1",
+    "fast-simplification",  # mesh previews for the dashboard (flowarc/media.py)
 ]
 
 [project.optional-dependencies]

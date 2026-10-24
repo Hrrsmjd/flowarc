@@ -32,3 +32,15 @@ test("solver statistics reach the sample viewer once past the sim stage", () => 
   assert.equal(sample("s00001").zarr_gb, 0.41);
   assert.equal(st.run.featured, "s00002"); // the running one, not the newest pending one
 });
+
+test("media uploaded to GridFS keeps the latest view per name and every mesh attempt", () => {
+  const media = [
+    { sample: "s00001", kind: "view", name: "front", attempt: 1, t: 1, url: "api/media?id=a" },
+    { sample: "s00001", kind: "view", name: "front", attempt: 2, t: 2, url: "api/media?id=b" },
+    { sample: "s00001", kind: "mesh", name: "mesh", attempt: 2, t: 4, url: "api/media?id=d" },
+    { sample: "s00001", kind: "mesh", name: "mesh", attempt: 1, t: 3, url: "api/media?id=c" },
+  ];
+  const m = buildState({ ...reg, media, mode: "atlas", now: 1792856143 }).samples.find((s) => s.id === "s00001").media;
+  assert.equal(m.views.front.url, "api/media?id=b");
+  assert.deepEqual(m.meshes.map((x) => x.url), ["api/media?id=c", "api/media?id=d"]);
+});

@@ -20,6 +20,8 @@ let lastError = "";
 let sampleSig = "";
 const seen = new Set(); // timeline events already shown, so only new ones flash
 const localApprovals = {};
+const meshPick = {}; // sample id -> mesh attempt chosen in the tabs
+let viewerP = null; // the 3D viewer loads three.js on first use
 
 // ---------- data ----------
 async function load() {
@@ -89,7 +91,7 @@ function render() {
   renderApprovals();
   if (!samples.length) return renderEmpty();
   const s = selectedSample();
-  const sig = `${s.id}|${s.status}|${s.stage}|${s.log.length}`;
+  const sig = `${s.id}|${s.status}|${s.stage}|${s.log.length}|${mediaSig(s)}`;
   if (sig !== sampleSig) {
     sampleSig = sig;
     renderSample();
@@ -109,6 +111,7 @@ function renderEmpty() {
   $("timeline").innerHTML = "";
   $("timeline").dataset.html = "";
   $("sample-body").innerHTML = "<p class='muted'>Nothing to show yet.</p>";
+  $("sample-media").hidden = true;
   sampleSig = "";
   renderDiversity();
 }
@@ -237,6 +240,65 @@ function renderSample() {
   const conv = `<div><h3 style="margin-top:0">${s.convergence ? "Convergence: running mean drag vs t (L/U)" : "Simulation results"}</h3>${s.convergence ? convChart(s.convergence) : s.sim ? statsTable(s) : "<p class='muted small'>Simulation not finished.</p>"}</div>`;
   $("sample-body").innerHTML = facts + iou + conv;
   bindHover($("sample-body"));
+  renderMedia(s);
+}
+
+// ---------- views and mesh ----------
+const VIEWS = ["three-quarter", "front", "side", "top"];
+const mediaSig = (s) => (s.media ? [...Object.values(s.media.views), ...s.media.meshes].map((m) => m.url).join(",") : "");
+
+// Each mesh attempt runs the same checks, so the n-th result of a check judges attempt n.
+function meshVerdicts(s) {
+  const count = {}, out = [];
+  for (const e of s.log) {
+    if (e.stage !== "mesh" || !e.check || e.check === "views_consistent") continue;
+    const n = (count[e.check] = (count[e.check] || 0) + 1) - 1;
+    if (out[n] !== "fail") out[n] = e.failed && !e.soft ? "fail" : "pass";
+  }
+  return out;
+}
+
+function renderMedia(s) {
+  $("sample-media").hidden = false;
+  const views = s.media?.views || {};
+  $("views").innerHTML = VIEWS.map((v) => {
+    const m = views[v];
+    return m
+      ? `<figure class="view" data-src="${esc(m.url)}" data-cap="${esc(v)}${m.attempt > 1 ? ` · redrawn (attempt ${m.attempt})` : ""}"><img src="${esc(m.url)}" alt="${esc(s.title)}, ${esc(v)} view" loading="lazy"><figcaption>${esc(v)}${m.attempt > 1 ? " ↻" : ""}</figcaption></figure>`
+      : `<figure class="view empty"><div></div><figcaption>${esc(v)}</figcaption></figure>`;
+  }).join("");
+  $("views").querySelectorAll(".view[data-src]").forEach((el) => {
+    el.addEventListener("mousemove", (ev) => showTip(`<img class="tip-img" src="${el.dataset.src}" alt=""><div>${el.dataset.cap}</div>`, ev));
+    el.addEventListener("mouseleave", hideTip);
+  });
+
+  const meshes = s.media?.meshes || [];
+  const verdicts = meshVerdicts(s);
+  const pick = meshes.find((m) => m.attempt === meshPick[s.id]) || meshes[meshes.length - 1];
+  $("mesh-tabs").innerHTML = meshes.length > 1
+    ? meshes.map((m) => {
+        const v = verdicts[m.attempt - 1];
+        return `<button class="tab${m === pick ? " on" : ""}" data-attempt="${m.attempt}">Attempt ${m.attempt} ${v === "fail" ? "<span class='bad'>✕</span>" : v === "pass" ? "<span class='ok'>✓</span>" : ""}</button>`;
+      }).join("")
+    : "";
+  $("mesh-tabs").querySelectorAll("button").forEach((b) =>
+    b.addEventListener("click", () => {
+      meshPick[s.id] = Number(b.dataset.attempt);
+      renderMedia(s);
+    }),
+  );
+  $("mesh-empty").hidden = Boolean(pick);
+  $("mesh-view").classList.toggle("has-mesh", Boolean(pick));
+  const failed = pick && verdicts[pick.attempt - 1] === "fail";
+  $("mesh-note").textContent = failed ? "This attempt failed the mesh check · drag to rotate · scroll to zoom" : "Drag to rotate · scroll to zoom";
+  if (!pick) return;
+  viewerP ??= import("./mesh.js").then((m) => m.createViewer($("mesh-view")));
+  viewerP
+    .then((v) => v.show(pick.url, { failed }))
+    .catch((e) => {
+      console.error(e);
+      $("mesh-note").textContent = "Couldn't load the mesh viewer.";
+    });
 }
 
 // Grouped bars: one group per view, one bar per attempt. Two series max.

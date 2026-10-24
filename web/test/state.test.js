@@ -38,3 +38,14 @@ test("bucket labels are short", () => {
   assert.equal(shortBucket("vehicles (land, air, sea, fictional, any era)"), "vehicles");
   assert.equal(shortBucket("abstract or parametric shapes"), "abstract");
 });
+
+test("views and mesh attempts appear as the live sample makes them", () => {
+  assert.equal(live(at(5)).media, null);
+  const drawn = live(at(20)).media;
+  assert.deepEqual(Object.keys(drawn.views).sort(), ["front", "side", "three-quarter", "top"]);
+  assert.equal(drawn.meshes.length, 0);
+  const fixed = live(at(70)).media;
+  assert.equal(fixed.views.front.attempt, 2); // the redrawn front view replaces the first
+  assert.deepEqual(fixed.meshes.map((m) => m.attempt), [1, 2]);
+  assert.match(fixed.meshes[0].url, /^mock-media\/s0016\/mesh-1-mesh\.glb$/);
+});

@@ -17,14 +17,19 @@ const LOG_LIMIT = 4000;
 
 export async function atlasRegistry({ withEmbeddings = false } = {}) {
   const d = await db();
-  const [samples, logs, approvals, run, baseline] = await Promise.all([
+  const [samples, logs, approvals, run, baseline, files] = await Promise.all([
     d.collection("samples").find({}, withEmbeddings ? { projection: { embedding: 1, status: 1, concept: 1 } } : NO_EMBEDDING).sort({ _id: 1 }).toArray(),
     withEmbeddings ? [] : d.collection("logs").find({}, { projection: { _id: 0 } }).sort({ t: -1 }).limit(LOG_LIMIT).toArray(),
     withEmbeddings ? [] : d.collection("approvals").find({}).toArray(),
     d.collection("runs").findOne({ _id: "current" }),
     withEmbeddings ? d.collection("baseline").find({}).toArray() : [],
+    withEmbeddings ? [] : d.collection("media.files").find({}, { projection: { metadata: 1 } }).toArray(),
   ]);
-  return { run: run || {}, samples, logs: logs.reverse(), approvals, baseline };
+  // Views and meshes uploaded by flowarc/media.py, streamed back by api/media.
+  const media = files
+    .filter((f) => f.metadata?.sample)
+    .map(({ _id, metadata: m }) => ({ sample: m.sample, kind: m.kind, name: m.name, attempt: m.attempt, t: m.t, url: `api/media?id=${_id}` }));
+  return { run: run || {}, samples, logs: logs.reverse(), approvals, baseline, media };
 }
 
 export async function atlasDecide(id, status, by) {
@@ -57,4 +62,14 @@ export async function atlasSearch(q) {
     ]).toArray();
     return { engine: "regex", results: rows.map(({ _id, ...r }) => ({ id: _id, ...r })) };
   }
+}
+
+// One GridFS file from the `media` bucket, or null.
+export async function atlasMedia(id) {
+  const { GridFSBucket, ObjectId } = await import("mongodb");
+  if (!ObjectId.isValid(id)) return null;
+  const d = await db();
+  const bucket = new GridFSBucket(d, { bucketName: "media" });
+  const [file] = await bucket.find({ _id: new ObjectId(id) }).toArray();
+  return file ? { file, stream: bucket.openDownloadStream(file._id) } : null;
 }

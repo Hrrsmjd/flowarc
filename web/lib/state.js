@@ -62,7 +62,25 @@ function event(e) {
 const STAT_KEYS = ["cd_mean", "cl_rms", "cs_rms", "st", "cd_half_change", "mach_max", "mass_drift"];
 const pick = (o, keys) => (o ? Object.fromEntries(keys.filter((k) => o[k] != null).map((k) => [k, o[k]])) : null);
 
-export function buildState({ run = {}, samples, logs, approvals = [], mode, now = Date.now() / 1000 }) {
+// Per sample: the latest attempt of each view, and every mesh attempt (so a failed mesh and
+// its fix can be compared).
+function mediaBySample(media) {
+  const out = new Map();
+  for (const m of [...media].sort((a, b) => a.t - b.t)) {
+    if (!out.has(m.sample)) out.set(m.sample, { views: {}, meshes: {} });
+    const o = out.get(m.sample);
+    const item = { url: m.url, attempt: m.attempt || 1, t: m.t };
+    if (m.kind === "view") o.views[m.name] = item;
+    else if (m.kind === "mesh") o.meshes[item.attempt] = item;
+  }
+  for (const o of out.values()) o.meshes = Object.values(o.meshes).sort((a, b) => a.attempt - b.attempt);
+  return out;
+}
+
+export const VIEWS = ["three-quarter", "front", "side", "top"];
+
+export function buildState({ run = {}, samples, logs, approvals = [], media = [], mode, now = Date.now() / 1000 }) {
+  const files = mediaBySample(media);
   const bySample = new Map();
   for (const e of logs) {
     if (e.msg === "advanced") continue; // stage moves show in the progress table
@@ -88,6 +106,7 @@ export function buildState({ run = {}, samples, logs, approvals = [], mode, now 
         convergence: past ? s.meta?.convergence || null : null,
         sim: pick(s.meta?.sim?.stats, STAT_KEYS),
         zarr_gb: s.meta?.zarr_gb ?? null,
+        media: files.get(s._id) || null,
         log,
         last_t: log.length ? log[log.length - 1].t : 0,
       };

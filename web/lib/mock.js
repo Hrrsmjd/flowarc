@@ -40,9 +40,11 @@ export function mockRegistry(start = 0, nowAbs = Date.now() / 1000) {
   const approvals = batch.approvals
     .filter((a) => a.t <= rel)
     .map((a) => ({ ...a, t: toAbs(a.t), ...(decisions.get(a._id) || {}) }));
+  const media = (batch.media || []).filter((m) => m.t <= rel).map((m) => ({ ...m, t: toAbs(m.t) }));
   return {
     run: batch.run,
     samples,
+    media,
     logs: logs.map((e) => ({ ...e, t: toAbs(e.t) })),
     approvals,
     baseline: batch.baseline,

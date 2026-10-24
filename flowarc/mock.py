@@ -5,7 +5,7 @@ The documents match what the pipeline writes to Atlas (`samples`, `logs`, `appro
 relative to the start of the live part of the demo: negative times are history, positive ones
 play out live (the dashboard's mock replay and scripts/demo_feed.py both use them).
 
-    python -m flowarc.mock web/mock.json
+    python -m flowarc.mock web/lib/mock.json web/public   # batch, plus its views and meshes
 
 Seeded, so every run gives the same numbers. Nothing here is a real result.
 """
@@ -50,6 +50,7 @@ CONCEPTS = [
     ("Pagoda, five tiers", 2, 5.4e4, 0, True, "front gate"),
 ]
 
+VIEWS = ["three-quarter", "front", "side", "top"]  # as flowarc/images.py on the runner branch
 LIVE = "s0016"  # the sample the demo follows: a mesh check fails, Argon fixes it, it finishes
 DIM = 16  # mock embedding size; real ones come from gemini-embedding-2
 PACE = 0.6  # the live sample takes about two minutes, so it fits in a 3-minute demo
@@ -356,6 +357,7 @@ def batch() -> dict:
         },
     ]
     return {
+        "media": _media(samples, logs),
         "run": {
             "phase": "pilot",
             "cells_per_length": [48, 64],
@@ -371,13 +373,57 @@ def batch() -> dict:
     }
 
 
+MEDIA_SAMPLES = {"s0001", "s0002", "s0007", LIVE}  # the ones mock_media has shapes for
+
+
+def _media(samples: list[dict], logs: list[dict]) -> list[dict]:
+    """Views and mesh files, each appearing when the log event that made it does."""
+    out = []
+
+    def add(e, kind, name, attempt):
+        ext = "jpg" if kind == "view" else "glb"
+        url = f"mock-media/{e['sample']}/{kind}-{attempt}-{name}.{ext}"
+        out.append(
+            {
+                "sample": e["sample"],
+                "kind": kind,
+                "name": name,
+                "attempt": attempt,
+                "t": e["t"],
+                "url": url,
+            }
+        )
+
+    for e in logs:
+        if e["sample"] not in MEDIA_SAMPLES:
+            continue
+        if e["msg"].startswith("Nano Banana drew"):
+            for v in VIEWS:
+                add(e, "view", v, 1)
+        elif e["msg"].startswith("Nano Banana redrew the front"):
+            add(e, "view", "front", 2)
+        elif e["msg"].startswith("Hunyuan3D-2.1 built"):
+            add(e, "mesh", "mesh", 1)
+        elif e["msg"].startswith("Hunyuan3D-2.1 rebuilt"):
+            add(e, "mesh", "mesh", 2)
+    return out
+
+
 def stage_after(stage: str) -> str:
     i = STAGES.index(stage)
     return STAGES[i + 1] if i + 1 < len(STAGES) else "done"
 
 
 if __name__ == "__main__":
-    out = sys.argv[1] if len(sys.argv) > 1 else "web/mock.json"
+    out = sys.argv[1] if len(sys.argv) > 1 else "web/lib/mock.json"
+    media_dir = sys.argv[2] if len(sys.argv) > 2 else "web/public"
+    b = batch()
     with open(out, "w") as f:
-        json.dump(batch(), f, separators=(",", ":"))
-    print(f"wrote {out}")
+        json.dump(b, f, separators=(",", ":"))
+    from pathlib import Path
+
+    from flowarc import mock_media
+
+    names = {s["_id"]: s["concept"]["name"] for s in b["samples"]}
+    mock_media.write(b["media"], names, Path(media_dir))
+    print(f"wrote {out} and {len(b['media'])} media files under {media_dir}")

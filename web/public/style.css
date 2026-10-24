@@ -19,6 +19,7 @@
   --critical: #d03b3b;
   --accent: #2a78d6;
   --argon: #6250d6;
+  --mesh: #8c8c94;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -239,3 +240,27 @@ table.qoi { width: 100%; border-collapse: collapse; font-size: 12px; margin-top:
 .warn { color: var(--ink-2); }
 .timeline li.soft { background: color-mix(in srgb, var(--warning) 12%, transparent); }
 .timeline li.soft .msg::before { content: "⚠ "; color: var(--ink-2); }
+
+/* views and mesh */
+.grid.media { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); margin-top: 8px; border-top: 1px solid var(--border); padding-top: 4px; }
+.views { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.view { margin: 0; cursor: zoom-in; }
+.view img, .view.empty div { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); background: #fff; display: block; }
+.view.empty { cursor: default; }
+.view.empty div { background: var(--wash); }
+.view figcaption { font-size: 12px; color: var(--ink-2); margin-top: 4px; text-align: center; }
+.view:hover img { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tip-img { width: 340px; max-width: 70vw; height: auto; display: block; border-radius: 6px; margin-bottom: 6px; background: #fff; }
+.tooltip:has(.tip-img) { max-width: none; }
+.mesh-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tabs { margin-left: auto; display: flex; gap: 4px; }
+.tab { font: inherit; font-size: 12px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink-2); cursor: pointer; }
+.tab.on { border-color: var(--accent); color: var(--ink); background: var(--wash); }
+.mesh-view { position: relative; aspect-ratio: 4 / 3; border-radius: 8px; border: 1px solid var(--border); background: var(--wash); overflow: hidden; display: grid; place-items: center; }
+.mesh-view canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; cursor: grab; }
+.mesh-view canvas:active { cursor: grabbing; }
+.mesh-view.has-mesh #mesh-empty { display: none; }
+@media (max-width: 800px) {
+  .grid.media { grid-template-columns: minmax(0, 1fr); }
+  .views { grid-template-columns: repeat(2, 1fr); }
+}
