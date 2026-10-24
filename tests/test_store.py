@@ -133,9 +133,19 @@ def test_hybrid_fuses_semantic_and_keyword(atlas, monkeypatch):
     vs = fusion["semantic"][0]["$vectorSearch"]
     assert vs["index"] == store.SEMANTIC_INDEX and vs["query"] == "long legged wading bird"
     assert vs["filter"]["concept.bucket"] == "animals and organic forms"
+    assert fusion["name"][0]["$vectorSearch"]["path"] == "concept.name"
     kw = fusion["keyword"][0]["$search"]
     assert kw["index"] == store.TEXT_INDEX and kw["compound"]["filter"]
+    assert kw["compound"]["must"][0]["text"] == {
+        "query": "long legged wading bird",
+        "path": "concept.name",
+    }
     assert seen["pipeline"][1] == {"$limit": 3}
+
+
+def test_keyword_search_ignores_filler_words():
+    assert store.content_words("something that eats") == "eats"
+    assert store.content_words("food") == "food"
 
 
 def test_find_similar_uses_hybrid_in_atlas(atlas, monkeypatch):

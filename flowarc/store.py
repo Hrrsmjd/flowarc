@@ -109,7 +109,9 @@ def ensure_indexes(dims: int) -> None:
         d.logs, LOG_INDEX, "search", {"mappings": {"dynamic": False, "fields": LOG_FIELDS}}
     )
     auto = {"type": "autoEmbed", "modality": "text", "model": AUTO_EMBED_MODEL}
-    semantic = [{**auto, "path": "concept.description"}]
+    # The name carries what a shape is ("Twisted Pretzel"); the description is geometry for the
+    # 3D model, so searching by meaning needs both.
+    semantic = [{**auto, "path": "concept.description"}, {**auto, "path": "concept.name"}]
     semantic += [{"type": "filter", "path": p} for p in ("status", "concept.bucket")]
     _search_index(d.samples, SEMANTIC_INDEX, "vectorSearch", {"fields": semantic})
     repair = [{**auto, "path": "diagnosis"}]
@@ -227,12 +229,12 @@ def search_log(text: str, k: int = 20, failed_only: bool = False) -> list[dict]:
     return list(db().logs.aggregate(pipeline))
 
 
-def _semantic(text: str, k: int, flt: dict) -> dict:
+def _semantic(text: str, k: int, flt: dict, path: str = "concept.description") -> dict:
     """$vectorSearch on plain text: Atlas embeds the query with the index's Voyage model."""
     return {
         "$vectorSearch": {
             "index": SEMANTIC_INDEX,
-            "path": "concept.description",
+            "path": path,
             "query": text,
             "numCandidates": max(100, 20 * k),
             "limit": k,
@@ -250,14 +252,53 @@ def semantic(text: str, k: int = 10) -> list[dict]:
     return [_row(r) for r in db().samples.aggregate(pipeline)]
 
 
+STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "any",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "for",
+    "from",
+    "has",
+    "in",
+    "is",
+    "it",
+    "its",
+    "of",
+    "on",
+    "or",
+    "something",
+    "that",
+    "the",
+    "thing",
+    "things",
+    "to",
+    "what",
+    "which",
+    "with",
+}
+
+
+def content_words(text: str) -> str:
+    """The query without filler words, so "something that eats" keyword-matches only "eats"."""
+    return " ".join(w for w in text.split() if w.lower().strip("?.,!") not in STOPWORDS)
+
+
 def hybrid(text: str, k: int = 10, bucket: str | None = None) -> list[dict]:
     """Hybrid search: Voyage semantic matches fused with Atlas Search keyword matches.
 
-    `$rankFusion` (reciprocal rank fusion) merges the two ranked lists, so a query like
-    "streamlined animal with a hole through it" finds both close meanings and exact words.
+    `$rankFusion` (reciprocal rank fusion) merges three ranked lists: the meaning of the name
+    (weighted most, it says what the shape is), the meaning of the description (its geometry)
+    and keyword matches on the name. So "food" finds the pretzel before a pod-shaped vase.
     """
     flt = {"status": {"$ne": "failed"}}
-    must = [{"text": {"query": text, "path": ["concept.name", "concept.description"]}}]
+    words = content_words(text)
+    must = [{"text": {"query": words or text, "path": "concept.name"}}]
     filters = [{"equals": {"path": "status", "value": "failed"}}]
     keyword = {"index": TEXT_INDEX, "compound": {"must": must, "mustNot": filters}}
     if bucket:
@@ -266,11 +307,12 @@ def hybrid(text: str, k: int = 10, bucket: str | None = None) -> list[dict]:
     fusion = {
         "input": {
             "pipelines": {
+                "name": [_semantic(text, 2 * k, flt, "concept.name")],
                 "semantic": [_semantic(text, 2 * k, flt)],
                 "keyword": [{"$search": keyword}, {"$limit": 2 * k}],
             }
         },
-        "combination": {"weights": {"semantic": 1, "keyword": 1}},
+        "combination": {"weights": {"name": 2, "semantic": 1, "keyword": 1}},
     }
     pipeline = [
         {"$rankFusion": fusion},

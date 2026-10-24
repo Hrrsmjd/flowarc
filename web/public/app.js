@@ -804,7 +804,7 @@ $("q").addEventListener("input", (e) => {
   if (!q) return ($("results").hidden = true);
   searchTimer = setTimeout(async () => {
     const r = await fetch(`api/search?q=${encodeURIComponent(q)}&start=${start}`).then((r) => r.json()).catch(() => ({ results: [] }));
-    const engines = { hybrid: "Atlas hybrid search · Voyage AI meaning + keywords", "atlas-search": "Atlas Search", regex: "Atlas (no search index)", mock: "mock" };
+    const engines = { hybrid: "Atlas hybrid search · Voyage AI meaning + keywords", "hybrid-descriptions": "Atlas hybrid search (descriptions only: re-run setup_atlas.py to add names)", "atlas-search": "Atlas Search", regex: "Atlas (no search index)", mock: "mock" };
     $("results").innerHTML = (r.results.map((x) => `<button type="button" data-id="${esc(x.id)}"><span>${esc(x.name)}</span><span class="muted small">${esc(x.status)}</span></button>`).join("") || "<div class='engine'>No matches</div>") +
       `<div class="engine">${engines[r.engine] || ""}</div>`;
     $("results").hidden = false;
