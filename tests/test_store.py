@@ -250,3 +250,19 @@ def test_ensure_index_redefines_when_fields_are_missing():
         Coll(), "ix", "vectorSearch", {"fields": [{"type": "autoEmbed", "path": "a"}]}
     )
     assert calls == []
+
+
+def test_ensure_index_remaps_search_fields_that_are_missing():
+    calls = []
+
+    class Coll:
+        def list_search_indexes(self):
+            return [{"name": "ix", "latestDefinition": {"mappings": {"fields": {"msg": {}}}}}]
+
+        def update_search_index(self, name, definition):
+            calls.append(name)
+
+    store._search_index(Coll(), "ix", "search", {"mappings": {"fields": {"msg": {}}}})
+    assert calls == []
+    store._search_index(Coll(), "ix", "search", {"mappings": {"fields": {"msg": {}, "d": {}}}})
+    assert calls == ["ix"]

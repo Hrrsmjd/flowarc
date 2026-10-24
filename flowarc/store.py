@@ -70,9 +70,11 @@ def _search_index(coll, name: str, kind: str, definition: dict) -> None:
 
     existing = {i["name"]: i for i in coll.list_search_indexes()}
     if name in existing:
-        have = existing[name].get("latestDefinition", {}).get("fields", [])
-        need = definition.get("fields", [])  # vector indexes; search mappings are left alone
-        if any(not any(f.items() <= h.items() for h in have) for f in need):
+        current = existing[name].get("latestDefinition", {})
+        have, need = current.get("fields", []), definition.get("fields", [])
+        mapped = current.get("mappings", {}).get("fields", {})
+        missing = set(definition.get("mappings", {}).get("fields", {})) - set(mapped)
+        if missing or any(not any(f.items() <= h.items() for h in have) for f in need):
             coll.update_search_index(name, definition)  # e.g. a filter field was added
         return
     try:
