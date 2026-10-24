@@ -90,12 +90,13 @@ function render() {
   renderGallery(samples);
   renderFinale();
   celebrate(samples);
+  renderNow(run, samples);
   renderStages(samples);
   renderPicker(samples);
   renderApprovals();
   if (!samples.length) return renderEmpty();
   const s = selectedSample();
-  const sig = `${s.id}|${s.status}|${s.stage}|${s.log.length}|${mediaSig(s)}`;
+  const sig = `${s.id}|${s.status}|${s.stage}|${s.log.length}|${s.gemini?.calls}|${mediaSig(s)}`;
   if (sig !== sampleSig) {
     sampleSig = sig;
     renderSample();
@@ -268,6 +269,33 @@ function celebrate(samples) {
   }
 }
 
+const fmtTok = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n));
+
+// What each GPU is doing right now, plus the run totals.
+function renderNow(run, samples) {
+  const n = (st) => samples.filter((s) => s.status === st).length;
+  const now = Date.now() / 1000;
+  const g = run.gemini || { calls: 0, tokens: 0 };
+  $("now-note").innerHTML = [
+    `<b>${n("done")}</b> / ${run.target_samples} done`,
+    `<b>${n("running")}</b> running`,
+    `<b>${n("pending")}</b> waiting`,
+    `<span class="${n("flagged") ? "warn" : ""}"><b>${n("flagged")}</b> flagged</span>`,
+    `<span class="${n("failed") ? "bad" : ""}"><b>${n("failed")}</b> failed</span>`,
+    `<b>${run.gpu_hours.toFixed(1)}</b> GPU-hours`,
+    `<b>${g.calls}</b> Gemini calls${g.tokens ? ` · ${fmtTok(g.tokens)} tokens` : ""}`,
+  ].join(" · ");
+  const running = samples.filter((s) => s.status === "running").sort((a, b) => (a.gpu ?? 99) - (b.gpu ?? 99));
+  $("now").innerHTML = running.length
+    ? `<thead><tr><th>GPU</th><th>Sample</th><th>Stage</th><th>In stage for</th><th>Progress</th></tr></thead><tbody>${running.map((s) => {
+        const p = s.progress?.of ? `${s.progress.frames} / ${s.progress.of} frames` : "";
+        const tries = s.attempts?.[s.stage] > 1 ? ` <span class="muted">try ${s.attempts[s.stage]}</span>` : "";
+        return `<tr data-id="${s.id}" class="${s.id === selectedSample()?.id ? "sel" : ""}"><td>${s.gpu ?? "–"}</td><td><span class="id">${s.id}</span> ${esc(s.title)}</td><td>${esc(s.stage)}${tries}</td><td>${s.stage_since ? fmtDur(now - s.stage_since) : "–"}</td><td>${p}</td></tr>`;
+      }).join("")}</tbody>`
+    : `<tbody><tr><td class="muted">Nothing running.</td></tr></tbody>`;
+  $("now").querySelectorAll("tr[data-id]").forEach((tr) => tr.addEventListener("click", () => select(tr.dataset.id)));
+}
+
 let toastTimer;
 function toast(msg, kind = "") {
   const el = $("toast");
@@ -336,10 +364,10 @@ function eventHtml(e, t0, fresh) {
 }
 
 function renderTimeline() {
-  const s = featured();
+  const s = selectedSample();
   if (!s) return;
   const where = s.status === "running" ? `${s.stage}${s.gpu != null ? `, GPU ${s.gpu}` : ""}` : s.status;
-  $("activity-sample").innerHTML = `Following <b>${s.id} · ${esc(s.title)}</b> (${esc(where)})`;
+  $("activity-sample").innerHTML = `${selected ? "Showing" : "Following"} <b>${s.id} · ${esc(s.title)}</b> (${esc(where)})`;
   $("activity-note").textContent = `${s.log.length} events`;
   const t0 = s.log[0]?.t ?? 0;
   const first = renderTimeline.last !== s.id;
@@ -373,6 +401,8 @@ function renderSample() {
         <dt>Setup</dt><dd>${c.ground ? "ground plane" : "free stream"}</dd>
         <dt>Status</dt><dd>${esc(s.status)}${s.status === "running" ? ` (${esc(s.stage)}${s.gpu != null ? `, GPU ${s.gpu}` : ""})` : ""}</dd>
         <dt>GPU time</dt><dd>${s.gpu_seconds ? fmtDur(s.gpu_seconds) : "–"}</dd>
+        <dt>Gemini</dt><dd>${usage(s.gemini)}</dd>
+        <dt>Output</dt><dd>${output(s)}</dd>
       </dl>
       <ul class="checks">${checks.map((e) => `<li><span>${esc(e.stage)} · ${esc(e.check)}</span><span class="${e.failed ? (e.soft ? "warn" : "bad") : "ok"}">${e.failed ? (e.soft ? "⚠ soft fail" : "✕ fail") : "✓ pass"}</span></li>`).join("") || "<li class='muted'>no checks yet</li>"}</ul>
     </div>`;
@@ -381,6 +411,39 @@ function renderSample() {
   $("sample-body").innerHTML = facts + iou + conv;
   bindHover($("sample-body"));
   renderMedia(s);
+  loadPrompts(s);
+}
+
+function usage(g) {
+  if (!g?.calls) return "–";
+  const by = Object.entries(g.by_model).map(([m, x]) => `${esc(m)}: ${x.calls}${x.tokens ? ` · ${fmtTok(x.tokens)} tok` : ""}`).join("<br>");
+  return `<span title="calls · tokens per model">${g.calls} calls${g.tokens ? ` · ${fmtTok(g.tokens)} tokens` : ""}</span><div class="muted small">${by}</div>`;
+}
+
+function output(s) {
+  const size = s.zarr_gb != null ? `${s.zarr_gb.toFixed(2)} GB Zarr` : s.status === "done" ? "packed" : "not packed yet";
+  const link = s.hf ? ` · <a href="${esc(s.hf)}" target="_blank" rel="noopener">files on HF</a>` : "";
+  return size + (s.published ? " · published" : "") + link;
+}
+
+// Every Gemini call for the sample, newest first, each folded to one line until opened.
+async function loadPrompts(s) {
+  const el = $("prompts");
+  const id = s.id;
+  if (!s.gemini.calls) {
+    $("prompts-note").textContent = "";
+    return (el.innerHTML = "<p class='muted small'>No Gemini calls logged for this sample.</p>");
+  }
+  const r = await fetch(`api/sample?id=${encodeURIComponent(id)}&start=${start}`, { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+  if (selectedSample()?.id !== id) return;
+  const calls = r?.calls || [];
+  const open = new Set([...el.querySelectorAll("details[open]")].map((d) => d.dataset.k));
+  $("prompts-note").textContent = `${calls.length} calls`;
+  el.innerHTML = calls.map((c) => {
+    const k = `${id}|${c.t}`;
+    const head = `<span class="stage-tag">${esc(c.stage)}</span><b>${esc(c.model)}</b> <span class="muted">${c.seconds != null ? `${c.seconds}s` : ""}${c.tokens ? ` · ${fmtTok(c.tokens)} tokens` : ""}</span> <span class="gist">${esc((c.prompt || "").slice(0, 120))}</span>`;
+    return `<details data-k="${esc(k)}" ${open.has(k) ? "open" : ""}><summary>${head}</summary><h4>Prompt</h4><pre>${esc(c.prompt)}</pre><h4>Reply</h4><pre>${esc(c.reply)}</pre></details>`;
+  }).reverse().join("") || "<p class='muted small'>Couldn't load the prompts.</p>";
 }
 
 // ---------- views and mesh ----------

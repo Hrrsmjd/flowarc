@@ -74,3 +74,20 @@ def test_flow_video_is_reencoded_small(tmp_path):
     data = media.video_mp4(src)
     assert data and len(data) <= media.VIDEO_MAX
     assert b"ftyp" in data[:16]
+
+
+def test_sync_uploads_each_mesh_try(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "DATA", tmp_path)
+    db = mongomock.MongoClient()["flowarc"]
+    d = _sample(tmp_path, "s00002")
+    for n in (1, 2):
+        shutil.copyfile(d / "mesh" / "mesh.stl", d / "mesh" / f"mesh_{n}.stl")
+    got = []
+
+    def publish(db, sample, kind, name, attempt, data, ctype, src):
+        got.append((kind, attempt))
+        db["media.files"].insert_one({"metadata": {"src": src}})
+
+    monkeypatch.setattr(media, "publish", publish)
+    media.sync(db)
+    assert sorted(a for k, a in got if k == "mesh") == [1, 2]

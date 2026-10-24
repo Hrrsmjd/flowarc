@@ -39,7 +39,13 @@ def _text(prompt) -> str:
     return "\n".join(p.get("text", f"[{p.get('type')}]") for p in prompt)
 
 
-def _record(model: str, prompt, reply: str, t0: float) -> None:
+def _tokens(it) -> dict:
+    u = getattr(it, "usage", None)
+    keys = ("total_input_tokens", "total_output_tokens", "total_tokens")
+    return {k.removeprefix("total_"): getattr(u, k) for k in keys if getattr(u, k, None)}
+
+
+def _record(model: str, prompt, reply: str, t0: float, tokens: dict | None = None) -> None:
     if (calls := CALLS.get()) is not None:
         calls.append(
             {
@@ -47,6 +53,7 @@ def _record(model: str, prompt, reply: str, t0: float) -> None:
                 "prompt": _text(prompt),
                 "reply": reply,
                 "seconds": round(time.time() - t0, 1),
+                **(tokens or {}),
             }
         )
 
@@ -96,6 +103,7 @@ def ask(
     if tools:
         kwargs["tools"] = [t["spec"] for t in tools]
     it = _run(kwargs)
+    tokens = _tokens(it)
     for rounds in range(MAX_TOOL_ROUNDS + 1):
         calls = [s for s in it.steps if s.type == "function_call"]
         if not calls:
@@ -106,10 +114,12 @@ def ask(
             )
         results = [_call(fns, c) for c in calls]
         it = _run({**kwargs, "input": results, "previous_interaction_id": it.id})
+        for k, v in _tokens(it).items():
+            tokens[k] = tokens.get(k, 0) + v
     text = "".join(
         c.text for s in it.steps if s.type == "model_output" for c in s.content if c.type == "text"
     )
-    _record(kwargs["model"], prompt, text, t0)
+    _record(kwargs["model"], prompt, text, t0, tokens)
     return json.loads(text) if schema else text
 
 
@@ -140,7 +150,7 @@ def generate_image(prompt, refs: list[bytes] = (), aspect="1:1") -> bytes:
     )
     if it.output_image is None:
         raise RuntimeError(f"no image returned ({it.id})")
-    _record(config.IMAGE_MODEL, parts, "[image]", t0)
+    _record(config.IMAGE_MODEL, parts, "[image]", t0, _tokens(it))
     return base64.b64decode(it.output_image.data)
 
 

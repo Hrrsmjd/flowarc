@@ -6,6 +6,7 @@ When a stage fails, Argon picks the fix (triage.py).
 
 import json
 import math
+import shutil
 import time
 import traceback
 from dataclasses import asdict
@@ -80,6 +81,8 @@ def run_mesh(s: Sample, gpu: int) -> bool:
         remesh=remesh,
     )
     (s.dir / "mesh" / f"report_{tries}.json").write_text(json.dumps(rep, indent=1, default=float))
+    if (s.dir / "mesh" / "mesh.stl").exists():  # each try's mesh, for the dashboard (flowarc.media)
+        shutil.copyfile(s.dir / "mesh" / "mesh.stl", s.dir / "mesh" / f"mesh_{tries}.stl")
     rev = rep.get("review", {})
     s.record_check(
         "mesh",
@@ -278,6 +281,7 @@ def run_sample(s: Sample, gpu: int, budget_hours: float = math.inf) -> Sample:
             s.save()
             return s
         s.status = "running"
+        s.meta["gpu"] = gpu
         s.save()
         n_checks, error = len(s.checks.get(stage, [])), None
         token = gemini.CALLS.set([])
