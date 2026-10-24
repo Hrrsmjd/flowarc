@@ -1,4 +1,6 @@
 import io
+import shutil
+import subprocess
 
 import pytest
 import trimesh
@@ -47,3 +49,28 @@ def test_mesh_glb_decimates_large_meshes(tmp_path):
     trimesh.creation.icosphere(subdivisions=6).export(path)  # 81,920 faces
     glb = trimesh.load(io.BytesIO(media.mesh_glb(path, faces=5000)), file_type="glb", force="mesh")
     assert len(glb.faces) <= 5000
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="needs ffmpeg")
+def test_flow_video_is_reencoded_small(tmp_path):
+    src = tmp_path / "video.mp4"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=size=1280x720:rate=30",
+            "-t",
+            "3",
+            "-pix_fmt",
+            "yuv420p",
+            str(src),
+        ],
+        check=True,
+    )
+    data = media.video_mp4(src)
+    assert data and len(data) <= media.VIDEO_MAX
+    assert b"ftyp" in data[:16]

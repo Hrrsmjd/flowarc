@@ -64,12 +64,13 @@ export async function atlasSearch(q) {
   }
 }
 
-// One GridFS file from the `media` bucket, or null.
+// One GridFS file from the `media` bucket, or null; open([start, end)) streams it, or a byte range.
 export async function atlasMedia(id) {
   const { GridFSBucket, ObjectId } = await import("mongodb");
   if (!ObjectId.isValid(id)) return null;
   const d = await db();
   const bucket = new GridFSBucket(d, { bucketName: "media" });
   const [file] = await bucket.find({ _id: new ObjectId(id) }).toArray();
-  return file ? { file, stream: bucket.openDownloadStream(file._id) } : null;
+  if (!file) return null;
+  return { file, open: (range) => bucket.openDownloadStream(file._id, range ? { start: range[0], end: range[1] } : {}) };
 }

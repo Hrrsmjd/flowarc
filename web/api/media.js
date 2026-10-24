@@ -1,4 +1,5 @@
-// GET /api/media?id=: a view (JPEG) or mesh (GLB) from the Atlas GridFS bucket `media`.
+// GET /api/media?id=: a view (JPEG), mesh (GLB) or flow video (MP4) from the Atlas GridFS bucket
+// `media`. Byte ranges are served too: Safari won't play a video without them.
 // GET /api/media?hf=<sample>/views/<name>.jpg: a view from the private HF dataset, fetched
 // with HF_TOKEN. In mock mode the files are static (public/mock-media), so this isn't used.
 import { atlasMedia, hasAtlas } from "../lib/atlas.js";
@@ -11,16 +12,36 @@ export default async function handler(req, res) {
     const id = q.get("id") || "";
     const hit = hasAtlas() ? await atlasMedia(id) : null;
     if (!hit) return send(res, 404, { error: "not found" });
-    res.writeHead(200, {
+    const size = hit.file.length;
+    const range = byteRange(req.headers.range, size);
+    if (range === false) {
+      res.writeHead(416, { "Content-Range": `bytes */${size}` });
+      return res.end();
+    }
+    const headers = {
       "Content-Type": hit.file.metadata?.content_type || "application/octet-stream",
-      "Content-Length": hit.file.length,
+      "Accept-Ranges": "bytes",
       "Cache-Control": "public, max-age=31536000, immutable", // files never change; a new upload gets a new id
-    });
-    hit.stream.pipe(res);
+    };
+    if (range) {
+      res.writeHead(206, { ...headers, "Content-Length": range[1] - range[0], "Content-Range": `bytes ${range[0]}-${range[1] - 1}/${size}` });
+    } else {
+      res.writeHead(200, { ...headers, "Content-Length": size });
+    }
+    hit.open(range).pipe(res);
   } catch (e) {
     console.error(e);
     send(res, 500, { error: String(e.message || e) });
   }
+}
+
+// "bytes=a-b" -> [a, b + 1); null = whole file; false = unsatisfiable.
+export function byteRange(header, size) {
+  const m = /^bytes=(\d*)-(\d*)$/.exec(header || "");
+  if (!m || (!m[1] && !m[2])) return null;
+  const start = m[1] ? Number(m[1]) : Math.max(0, size - Number(m[2]));
+  const end = m[1] && m[2] ? Math.min(Number(m[2]) + 1, size) : size;
+  return start < end ? [start, end] : false;
 }
 
 const HF_PATH = /^[\w-]+\/views\/[\w-]+\.jpg$/; // views only: meshes are too big for a function response

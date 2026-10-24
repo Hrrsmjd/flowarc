@@ -62,8 +62,8 @@ function event(e) {
 const STAT_KEYS = ["cd_mean", "cl_rms", "cs_rms", "st", "cd_half_change", "mach_max", "mass_drift"];
 const pick = (o, keys) => (o ? Object.fromEntries(keys.filter((k) => o[k] != null).map((k) => [k, o[k]])) : null);
 
-// Per sample: the latest attempt of each view, and every mesh attempt (so a failed mesh and
-// its fix can be compared).
+// Per sample: the latest attempt of each view, every mesh attempt (so a failed mesh and its
+// fix can be compared), and the flow video.
 function mediaBySample(media) {
   const out = new Map();
   for (const m of [...media].sort((a, b) => a.t - b.t)) {
@@ -72,6 +72,7 @@ function mediaBySample(media) {
     const item = { url: m.url, attempt: m.attempt || 1, t: m.t };
     if (m.kind === "view") o.views[m.name] = item;
     else if (m.kind === "mesh") o.meshes[item.attempt] = item;
+    else if (m.kind === "video") o.video = item; // the latest flow video
   }
   for (const o of out.values()) o.meshes = Object.values(o.meshes).sort((a, b) => a.attempt - b.attempt);
   return out;

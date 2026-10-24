@@ -60,13 +60,13 @@ Regenerate the mock batch with `python -m flowarc.mock web/lib/mock.json`.
 
 ## Views and meshes
 
-The Sample panel shows the four reference views (hover to enlarge) and the mesh in a 3D viewer
+The Sample panel shows the four reference views (hover to enlarge), the mesh in a 3D viewer
 (three.js, vendored in `public/vendor`), with a tab per mesh attempt so a failed mesh and its
 fix can be compared. They come from the GridFS bucket `media` in Atlas. On the GPU box, next to
 the runner:
 
 ```bash
-python -m flowarc.media --watch 15   # uploads new views (512 px JPEG) and meshes (GLB, ≤20k faces)
+python -m flowarc.media --watch 5    # new views (512 px JPEG), meshes (GLB, ≤20k faces), flow video (MP4, ≤4 MB)
 ```
 
 Without it, views the runner uploaded to the HF dataset (`meta.files`) still show, but no meshes:

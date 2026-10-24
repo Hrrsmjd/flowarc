@@ -245,7 +245,7 @@ function renderSample() {
 
 // ---------- views and mesh ----------
 const VIEWS = ["three-quarter", "front", "side", "top"];
-const mediaSig = (s) => (s.media ? [...Object.values(s.media.views), ...s.media.meshes].map((m) => m.url).join(",") : "");
+const mediaSig = (s) => (s.media ? [...Object.values(s.media.views), ...s.media.meshes, s.media.video].filter(Boolean).map((m) => m.url).join(",") : "");
 
 // Each mesh attempt runs the same checks, so the n-th result of a check judges attempt n.
 function meshVerdicts(s) {
@@ -258,8 +258,21 @@ function meshVerdicts(s) {
   return out;
 }
 
+function renderFlow(s) {
+  const v = s.media?.video, el = $("flow-video");
+  $("flow-empty").hidden = Boolean(v);
+  el.hidden = !v;
+  $("flow-note").textContent = v && s.sim?.cd_mean != null ? `Mean drag coefficient ${s.sim.cd_mean.toFixed(3)}` : "";
+  if (!v) return el.removeAttribute("src");
+  if (el.getAttribute("src") !== v.url) {
+    el.src = v.url;
+    el.play().catch(() => {}); // autoplay can be refused until the page is clicked
+  }
+}
+
 function renderMedia(s) {
   $("sample-media").hidden = false;
+  renderFlow(s);
   const views = s.media?.views || {};
   $("views").innerHTML = VIEWS.map((v) => {
     const m = views[v];
