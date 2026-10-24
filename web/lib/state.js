@@ -121,7 +121,7 @@ export function buildState({ run = {}, samples, logs, approvals = [], media = []
     if (e.actor === "gemini") {
       if (!calls.has(e.sample)) calls.set(e.sample, noCalls());
       addCall(calls.get(e.sample), e);
-      addCall(total, e);
+      if (!e.copy) addCall(total, e); // a batch-wide call is logged on every sample, counted once
       continue; // shown under Prompts, not in the activity feed
     }
     if (!bySample.has(e.sample)) bySample.set(e.sample, []);
