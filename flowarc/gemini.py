@@ -118,5 +118,12 @@ def generate_image(prompt, refs: list[bytes] = (), aspect="1:1") -> bytes:
 
 
 def embed(texts: list[str]) -> list[list[float]]:
-    res = client().models.embed_content(model=config.EMBED_MODEL, contents=texts)
-    return [e.values for e in res.embeddings]
+    """One vector per text. A plain list of strings is embedded as a single text."""
+    from google.genai import types
+
+    contents = [types.Content(parts=[types.Part(text=t)]) for t in texts]
+    res = client().models.embed_content(model=config.EMBED_MODEL, contents=contents)
+    out = [e.values for e in res.embeddings]
+    if len(out) != len(texts):
+        raise RuntimeError(f"asked for {len(texts)} embeddings, got {len(out)}")
+    return out
