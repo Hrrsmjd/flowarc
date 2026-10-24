@@ -469,17 +469,19 @@ const similarCache = new Map();
 async function loadSimilar(s) {
   const id = s.id;
   if (!similarCache.has(id)) {
-    similarCache.set(id, fetch(`api/similar?id=${encodeURIComponent(id)}&start=${start}`).then((r) => r.json()).catch(() => ({ results: [] })));
+    similarCache.set(id, fetch(`api/similar?id=${encodeURIComponent(id)}&k=12&start=${start}`).then((r) => r.json()).catch(() => ({ results: [] })));
   }
   const r = await similarCache.get(id);
   if (selectedSample()?.id !== id) return;
-  const rows = r.results || [];
+  const byId = new Map(state.samples.map((x) => [x.id, x]));
+  const pic = (x) => byId.get(x.id) && viewUrl(byId.get(x.id));
+  // Nearest first, but shapes with pictures before concepts still waiting for their images.
+  const rows = (r.results || []).map((x, i) => ({ ...x, i })).sort((a, b) => !pic(a) - !pic(b) || a.i - b.i).slice(0, 6);
   const engines = { "vector-search": "Atlas Vector Search", mock: "mock" };
   $("similar-note").textContent = rows.length ? `nearest concepts · ${engines[r.engine] || ""}` : "";
-  const byId = new Map(state.samples.map((x) => [x.id, x]));
   $("similar").innerHTML = rows.map((x) => {
-    const img = byId.get(x.id) && viewUrl(byId.get(x.id));
-    return `<button type="button" class="sim-card" data-id="${esc(x.id)}">${img ? `<img src="${esc(img)}" alt="" loading="lazy">` : `<span class="sim-noimg"></span>`}<span class="cap">${esc(x.name || x.id)}<small>${x.similarity != null ? `${(100 * x.similarity).toFixed(0)}% alike · ` : ""}${esc(x.bucket || "")}</small></span></button>`;
+    const img = pic(x);
+    return `<button type="button" class="sim-card" data-id="${esc(x.id)}">${img ? `<img src="${esc(img)}" alt="" loading="lazy">` : `<span class="sim-noimg">no images yet</span>`}<span class="cap">${esc(x.name || x.id)}<small>${x.similarity != null ? `cos ${x.similarity.toFixed(3)} · ` : ""}${esc(x.bucket || "")}</small></span></button>`;
   }).join("") || "<p class='muted small'>No embedding for this sample yet.</p>";
   $("similar").querySelectorAll("[data-id]").forEach((b) => b.addEventListener("click", () => select(b.dataset.id)));
 }
@@ -575,8 +577,11 @@ function renderMedia(s) {
   );
   $("mesh-empty").hidden = Boolean(pick);
   $("mesh-view").classList.toggle("has-mesh", Boolean(pick));
-  const failed = pick && verdicts[pick.attempt - 1] === "fail";
-  $("mesh-note").textContent = failed ? "This attempt failed the mesh check · drag to rotate · scroll to zoom" : "Drag to rotate · scroll to zoom";
+  // The last mesh of a sample that moved past the mesh stage is the one it used, whatever its
+  // check said (Argon can accept a soft failure); only a replaced attempt shows as failed.
+  const used = pick && pick === meshes[meshes.length - 1] && STAGES.indexOf(s.stage === "done" ? "package" : s.stage) > STAGES.indexOf("mesh");
+  const failed = pick && !used && verdicts[pick.attempt - 1] === "fail";
+  $("mesh-note").textContent = failed ? "This attempt failed the mesh check · drag to rotate · scroll to zoom" : used ? "The mesh used for the simulation · drag to rotate · scroll to zoom" : "Drag to rotate · scroll to zoom";
   if (!pick) return viewerP?.then((v) => v.clear());
   viewerP ??= import("./mesh.js").then((m) => m.createViewer($("mesh-view")));
   viewerP
