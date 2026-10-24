@@ -143,3 +143,38 @@ def test_find_similar_uses_hybrid_in_atlas(atlas, monkeypatch):
 
     monkeypatch.setattr(store, "hybrid", lambda text, k, bucket: [{"id": "s1", "q": text}])
     assert find_similar("heron") == [{"id": "s1", "q": "heron"}]
+
+
+def test_failure_memory_offline(local):
+    from flowarc.sample import past_fixes, repair_context
+
+    a = Sample(id="s1", stage="mesh")
+    r1 = a.record_repair("mesh has 3 holes in the tail fin", "voxel remesh at 256")
+    a.repair_outcome(r1, True)
+    r2 = a.record_repair("floating fragments near the base", "drop small components")
+    a.repair_outcome(r2, False)
+    Sample(id="s2", stage="sim").record_repair("holes in the mesh", "smaller time step")
+    fixes = past_fixes("two holes in the wing", "mesh")
+    assert fixes == [
+        {
+            "sample": "s1",
+            "diagnosis": "mesh has 3 holes in the tail fin",
+            "action": "voxel remesh at 256",
+        }
+    ]
+    assert "voxel remesh at 256" in repair_context("holes in wing", "mesh")
+    assert repair_context("blow-up", "render") == ""
+
+
+def test_failure_memory_in_atlas(atlas, monkeypatch):
+    s = Sample(id="s1", stage="mesh")
+    rid = s.record_repair("hole in fin", "voxel remesh")
+    s.repair_outcome(rid, True)
+    doc = atlas.repairs.find_one()
+    assert doc["fixed"] is True and doc["stage"] == "mesh" and doc["sample"] == "s1"
+    assert atlas.logs.find_one({"sample": "s1"})["diagnosis"] == "hole in fin"
+    seen = _capture(monkeypatch, atlas.repairs, [{"sample": "s1", "action": "voxel remesh"}])
+    assert store.past_fixes("holes", "mesh") == [{"sample": "s1", "action": "voxel remesh"}]
+    pipes = seen["pipeline"][0]["$rankFusion"]["input"]["pipelines"]
+    assert pipes["semantic"][0]["$vectorSearch"]["filter"] == {"stage": "mesh", "fixed": True}
+    assert pipes["keyword"][0]["$search"]["index"] == store.REPAIR_TEXT_INDEX

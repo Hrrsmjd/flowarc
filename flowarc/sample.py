@@ -51,6 +51,28 @@ class Sample:
         with open(self.dir / "log.jsonl", "a") as f:
             f.write(json.dumps(entry) + "\n")
 
+    def record_repair(self, diagnosis: str, action: str) -> str:
+        """Note Argon's diagnosis and chosen fix for a failure at the current stage.
+
+        Call `repair_outcome` once the stage is re-checked; fixes that worked are what
+        `past_fixes` returns for later failures.
+        """
+        entry = {"sample": self.id, "stage": self.stage, "diagnosis": diagnosis, "action": action}
+        self.log(f"repair: {action}", diagnosis=diagnosis)
+        if (d := store.db()) is not None:
+            return str(d.repairs.insert_one({**entry, "fixed": None, "t": time.time()}).inserted_id)
+        rid = f"{self.id}-{time.time_ns()}"
+        _append_repair({"id": rid, **entry, "fixed": None})
+        return rid
+
+    def repair_outcome(self, repair_id: str, fixed: bool) -> None:
+        if (d := store.db()) is not None:
+            from bson import ObjectId
+
+            d.repairs.update_one({"_id": ObjectId(repair_id)}, {"$set": {"fixed": fixed}})
+            return
+        _append_repair({"id": repair_id, "fixed": fixed})
+
     def record_check(self, name: str, passed: bool, **values) -> bool:
         self.checks.setdefault(self.stage, []).append({"name": name, "passed": passed, **values})
         self.log(
@@ -125,3 +147,39 @@ def find_similar(text: str, k: int = 8, bucket: str | None = None) -> list[dict]
                 {"id": s.id, "name": c.get("name"), "bucket": c.get("bucket"), "score": hits}
             )
     return sorted(rows, key=lambda r: -r["score"])[:k]
+
+
+def _append_repair(entry: dict) -> None:
+    config.DATA.mkdir(parents=True, exist_ok=True)
+    with open(config.DATA / "repairs.jsonl", "a") as f:
+        f.write(json.dumps(entry) + "\n")
+
+
+def past_fixes(diagnosis: str, stage: str, k: int = 5) -> list[dict]:
+    """Fixes that worked for similar failures: Atlas hybrid search, or word overlap offline."""
+    if store.db() is not None:
+        return store.past_fixes(diagnosis, stage, k)
+    path = config.DATA / "repairs.jsonl"
+    repairs = {}
+    for line in path.read_text().splitlines() if path.exists() else []:
+        e = json.loads(line)
+        repairs.setdefault(e["id"], {}).update(e)
+    words = set(diagnosis.lower().split())
+    rows = [
+        (len(words & set(r["diagnosis"].lower().split())), r)
+        for r in repairs.values()
+        if r.get("stage") == stage and r.get("fixed") is True
+    ]
+    rows = sorted((t for t in rows if t[0]), key=lambda t: -t[0])[:k]
+    return [
+        {"sample": r["sample"], "diagnosis": r["diagnosis"], "action": r["action"]} for _, r in rows
+    ]
+
+
+def repair_context(diagnosis: str, stage: str, k: int = 3) -> str:
+    """Past fixes as prompt text for Argon's repair decision ('' when there are none)."""
+    fixes = past_fixes(diagnosis, stage, k)
+    if not fixes:
+        return ""
+    lines = [f"- {f['diagnosis']} -> fixed by: {f['action']}" for f in fixes]
+    return "Similar failures that were fixed before:\n" + "\n".join(lines)

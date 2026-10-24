@@ -15,6 +15,8 @@ VECTOR_INDEX = "concept_vectors"
 TEXT_INDEX = "samples_text"  # Atlas Search: names, descriptions, facets
 LOG_INDEX = "logs_text"  # Atlas Search: the agent's log
 SEMANTIC_INDEX = "concept_semantic"  # Automated Embedding (Voyage AI) of descriptions
+REPAIR_TEXT_INDEX = "repairs_text"  # Atlas Search over Argon's diagnoses and fixes
+REPAIR_SEMANTIC_INDEX = "repairs_semantic"  # Automated Embedding of diagnoses
 AUTO_EMBED_MODEL = config.AUTO_EMBED_MODEL
 
 # Atlas Search definitions. `token` fields can be faceted and matched exactly.
@@ -232,6 +234,47 @@ def hybrid(text: str, k: int = 10, bucket: str | None = None) -> list[dict]:
         {"$project": SUMMARY | {"score": {"$meta": "score"}}},
     ]
     return [_row(r) for r in db().samples.aggregate(pipeline)]
+
+
+def past_fixes(diagnosis: str, stage: str, k: int = 5) -> list[dict]:
+    """Repairs that fixed a failure like `diagnosis` at this stage, best match first.
+
+    Hybrid search over the `repairs` collection: Voyage embeddings of past diagnoses fused
+    with keyword matches, filtered to repairs that worked.
+    """
+    flt = {"stage": stage, "fixed": True}
+    keyword = {
+        "index": REPAIR_TEXT_INDEX,
+        "compound": {
+            "must": [{"text": {"query": diagnosis, "path": "diagnosis"}}],
+            "filter": [
+                {"equals": {"path": "stage", "value": stage}},
+                {"equals": {"path": "fixed", "value": True}},
+            ],
+        },
+    }
+    semantic = {
+        "index": REPAIR_SEMANTIC_INDEX,
+        "path": "diagnosis",
+        "query": diagnosis,
+        "numCandidates": max(100, 40 * k),
+        "limit": 2 * k,
+        "filter": flt,
+    }
+    fusion = {
+        "input": {
+            "pipelines": {
+                "semantic": [{"$vectorSearch": semantic}],
+                "keyword": [{"$search": keyword}, {"$limit": 2 * k}],
+            }
+        }
+    }
+    pipeline = [
+        {"$rankFusion": fusion},
+        {"$limit": k},
+        {"$project": {"_id": 0, "sample": 1, "diagnosis": 1, "action": 1}},
+    ]
+    return list(db().repairs.aggregate(pipeline))
 
 
 SUMMARY = {
