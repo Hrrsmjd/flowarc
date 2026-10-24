@@ -826,23 +826,60 @@ async function decide(id, decision) {
 }
 
 // ---------- search ----------
-let searchTimer;
-$("q").addEventListener("input", (e) => {
+// Search by meaning or name (Atlas hybrid search). Arrow keys pick a result, Enter opens it,
+// / jumps to the box from anywhere, and an empty box offers a few things to try.
+const TRY = ["something that flies", "kitchen tools", "sea creatures", "tall buildings"];
+let searchTimer, hits = [], hit = 0;
+function showResults(html) { $("results").innerHTML = html; $("results").hidden = false; }
+function paintHits(engine) {
+  const engines = { hybrid: "Atlas hybrid search · meaning + keywords", "hybrid-descriptions": "Atlas hybrid search (descriptions only)", "atlas-search": "Atlas Search", regex: "Atlas", mock: "Local replay" };
+  const row = (x, i) => {
+    const s = state?.samples.find((t) => t.id === x.id);
+    const img = s && viewUrl(s);
+    return `<button type="button" data-id="${esc(x.id)}" class="${i === hit ? "on" : ""}">${img ? `<img src="${esc(img)}" alt="">` : `<span class="noimg"></span>`}
+      <span class="r-name">${esc(x.name)}<small>${esc([s?.bucket, x.status].filter(Boolean).join(" · "))}</small></span></button>`;
+  };
+  showResults((hits.map(row).join("") || "<div class='engine'>No matches. Try describing the shape.</div>") + `<div class="engine">${engines[engine] || ""}</div>`);
+  $("results").querySelectorAll("[data-id]").forEach((b) => b.addEventListener("click", () => openHit(b.dataset.id)));
+}
+function openHit(id) {
+  $("results").hidden = true;
+  $("q").value = "";
+  $("q").blur();
+  select(id);
+}
+function suggest() {
+  showResults(`<div class="engine">Try</div>${TRY.map((t) => `<button type="button" class="try" data-q="${esc(t)}">${esc(t)}</button>`).join("")}`);
+  $("results").querySelectorAll("[data-q]").forEach((b) => b.addEventListener("click", () => { $("q").value = b.dataset.q; $("q").focus(); search(); }));
+}
+function search() {
   clearTimeout(searchTimer);
-  const q = e.target.value.trim();
-  if (!q) return ($("results").hidden = true);
+  const q = $("q").value.trim();
+  hits = []; hit = 0;
+  if (!q) return suggest();
+  showResults("<div class='engine'>Searching…</div>");
   searchTimer = setTimeout(async () => {
     const r = await fetch(`api/search?q=${encodeURIComponent(q)}&start=${start}`).then((r) => r.json()).catch(() => ({ results: [] }));
-    const engines = { hybrid: "Atlas hybrid search · Voyage AI meaning + keywords", "hybrid-descriptions": "Atlas hybrid search (descriptions only: re-run setup_atlas.py to add names)", "atlas-search": "Atlas Search", regex: "Atlas (no search index)", mock: "mock" };
-    $("results").innerHTML = (r.results.map((x) => `<button type="button" data-id="${esc(x.id)}"><span>${esc(x.name)}</span><span class="muted small">${esc(x.status)}</span></button>`).join("") || "<div class='engine'>No matches</div>") +
-      `<div class="engine">${engines[r.engine] || ""}</div>`;
-    $("results").hidden = false;
-    $("results").querySelectorAll("[data-id]").forEach((b) => b.addEventListener("click", () => {
-      $("results").hidden = true;
-      $("q").value = "";
-      select(b.dataset.id);
-    }));
+    if ($("q").value.trim() !== q) return;
+    hits = r.results || [];
+    paintHits(r.engine);
   }, 200);
+}
+$("q").addEventListener("input", search);
+$("q").addEventListener("focus", () => { if (!$("q").value.trim()) suggest(); });
+$("q").addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { $("q").value = ""; $("results").hidden = true; $("q").blur(); }
+  else if (e.key === "Enter" && hits[hit]) openHit(hits[hit].id);
+  else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && hits.length) {
+    e.preventDefault();
+    hit = (hit + (e.key === "ArrowDown" ? 1 : -1) + hits.length) % hits.length;
+    $("results").querySelectorAll("[data-id]").forEach((b, i) => b.classList.toggle("on", i === hit));
+  }
+});
+addEventListener("keydown", (e) => {
+  if (e.key !== "/" || e.target.closest("input, textarea, select") || document.body.classList.contains("present") || finaleOpen()) return;
+  e.preventDefault();
+  $("q").focus();
 });
 document.addEventListener("click", (e) => { if (!e.target.closest(".search")) $("results").hidden = true; });
 
