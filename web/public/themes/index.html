@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en" data-theme="lab">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FlowArc · theme drafts</title>
+  <link rel="stylesheet" href="base.css">
+  <link rel="stylesheet" id="theme-css" href="t/lab.css">
+  <script>
+    { const t = new URLSearchParams(location.search).get("t"); if (/^[a-z]+$/.test(t || "")) document.getElementById("theme-css").href = `t/${t}.css`; }
+  </script>
+  <script type="importmap">
+    { "imports": { "three": "../vendor/three/three.module.min.js", "three/addons/": "../vendor/three/examples/jsm/" } }
+  </script>
+</head>
+<body>
+  <header class="bar">
+    <div class="wrap bar-in">
+      <a class="brand" href="#"><span class="mark" aria-hidden="true"></span><span class="word">FlowArc</span></a>
+      <nav class="nav">
+        <a href="#shapes">Shapes</a>
+        <a href="#map">Diversity</a>
+        <a href="#more">Details</a>
+      </nav>
+      <span class="live"><span class="dot"></span>Live · 6 GPUs busy</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- 1. Overview: one sentence, one bar, four numbers -->
+    <section class="overview wrap" aria-label="Run overview">
+      <div class="ov-main">
+        <p class="label">Pilot run · started 1 h 6 m ago</p>
+        <h1 class="headline"><span class="num" id="h-done">8</span> of 100 shapes<br>are done.</h1>
+        <p class="lede">6 more are in the wind tunnel now. Argon has fixed 15 problems on its own.</p>
+        <div class="progress" id="progress" aria-label="Run progress"></div>
+        <div class="progress-key" id="progress-key"></div>
+      </div>
+      <dl class="stats" id="stats"></dl>
+      <a class="needs" href="#approvals"><span class="needs-dot"></span>1 thing needs you</a>
+    </section>
+
+    <!-- 2. Visuals: latest shape and its flow -->
+    <section class="hero wrap" aria-label="Latest shape">
+      <figure class="panel mesh">
+        <div class="frame" id="mesh-frame"></div>
+        <figcaption>
+          <span class="label">Latest shape</span>
+          <strong id="hero-name">Vintage Biplane</strong>
+          <span class="meta" id="hero-meta"></span>
+          <ol class="stepper" id="stepper"></ol>
+        </figcaption>
+      </figure>
+      <figure class="panel flow">
+        <div class="frame" id="flow-frame">
+          <video id="flow-video" src="media/flow.mp4" poster="media/flow.jpg" muted loop playsinline autoplay></video>
+        </div>
+        <figcaption>
+          <span class="label">Flow</span>
+          <strong>Vortices around the body</strong>
+          <span class="meta">FluidX3D · Q-criterion · 12 s loop</span>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section class="gpus wrap" aria-label="On the GPUs now">
+      <div class="sec-head"><h2>On the GPUs now</h2><span class="note">updates every 2 s</span></div>
+      <div class="gpu-row" id="gpus"></div>
+    </section>
+
+    <section class="shapes wrap" id="shapes" aria-label="Shapes so far">
+      <div class="sec-head"><h2>Shapes so far</h2><span class="note">click a shape for its views, mesh and prompts</span></div>
+      <div class="gallery" id="gallery"></div>
+    </section>
+
+    <section class="map wrap" id="map" aria-label="Diversity">
+      <div class="sec-head"><h2>How different are they?</h2><span class="note">each dot is a shape; close dots are similar</span></div>
+      <div class="map-grid">
+        <div class="panel chart" id="divmap"></div>
+        <div class="coverage" id="coverage"></div>
+      </div>
+    </section>
+
+    <!-- 3. Detail: closed until asked for -->
+    <section class="more wrap" id="more" aria-label="Details">
+      <div class="sec-head"><h2>Details</h2><span class="note">for when you need them</span></div>
+      <details class="fold" id="approvals" open>
+        <summary><span>Needs your approval</span><span class="count">1</span></summary>
+        <div class="approval">
+          <div><strong>Publish the first 8 shapes</strong><p>Upload fields, meshes and videos to the Hugging Face dataset <code>hrrsmjd/flowarc-pilot</code>.</p></div>
+          <div class="actions"><button class="btn primary" type="button">Approve</button><button class="btn" type="button">Reject</button></div>
+        </div>
+      </details>
+      <details class="fold">
+        <summary><span>Agent activity</span><span class="count">8</span></summary>
+        <ol class="log" id="log"></ol>
+      </details>
+      <details class="fold">
+        <summary><span>Every sample, every stage</span><span class="count">100</span></summary>
+        <div class="table-wrap"><table class="tbl" id="stages"></table></div>
+      </details>
+      <details class="fold">
+        <summary><span>Usage</span><span class="count">153 calls</span></summary>
+        <div class="table-wrap"><table class="tbl" id="usage"></table></div>
+      </details>
+    </section>
+
+    <footer class="foot wrap"><span>FlowArc</span><span>Theme draft · sample data from the pilot run</span></footer>
+  </main>
+
+  <div class="scrim" id="scrim" hidden></div>
+  <aside class="drawer" id="drawer" aria-label="Shape details" aria-hidden="true">
+    <button class="close" id="drawer-close" type="button" aria-label="Close">✕</button>
+    <div id="drawer-body"></div>
+  </aside>
+
+  <nav class="switcher" id="switcher" aria-label="Themes"></nav>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
