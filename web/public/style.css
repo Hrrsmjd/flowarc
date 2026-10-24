@@ -663,3 +663,47 @@ a.brand { min-width: 0; flex-shrink: 1; color: inherit; text-decoration: none; }
 .l-pic-label .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); animation: l-blink 2s ease-in-out infinite; }
 @keyframes l-blink { 50% { opacity: .3; } }
 .l-pic figcaption b { color: var(--ink); font-weight: 500; }
+
+/* ---------- shape page: the shape first, details after ---------- */
+.shape-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
+.shape-meta { margin: 0 0 6px; font: 500 12px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.shape-meta.running { color: var(--accent); }
+.shape-meta.done { color: var(--good); }
+.shape-meta.flagged, .shape-meta.failed { color: var(--critical); }
+.card-head h2.shape-title, .shape-title { margin: 0; font: 500 clamp(34px, 4.4vw, 60px)/1 var(--cond); text-transform: uppercase; letter-spacing: 0; }
+.shape-desc { margin: 10px 0 0; max-width: 75ch; color: var(--ink-2); }
+.shape-head select { flex: none; max-width: 320px; }
+@media (max-width: 700px) { .shape-head { flex-direction: column; } .shape-head select { max-width: 100%; } }
+
+/* ---------- live: what is being made while there is no picture ---------- */
+.hero-pic .hero-empty { display: grid; align-content: center; gap: 16px; padding: 28px; background: none; color: var(--ink); place-items: stretch; }
+.he-who { margin: 0; font: 500 13px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--accent); }
+.hero-empty blockquote { margin: 0; padding-left: 16px; border-left: 2px solid var(--accent); font-size: clamp(16px, 1.5vw, 20px); line-height: 1.5; color: var(--ink); }
+.kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 700px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---------- dataset: bigger gallery, filter by kind ---------- */
+.gallery { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.tile img { object-fit: contain; padding: 10px; }
+.tile .cap { background: none; border-top: 1px dashed var(--border); }
+.tile .cap small { font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+.gallery-kinds { margin-bottom: 14px; }
+
+/* ---------- polish: the controls in the blueprint style ---------- */
+.filters button, .tab { padding: 5px 10px; border: 1px solid var(--border); background: none; color: var(--ink-2); font: 500 12px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; }
+.filters button:hover, .tab:hover { color: var(--ink); border-color: var(--ink-2); }
+.filters button.on, .filters button[aria-selected="true"], .tab.on, .tab[aria-selected="true"] { color: var(--accent); border-color: var(--accent); background: rgba(255, 213, 107, .08); }
+select { appearance: none; padding: 7px 34px 7px 12px; border: 1px solid var(--border); font: 13px var(--mono); background: rgba(0, 0, 0, .12) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23e9eef7' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 12px center; }
+select option { background: var(--surface); color: var(--ink); }
+.f-stage { background: none; border: 1px solid var(--border); }
+.f-n { font-family: var(--mono); font-weight: 500; }
+.f-l { font-family: var(--mono); }
+.steps li { background: none; border: 1px solid var(--border); font-family: var(--mono); text-transform: uppercase; letter-spacing: .04em; }
+.steps li.done { background: rgba(233, 238, 247, .1); }
+.steps li.now { border-color: var(--accent); }
+.bubble { background: rgba(0, 0, 0, .12); border-left: 2px solid var(--accent); }
+.btn { font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; font-size: 12.5px; }
+.btn.reject, .ghost { background: none; border: 1px solid var(--border); }
+.btn.reject:hover, .ghost:hover { border-color: var(--ink-2); }
+.sim-card { background: transparent; }
+.sim-card img { object-fit: contain; padding: 6px; }
