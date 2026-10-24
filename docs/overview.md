@@ -102,6 +102,7 @@ flowchart LR
     P2 --> P7[PR 7: concepts + views]
     P7 --> P8[PR 8: mesh stage + mesh review]
     P2 --> P11[PR 11: this overview]
+    P8 --> P12[PR 12: runner]
 ```
 
 ## Where we are
@@ -117,12 +118,14 @@ flowchart LR
 
 Green works, amber works but needs tuning, grey is not built yet.
 
+First full sample (manta ray, Re 250) ran end to end on one A100 through the runner: 4 min of sim, 0.5 GB packed. Flash now reviews 3 video frames and flagged the first video's framing.
+
 Mesh bake-off on 4 objects: Hunyuan3D-2.1 was as good as 2mv or better (2mv lost the aircraft's inner wings), so 2.1 is the default and 2mv the backup.
 
 ## Next
 
-1. Runner: one sample per GPU on w7830, resume after a crash, approval before publishing or going over budget.
-2. First full samples end to end, then 10–20, then 100.
+1. Runner approvals: before publishing and before going over the GPU-hour budget.
+2. Pilot of 10–20 samples, then 100.
 3. Upload to a private HF dataset (needs a write token), then delete the copy on RDS.
 
 ## Where things live
