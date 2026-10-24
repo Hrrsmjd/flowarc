@@ -47,4 +47,22 @@ class Hunyuan21:
         return mesh
 
 
+class Hunyuan21Modal(Hunyuan21):
+    """Same model and script on a Modal GPU (flowarc/sim/modal_app.py), for when local GPUs are full."""
+
+    def __init__(self, view: str = "three-quarter"):
+        self.view = view
+
+    def generate(self, views: dict[str, Path], out: Path, gpu: int, seed: int = 0) -> Path:
+        import modal
+
+        from flowarc.sim import modal_app
+
+        out.mkdir(parents=True, exist_ok=True)
+        fn = modal.Function.from_name(modal_app.APP, "hunyuan")
+        mesh = out / "raw.glb"
+        mesh.write_bytes(fn.remote(views[self.view].read_bytes(), seed))
+        return mesh
+
+
 GENERATORS: dict[str, type] = {Hunyuan21.name: Hunyuan21}

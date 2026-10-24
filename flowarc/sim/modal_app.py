@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import tarfile
 import threading
+import time
 from pathlib import Path
 
 import modal
@@ -34,6 +35,58 @@ image = (
     .run_commands("bash /build/build.sh /FluidX3D /fx3d-bin")
     .env({"FLOWARC_FLUIDX3D_BIN": "/fx3d-bin", "NVIDIA_DRIVER_CAPABILITIES": "compute,utility"})
     .add_local_python_source("flowarc")
+)
+
+HUNYUAN_COMMIT = "82920d6"
+hunyuan_image = (
+    modal.Image.from_registry("nvidia/cuda:12.4.1-runtime-ubuntu22.04", add_python="3.10")
+    .apt_install("git", "libgl1", "libglib2.0-0", "wget")
+    .pip_install(
+        "torch==2.5.1",
+        "torchvision==0.20.1",
+        index_url="https://download.pytorch.org/whl/cu124",
+    )
+    .pip_install(
+        "accelerate==1.1.1",
+        "diffusers==0.30.0",
+        "einops==0.8.0",
+        "huggingface-hub==0.30.2",
+        "numpy==1.24.4",
+        "omegaconf==2.3.0",
+        "onnxruntime==1.23.2",
+        "opencv-python-headless==4.11.0.86",
+        "pymeshlab==2025.7.post1",
+        "pytorch-lightning==1.9.5",
+        "rembg==2.0.65",
+        "safetensors==0.4.4",
+        "transformers==4.46.0",
+        "trimesh==4.4.7",
+        "tqdm==4.66.5",
+        "pydantic==2.10.6",
+        "timm",
+        "scikit-image",
+        "pyyaml",
+        "hf_transfer",
+    )
+    .run_commands(
+        "git clone https://github.com/Tencent-Hunyuan/Hunyuan3D-2.1 /hy && cd /hy && "
+        f"git checkout {HUNYUAN_COMMIT}",
+        "mkdir -p /u2net && wget -q -O /u2net/u2net.onnx "
+        "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx",
+    )
+    .env(
+        {
+            "HY3DGEN_MODELS": "/models",
+            "U2NET_HOME": "/u2net",
+            "HF_HUB_ENABLE_HF_TRANSFER": "1",
+        }
+    )
+    .run_commands(
+        'python -c "from huggingface_hub import snapshot_download; snapshot_download('
+        "'tencent/Hunyuan3D-2.1', allow_patterns=['hunyuan3d-dit-v2-1/*', 'hunyuan3d-vae-v2-1/*'], "
+        "local_dir='/models/tencent/Hunyuan3D-2.1')\""
+    )
+    .add_local_file(HERE.parent / "mesh/hunyuan_run.py", "/hy/hunyuan_run.py")
 )
 
 app = modal.App(APP, image=image)
@@ -109,6 +162,23 @@ def simulate(run_id: str, mesh: bytes, cfg: dict):
         },
         "tar": tar.name,
     }
+
+
+@app.function(image=hunyuan_image, gpu="L40S", timeout=1800, max_containers=MAX_GPUS)
+def hunyuan(image: bytes, seed: int = 0) -> bytes:
+    """Hunyuan3D-2.1 shape only: one view image -> raw.glb bytes (same script as on w7830)."""
+    work = Path("/tmp") / f"hy-{seed}-{time.time_ns()}"
+    work.mkdir(parents=True)
+    (work / "view.jpg").write_bytes(image)
+    r = subprocess.run(
+        ["python", "/hy/hunyuan_run.py", "/hy", work / "view.jpg", work / "raw.glb", str(seed)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if r.returncode:
+        raise RuntimeError((r.stdout + r.stderr)[-3000:])
+    return (work / "raw.glb").read_bytes()
 
 
 @app.local_entrypoint()

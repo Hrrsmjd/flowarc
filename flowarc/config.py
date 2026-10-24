@@ -41,6 +41,7 @@ AUTO_EMBED_MODEL = os.environ.get("FLOWARC_AUTO_EMBED_MODEL", "voyage-4")
 
 # "fluidx3d" runs on the local GPU; "modal" on a Modal H100 (flowarc/sim/modal_app.py).
 SOLVER = os.environ.get("FLOWARC_SOLVER", "fluidx3d")
+MESH_HOST = os.environ.get("FLOWARC_MESH_HOST", "local")  # "modal": Hunyuan on a Modal L40S
 
 # Time in convective units (body length / free-stream speed).
 STARTUP_TIME = 10.0
