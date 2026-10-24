@@ -152,11 +152,23 @@ First full sample (manta ray, Re 250) ran end to end on one A100 through the run
 
 Mesh bake-off on 4 objects: Hunyuan3D-2.1 was as good as 2mv or better (2mv lost the aircraft's inner wings), so 2.1 is the default and 2mv the backup.
 
+## Dashboard access
+
+The dashboard needs no access to w7830. It reads two places:
+
+| What | Where | How |
+|---|---|---|
+| Stage, status, checks and their reasons, Gemini reviews, costs, agent log | Atlas `samples`, `logs`, `repairs` | Read-only Atlas user. Updated live by every GPU worker |
+| Views, mesh, mesh renders, video | Private HF dataset `hrrsmjd/flowarc-pilot`, under `samples/<id>/` | Uploaded after each stage. Links are in `samples.meta.files` (`path`, `stage`, `url`) |
+| Finished Zarr | Same dataset, `samples/<id>/sample.zarr.zip` | `scripts/publish.py` uploads it and checks its sha256; `--delete` then removes the RDS copy. Link and checksum in `samples.meta.published` |
+
+HF links need a read token from an account with access to the dataset. Nothing is made public by the code.
+
 ## Next
 
 1. Runner approvals: before publishing and before going over the GPU-hour budget.
 2. Pilot of 10–20 samples, then 100.
-3. Upload to a private HF dataset (needs a write token), then delete the copy on RDS.
+3. Delete verified Zarrs from RDS (`scripts/publish.py --delete`) once you approve.
 4. Atlas Stream Processing (optional): deploy `scripts/stream_metrics.js` only once the end-to-end demo and dashboard work. It adds a fifth Atlas feature for the MongoDB bounty, but the dashboard already gets the same numbers from a plain aggregation, so it is about 20 minutes of setup plus per-hour cost for points, not function.
 
 ## Where things live
