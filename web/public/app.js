@@ -86,6 +86,9 @@ function render() {
     `running ${fmtDur(elapsed)}`,
   ].filter(Boolean).join(" · ");
   renderKpis(run, samples);
+  renderHero();
+  renderGallery(samples);
+  celebrate(samples);
   renderStages(samples);
   renderPicker(samples);
   renderApprovals();
@@ -127,15 +130,147 @@ function renderKpis(run, samples) {
   const n = (st) => samples.filter((s) => s.status === st).length;
   const done = n("done");
   const pct = Math.min(100, (100 * done) / run.target_samples);
+  const kinds = new Set(samples.filter((s) => s.status !== "failed" && s.stage !== "concept").map((s) => s.bucket)).size;
+  const repairs = samples.reduce((a, s) => a + s.log.filter((e) => e.fix).length, 0);
   const tiles = [
-    ["Samples done", `${done}<small> / ${run.target_samples}</small>`, `<div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>`],
-    ["Running", n("running"), ""],
-    ["<span class='bad'>⚑</span> Flagged", n("flagged"), ""],
-    ["<span class='bad'>✕</span> Failed", n("failed"), ""],
-    ["Samples / hour", run.samples_per_hour.toFixed(1), ""],
-    ["GPU-hours", run.gpu_hours.toFixed(1), ""],
+    ["done", "Shapes finished", done, 0, `<small> / ${run.target_samples}</small>`, `<div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>`],
+    ["running", "On the GPUs now", n("running"), 0, "", ""],
+    ["kinds", "Kinds of shape", kinds, 0, "", `<div class="muted small">car datasets: 1</div>`],
+    ["repairs", "<span class='argon-ink'>◆</span> Fixed by Argon", repairs, 0, "", ""],
+    ["flagged", "<span class='bad'>⚑</span> Flagged or failed", n("flagged") + n("failed"), 0, "", ""],
+    ["gpuh", "GPU-hours", run.gpu_hours, 1, "", ""],
   ];
-  $("kpis").innerHTML = tiles.map(([l, v, x]) => `<div class="kpi"><div class="label">${l}</div><div class="value">${v}</div>${x}</div>`).join("");
+  const el = $("kpis");
+  if (!el.children.length) {
+    el.innerHTML = tiles.map(([k, l]) => `<div class="kpi" data-k="${k}"><div class="label">${l}</div><div class="value"><span class="num">0</span><span class="suffix"></span></div><div class="x"></div></div>`).join("");
+  }
+  for (const [k, , v, dp, suffix, x] of tiles) {
+    const tile = el.querySelector(`[data-k="${k}"]`);
+    tile.querySelector(".suffix").innerHTML = suffix;
+    if (tile.querySelector(".x").innerHTML !== x) tile.querySelector(".x").innerHTML = x;
+    tick(tile.querySelector(".num"), v, dp);
+  }
+}
+
+// Counts up (or down) to a new value instead of jumping, so changes catch the eye.
+function tick(el, to, dp = 0) {
+  const from = Number(el.dataset.v ?? 0);
+  if (from === to) return;
+  el.dataset.v = to;
+  el.closest(".kpi")?.classList.remove("bump");
+  void el.offsetWidth;
+  el.closest(".kpi")?.classList.add("bump");
+  const t0 = performance.now(), dur = 700;
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / dur), e = 1 - (1 - k) ** 3;
+    el.textContent = (from + (to - from) * e).toFixed(dp);
+    if (k < 1 && el.dataset.v == to) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+// ---------- now running ----------
+const viewUrl = (s) => s.media && (s.media.views["three-quarter"] || Object.values(s.media.views)[0])?.url;
+
+// The last thing worth pointing at: a failed check (Flash) or Argon's fix, if one of the last
+// few events; otherwise the latest event as a caption.
+function bubble(s) {
+  const recent = s.log.slice(-4).reverse();
+  const e = recent.find((x) => x.fix || (x.failed && !x.soft)) || s.log[s.log.length - 1];
+  if (!e) return "";
+  if (e.fix) {
+    return `<div class="bubble argon"><span class="who">Argon</span><b>${esc(e.msg.replace(/^repair:\s*/, "Fix: "))}</b>${e.diagnosis ? `<p>${esc(e.diagnosis)}</p>` : ""}</div>`;
+  }
+  if (e.failed) {
+    const what = e.check ? `${e.check} check failed` : e.msg;
+    return `<div class="bubble fail"><span class="who">${esc(e.actor === "system" ? e.stage : e.actor)}</span><b>✕ ${esc(what)}</b>${e.reason ? `<p>${esc(e.reason)}</p>` : ""}</div>`;
+  }
+  return `<div class="bubble"><span class="who">${esc(e.actor)}</span>${esc(e.msg)}</div>`;
+}
+
+function renderHero() {
+  const s = featured(), el = $("hero");
+  el.hidden = !s;
+  if (!s) return;
+  const live = s.status === "running";
+  const cur = s.stage === "done" ? STAGES.length : STAGES.indexOf(s.stage);
+  const steps = STAGES.map((st, i) => `<li class="${i < cur ? "done" : i === cur && live ? "now" : ""}">${st}</li>`).join("");
+  const v = s.status === "done" && s.media?.video;
+  const pic = v
+    ? `<video src="${esc(v.url)}" muted loop playsinline autoplay></video>`
+    : viewUrl(s) ? `<img src="${esc(viewUrl(s))}" alt="${esc(s.title)}">` : "";
+  // A simulation takes longer than a demo: while this one runs, play the last finished flow
+  // (big while there's no picture of this one yet).
+  const prev = !v && lastFlow(s);
+  const shot = !pic && !prev && state.samples.filter((x) => x !== s && x.status === "done" && viewUrl(x)).sort((a, b) => b.last_t - a.last_t)[0];
+  const inset = prev ? `<figure class="hero-flow${pic ? "" : " big"}"><video src="${esc(prev.media.video.url)}" muted loop playsinline autoplay></video><figcaption>Last flow · ${esc(prev.title)}</figcaption></figure>`
+    : shot ? `<figure class="hero-flow big"><img src="${esc(viewUrl(shot))}" alt=""><figcaption>Last finished · ${esc(shot.title)}</figcaption></figure>`
+    : pic ? "" : `<div class="hero-empty">${live ? "drawing…" : ""}</div>`;
+  const c = s.concept || {};
+  const html = `<div class="hero-pic">${pic}${inset}</div>
+    <div class="hero-body">
+      <div class="hero-kicker">${live ? `<span class="pulse"></span>Now running${s.gpu != null ? ` · GPU ${s.gpu}` : ""}` : "Latest sample"}</div>
+      <h2 class="hero-title">${esc(s.title)}</h2>
+      <p class="hero-sub">${esc(s.bucket)}${c.reynolds ? ` · Re ${fmtRe(c.reynolds)}` : ""}${c.description && c.description !== s.title ? ` · ${esc(c.description)}` : ""}</p>
+      <ol class="steps">${steps}</ol>
+      ${bubble(s)}
+    </div>`;
+  if (el.dataset.html !== html) {
+    el.dataset.html = html;
+    el.innerHTML = html;
+    el.querySelectorAll("video").forEach((x) => x.play().catch(() => {}));
+  }
+}
+
+const lastFlow = (not) => state.samples.filter((x) => x !== not && x.status === "done" && x.media?.video).sort((a, b) => b.last_t - a.last_t)[0];
+
+// ---------- gallery ----------
+function renderGallery(samples) {
+  const shown = samples.filter((s) => viewUrl(s)).sort((a, b) => (b.status === "running") - (a.status === "running") || b.last_t - a.last_t);
+  $("gallery-note").textContent = shown.length ? `${shown.length} shapes · hover to turn, click to open` : "";
+  const html = shown.map((s) => {
+    const fixed = s.log.some((e) => e.fix);
+    const badge = s.status === "running" ? `<span class="tag live">running</span>` : s.status === "flagged" ? `<span class="tag bad">⚑</span>` : s.status === "failed" ? `<span class="tag bad">✕</span>` : fixed ? `<span class="tag argon">fixed by Argon</span>` : "";
+    const views = VIEWS.map((v) => s.media.views[v]?.url).filter(Boolean);
+    return `<button class="tile" type="button" data-id="${esc(s.id)}" data-views="${esc(JSON.stringify(views))}"><img src="${esc(viewUrl(s))}" alt="" loading="lazy">${badge}<span class="cap">${esc(s.title)}<small>${esc(s.bucket)}</small></span></button>`;
+  }).join("") || "<p class='muted small'>Finished shapes appear here.</p>";
+  const el = $("gallery");
+  if (el.dataset.html === html) return;
+  el.dataset.html = html;
+  el.innerHTML = html;
+  el.querySelectorAll(".tile").forEach((t) => {
+    const views = JSON.parse(t.dataset.views), img = t.querySelector("img");
+    let timer;
+    t.addEventListener("mouseenter", () => {
+      let i = 0;
+      timer = setInterval(() => (img.src = views[++i % views.length]), 550);
+    });
+    t.addEventListener("mouseleave", () => { clearInterval(timer); img.src = views[0]; });
+    t.addEventListener("click", () => {
+      select(t.dataset.id);
+      $("h-sample").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+}
+
+// ---------- finish moments ----------
+const lastStatus = new Map();
+function celebrate(samples) {
+  for (const s of samples) {
+    const was = lastStatus.get(s.id);
+    lastStatus.set(s.id, s.status);
+    if (was && was !== "done" && s.status === "done") toast(`✓ ${s.title} finished`, "good");
+  }
+}
+
+let toastTimer;
+function toast(msg, kind = "") {
+  const el = $("toast");
+  el.textContent = msg;
+  el.className = `toast ${kind}`;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (el.hidden = true), 4000);
 }
 
 function stageState(s, stage) {
@@ -449,10 +584,20 @@ function renderDiversity() {
   const sx = (v) => P + ((v - x0) / (x1 - x0)) * (W - 2 * P), sy = (v) => H - P - ((v - y0) / (y1 - y0)) * (H - 2 * P);
   const color = { flowarc: "var(--series-1)", car_baseline: "var(--series-2)" };
   const ids = new Set(state.samples.map((s) => s.id));
-  const order = [...pts].sort((a, b) => (a.source === "car_baseline") - (b.source === "car_baseline"));
+  const order = [...pts].sort((a, b) => (b.source === "car_baseline") - (a.source === "car_baseline"));
   let g = `<rect x="0" y="0" width="${W}" height="${H}" fill="none" stroke="var(--grid)" rx="8"/>`;
+  const thumb = new Map(state.samples.map((x) => [x.id, viewUrl(x)]));
+  g += `<defs><clipPath id="dot" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"/></clipPath></defs>`;
   for (const p of order) {
     const mine = ids.has(p.id), r = mine ? 5.5 : 4;
+    const img = mine && thumb.get(p.id);
+    if (img) { // our finished shapes show as their own picture
+      const T = 30, x = sx(p.x) - T / 2, y = sy(p.y) - T / 2;
+      const tipHtml = esc(`<b>${esc(p.label)}</b><br>${esc(p.bucket)} · FlowArc`);
+      g += `<g class="thumb" data-id="${p.id}" data-tip="${tipHtml}" style="cursor:pointer"><circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="${T / 2 + 2}" fill="var(--surface)" stroke="var(--series-1)" stroke-width="2"/><image href="${esc(img)}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${T}" height="${T}" clip-path="url(#dot)" preserveAspectRatio="xMidYMid slice"/></g>`;
+      if (p.id === selectedSample()?.id) g += `<circle cx="${sx(p.x)}" cy="${sy(p.y)}" r="${T / 2 + 6}" fill="none" stroke="var(--ink)" stroke-width="1.5"/>`;
+      continue;
+    }
     g += `<circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="${r}" fill="${color[p.source] || "var(--muted)"}" stroke="var(--surface)" stroke-width="1.5" opacity="${p.source === "car_baseline" ? 0.85 : 1}" data-tip="${esc(`<b>${esc(p.label)}</b><br>${esc(p.bucket)} · ${p.source === "car_baseline" ? "car baseline" : "FlowArc"}`)}" ${mine ? `data-id="${p.id}" style="cursor:pointer"` : ""}/>`;
     if (p.id === selectedSample()?.id) g += `<circle cx="${sx(p.x)}" cy="${sy(p.y)}" r="10" fill="none" stroke="var(--ink)" stroke-width="1.5"/>`;
   }
@@ -503,6 +648,7 @@ async function decide(id, decision) {
     if (!r?.ok) return alert((await r?.json().catch(() => null))?.error || "Could not record the decision. Try again.");
     localApprovals[id] = { status: decision };
     Object.assign(state.approvals.find((a) => a.id === id), localApprovals[id]);
+    toast(decision === "approved" ? "✓ Approved by a human" : "✕ Rejected", decision === "approved" ? "good" : "bad");
     return renderApprovals();
   }
 }
@@ -548,3 +694,32 @@ load().then(loadMap);
 setInterval(load, POLL_MS);
 setInterval(loadMap, MAP_MS);
 setInterval(liveTick, 1000);
+
+// ---------- presenter mode ----------
+// Bigger type, fewer panels, and when nothing is happening it walks through finished shapes
+// so the screen keeps moving while you talk. ?present, the Present button, or P.
+const IDLE_MS = 60000, CYCLE_MS = 15000;
+let lastTouch = 0, cycleTimer = null;
+function present(on) {
+  document.body.classList.toggle("present", on);
+  $("present").textContent = on ? "■ Exit" : "▶ Present";
+  clearInterval(cycleTimer);
+  if (on) cycleTimer = setInterval(cycle, CYCLE_MS);
+}
+function cycle() {
+  if (!state || Date.now() - lastTouch < IDLE_MS) return;
+  if (state.samples.some((s) => s.status === "running") && !selected) return; // the live one is the show
+  const pool = state.samples.filter((s) => s.status === "done" && s.media && (s.media.video || s.media.meshes?.length || viewUrl(s)));
+  if (!pool.length) return;
+  const i = pool.findIndex((s) => s.id === selected);
+  selected = pool[(i + 1) % pool.length].id;
+  render();
+}
+const touch = (e) => { if (e.isTrusted) lastTouch = Date.now(); };
+["pointerdown", "keydown", "wheel"].forEach((t) => addEventListener(t, touch, { passive: true }));
+$("present").addEventListener("click", () => present(!document.body.classList.contains("present")));
+addEventListener("keydown", (e) => {
+  if (e.key.toLowerCase() !== "p" || e.metaKey || e.ctrlKey || e.target.closest("input, textarea, select")) return;
+  present(!document.body.classList.contains("present"));
+});
+if (new URLSearchParams(location.search).has("present")) present(true);

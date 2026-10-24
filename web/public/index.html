@@ -26,15 +26,18 @@
       <span class="live" id="live"><span class="dot"></span><span id="live-text">connecting…</span></span>
       <span class="badge" id="mode-badge" hidden>Mock replay</span>
       <button class="ghost small" id="restart" type="button" hidden>↺ Restart</button>
+      <button class="ghost small" id="present" type="button" title="Presenter mode (P)">▶ Present</button>
       <button class="ghost" id="theme" type="button" aria-label="Toggle theme">◐</button>
     </div>
   </header>
 
   <main>
+    <section class="hero" id="hero" aria-live="polite" hidden></section>
+
     <section class="kpis" id="kpis" aria-label="Run summary"></section>
 
     <div class="grid two">
-      <section class="card" aria-labelledby="h-progress">
+      <section class="card" id="card-progress" aria-labelledby="h-progress">
         <div class="card-head">
           <h2 id="h-progress">Run progress</h2>
           <span class="muted small" id="progress-note"></span>
@@ -77,6 +80,14 @@
       </div>
     </section>
 
+    <section class="card" aria-labelledby="h-gallery">
+      <div class="card-head">
+        <h2 id="h-gallery">Gallery</h2>
+        <span class="muted small" id="gallery-note"></span>
+      </div>
+      <div class="gallery" id="gallery"></div>
+    </section>
+
     <div class="grid two">
       <section class="card" aria-labelledby="h-div">
         <div class="card-head">
@@ -100,6 +111,7 @@
   </main>
 
   <div class="tooltip" id="tip" role="tooltip" hidden></div>
+  <div class="toast" id="toast" role="status" hidden></div>
   <script src="app.js"></script>
 </body>
 </html>
