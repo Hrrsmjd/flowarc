@@ -49,6 +49,12 @@ def test_truncated_table_keeps_good_rows(tmp_path):
     assert _table(p, 4).tolist() == [[1, 2, 3, 4], [2, 3, 4, 5]]
 
 
+def test_strouhal_ignores_fast_ringing():
+    t = np.arange(4000) * 0.01
+    x = np.sin(2 * np.pi * 0.2 * t) + 3 * np.sin(2 * np.pi * 40 * t)
+    assert abs(strouhal(x, 0.01, 1.0, 1.0) - 0.2) < 0.01
+
+
 def test_rms_ignores_lattice_ringing():
     cfg = SimConfig(reynolds=1e6, cells_per_length=64, frame_interval=0)
     lat = lattice(cfg)

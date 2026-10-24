@@ -23,7 +23,8 @@ Rule: get one object through the whole chain first, then widen. Keep `main` runn
 1. [ ] **H** Solver slice: FluidX3D, sphere drag vs Re and cylinder/sphere Strouhal checks, one aircraft mesh → video + point cloud. Measure time and GB per sample.
    - Done: sphere drag within 3–8% in a 12×6×6 box; Re 300 at 48 cells/D gives Cd 0.657 (Johnson & Patel: 0.656). 6×3×3 read 15–27% high. The default box is now 8×4×4: at 32 cells/D it reads +8% at Re 20, +3% at Re 100 and 0% at Re 300. Test jet at 64 cells/L: 236 s on one A100, 0.55 GB Zarr + 6 MB video.
    - Drag ringing: at Re ≥ 1e5 the jet's drag rings with a 12-step period at both 48 and 64 cells/L (and at Re 3e5), so it's a lattice artefact, not flow: a real frequency would scale with cells/L. FP32 rings the same. `stats()` now low-passes forces above St 5 before RMS (raw RMS kept as `*_rms_raw`): RMS drops from 17–26% to 0.5–0.9% of the mean. Raw forces stay in the Zarr. Sphere St at Re 300 is 0.1375 with `--st` (60 D/U spin-up, 80 D/U record), vs ~0.137 expected.
-   - To do: cylinder, Ahmed body.
+   - Cylinder (`validate_cylinder.py`, spanwise periodic, 32 cells/D, 20×2×24 box, 160 D/U record): St 0.170 at Re 100 and 0.189 at Re 150, vs Williamson 0.167 and 0.182 (+2%, +4%). A 16×2×12 box read 6–11% high (blockage). Cd reads 1.47, about 10% above 2D values; not explained yet.
+   - To do: cylinder Cd, Ahmed body.
    - Speed, after the hackathon: step in chunks instead of one `lbm.run` per step, do mass and Mach checks on the GPU instead of full-domain readback, and stream frames into `pack()` instead of loading them all.
 2. [ ] **H** Mesh bake-off (~10 objects through Hunyuan3D-2.1 / 2mv / TRELLIS.2), mesh checks, Argon review and repair loop.
 3. [ ] **H+O** One hand-picked object through all stages.

@@ -70,10 +70,12 @@ def probes(m: trimesh.Trimesh, lat: dict, n_surface: int, n_volume: int, seed: i
     return pts, surf.astype(np.float32), vol.astype(np.float32)
 
 
-def strouhal(signals: np.ndarray, dt: float, L: float, u: float, st_min: float = 0.05) -> float:
+def strouhal(
+    signals: np.ndarray, dt: float, L: float, u: float, st_min: float = 0.05, st_max: float = 5.0
+) -> float:
     """Dominant shedding frequency of one or more force signals (columns), as St = f L / U.
 
-    Signals are detrended; the summed power spectrum is searched above st_min to skip slow drift.
+    Signals are detrended; the summed power spectrum is searched between st_min (slow drift) and st_max (lattice ringing).
     """
     s = np.atleast_2d(np.asarray(signals, float).T).T
     if len(s) < 16:
@@ -82,7 +84,7 @@ def strouhal(signals: np.ndarray, dt: float, L: float, u: float, st_min: float =
     s = s - np.polyval(np.polyfit(t, s, 1), t[:, None])
     power = (np.abs(np.fft.rfft(s * np.hanning(len(s))[:, None], axis=0)) ** 2).sum(axis=1)
     st = np.fft.rfftfreq(len(s), dt) * L / u
-    band = st >= st_min
+    band = (st >= st_min) & (st <= st_max)
     if not band.any() or not power[band].any():
         return 0.0
     i = power[band].argmax()
@@ -180,6 +182,7 @@ class FluidX3D:
         keys = {
             **lat,
             "ground": int(cfg.ground),
+            "periodic_y": int(cfg.periodic_span),
             "render": int(cfg.render),
             "stl": out / "body.stl",
             "probes": out / "probes.f32",
