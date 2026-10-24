@@ -4,7 +4,6 @@ Meshes are in flow axes: x along the flow (nose at min x), y across, z up.
 """
 
 import io
-import itertools
 
 import numpy as np
 import trimesh
@@ -14,7 +13,8 @@ from scipy.spatial import cKDTree
 GRID = 128  # silhouettes are compared on a GRID x GRID square
 
 # view -> (axis looked along, image horizontal axis, image vertical axis)
-VIEW_AXES = {"front": (0, 1, 2), "side": (1, 0, 2), "top": (2, 0, 1)}
+# (look axis, image columns, image rows); top views are drawn nose up
+VIEW_AXES = {"front": (0, 1, 2), "side": (1, 0, 2), "top": (2, 1, 0)}
 
 
 def geometry(
@@ -68,39 +68,44 @@ def projection(mesh: trimesh.Trimesh, view: str) -> np.ndarray:
     return _square(sil[::-1])
 
 
-def iou(a: np.ndarray, b: np.ndarray) -> float:
-    """IoU, allowing a left-right flip (which side a view is taken from)."""
-    return max(float((a & m).sum() / max((a | m).sum(), 1)) for m in (b, b[:, ::-1]))
+def iou(a: np.ndarray, b: np.ndarray, flips: bool = True) -> float:
+    """IoU, allowing left-right and up-down flips (which side a view is taken from)."""
+    cands = (b, b[:, ::-1], b[::-1], b[::-1, ::-1]) if flips else (b,)
+    return max(float((a & m).sum() / max((a | m).sum(), 1)) for m in cands)
 
 
-def silhouette_iou(mesh: trimesh.Trimesh, views: dict[str, bytes], threshold: float = 0.85) -> dict:
+def silhouette_iou(mesh: trimesh.Trimesh, views: dict[str, bytes], threshold: float = 0.5) -> dict:
+    """Low-bar check for a wrong object or orientation; the views don't match each other exactly."""
     per = {v: iou(projection(mesh, v), image_mask(views[v])) for v in VIEW_AXES if v in views}
     return {"iou": per, "min_iou": min(per.values()), "passed": min(per.values()) >= threshold}
 
 
-def rotations() -> list[np.ndarray]:
-    """The 24 proper rotations that map axes onto axes."""
-    out = []
-    for perm in itertools.permutations(range(3)):
-        for signs in itertools.product((1, -1), repeat=3):
-            r = np.zeros((3, 3))
-            r[range(3), perm] = signs
-            if np.linalg.det(r) > 0:
-                out.append(r)
-    return out
+Y_UP = np.array(
+    [[0, 0, 1], [1, 0, 0], [0, 1, 0]], float
+)  # Hunyuan output (y up, z long) to flow axes
 
 
-def best_orientation(mesh: trimesh.Trimesh, views: dict[str, bytes]) -> tuple[np.ndarray, float]:
-    """Axis-aligned rotation that best matches the reference silhouettes (front/back stays ambiguous)."""
+def yaw(quarter_turns: int) -> np.ndarray:
+    c, s = [(1, 0), (0, 1), (-1, 0), (0, -1)][quarter_turns % 4]
+    return np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]], float)
+
+
+def best_orientation(
+    mesh: trimesh.Trimesh, views: dict[str, bytes], up: np.ndarray = Y_UP
+) -> tuple[np.ndarray, float]:
+    """Keep the generator's up axis and try the 4 headings. Silhouettes can't tell nose from tail,
+    so the unflipped side view (nose on the left) breaks ties; the mesh review checks the result."""
     masks = {v: image_mask(views[v]) for v in VIEW_AXES if v in views}
-    best = (np.eye(3), -1.0)
-    for r in rotations():
+    cands = []
+    for k in range(4):
+        r = yaw(k) @ up
         m = mesh.copy()
         m.vertices = m.vertices @ r.T
-        score = np.mean([iou(projection(m, v), masks[v]) for v in masks])
-        if score > best[1]:
-            best = (r, float(score))
-    return best
+        score = float(np.mean([iou(projection(m, v), masks[v]) for v in masks]))
+        side = iou(projection(m, "side"), masks["side"], flips=False) if "side" in masks else 0
+        cands.append((round(score, 2), side, k, r, score))
+    *_, r, score = max(cands, key=lambda c: c[:2])
+    return r, score
 
 
 def symmetry(mesh: trimesh.Trimesh, axis: int = 1, n: int = 5000) -> dict:
