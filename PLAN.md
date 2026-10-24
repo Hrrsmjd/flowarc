@@ -36,7 +36,7 @@ Status as of 2026-10-24 afternoon. ✅ done, 🟡 partly, ⬜ not started.
    - Not built: the runner (one sample per GPU on w7830, resume, approval gate). `pipeline.py` only advances stages so far.
    - Blocker: the hackathon Gemini key (project Encode London-3493) keeps hitting its billing spend cap; asked the organisers for a fix.
 5. [ ] **H** Report measured throughput, propose Phase 2 resolution. Run Phase 2 after approval.
-6. ⬜ **O** Dashboard: live agent activity, review requests, sample viewer, video gallery, diversity map. The Atlas queries it needs exist (`store.facets`, `search`, `autocomplete`, `hybrid`, `search_log`, `metrics`); `web/` is still empty.
+6. 🟡 **O** Dashboard: live agent activity, review requests, sample viewer, video gallery, diversity map. Started on branch `feature/demo-dashboard` (no PR yet): live page polling Atlas every 2 s, approval gate writes to Atlas, mock mode without `MONGODB_URI`, deploys on Vercel with Root Directory `web`. Its Atlas reads are not yet tested against the real cluster.
    - Optional, after the demo works: deploy Atlas Stream Processing (`scripts/stream_metrics.js`) for live metrics. It is a fifth Atlas feature for the MongoDB bounty; `store.metrics` already works without it.
 7. 🟡 **O+H** README for submission: problem, user, architecture, Gemini usage, how to run, limits. Pipeline, Gemini models and the Atlas section are written; limits and demo notes still to do.
 
