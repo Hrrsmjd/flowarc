@@ -78,12 +78,16 @@ def run_mesh(s: Sample, gpu: int) -> bool:
     return rep["passed"]
 
 
+DNS_MAX_RE = 1e3  # resolved at 64 cells/L without a subgrid model
+
+
 def sim_config(s: Sample) -> SimConfig:
     return SimConfig(
         reynolds=s.concept["reynolds"],
         cells_per_length=config.PHASE.cells_per_length[-1],
         ground=s.concept.get("ground", False),
-        justification="LES (Smagorinsky); Re above 1e5 nominal",
+        les=s.concept["reynolds"] > DNS_MAX_RE,
+        justification=f"DNS up to Re {DNS_MAX_RE:g}, LES (Smagorinsky) above; Re above 1e5 nominal",
     )
 
 
