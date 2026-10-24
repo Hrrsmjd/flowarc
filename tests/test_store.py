@@ -198,3 +198,25 @@ def test_metrics_prefers_stream_processor_output(atlas):
     now = dt.datetime.now(dt.UTC)
     atlas.metrics.insert_one({"_id": "mesh@now", "stage": "mesh", "window": now, "passed": 4})
     assert store.metrics()[0]["passed"] == 4
+
+
+def test_ensure_index_redefines_when_fields_are_missing():
+    calls = []
+
+    class Coll:
+        def list_search_indexes(self):
+            return [
+                {"name": "ix", "latestDefinition": {"fields": [{"type": "autoEmbed", "path": "a"}]}}
+            ]
+
+        def update_search_index(self, name, definition):
+            calls.append((name, definition))
+
+    want = {"fields": [{"type": "autoEmbed", "path": "a"}, {"type": "filter", "path": "status"}]}
+    store._search_index(Coll(), "ix", "vectorSearch", want)
+    assert calls == [("ix", want)]
+    calls.clear()
+    store._search_index(
+        Coll(), "ix", "vectorSearch", {"fields": [{"type": "autoEmbed", "path": "a"}]}
+    )
+    assert calls == []

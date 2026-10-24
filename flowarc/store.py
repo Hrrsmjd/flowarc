@@ -60,7 +60,12 @@ def _search_index(coll, name: str, kind: str, definition: dict) -> None:
     from pymongo.errors import OperationFailure
     from pymongo.operations import SearchIndexModel
 
-    if name in {i["name"] for i in coll.list_search_indexes()}:
+    existing = {i["name"]: i for i in coll.list_search_indexes()}
+    if name in existing:
+        have = existing[name].get("latestDefinition", {}).get("fields", [])
+        need = definition.get("fields", [])  # vector indexes; search mappings are left alone
+        if any(not any(f.items() <= h.items() for h in have) for f in need):
+            coll.update_search_index(name, definition)  # e.g. a filter field was added
         return
     try:
         coll.create_search_index(SearchIndexModel(name=name, type=kind, definition=definition))
