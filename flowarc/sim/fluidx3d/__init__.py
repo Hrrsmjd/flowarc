@@ -88,7 +88,8 @@ def probes(m: trimesh.Trimesh, lat: dict, n_surface: int, n_volume: int, seed: i
     box_hi = np.minimum(hi + 0.5 * size.max(), [lat["Nx"] - 2, lat["Ny"] - 2, lat["Nz"] - 2])
     box_hi[0] = lat["Nx"] - 2  # keep the whole wake
     vol = rng.uniform(box_lo, box_hi, size=(n_volume, 3))
-    inside = m.contains(vol) if m.is_watertight else np.zeros(len(vol), bool)
+    # 1-cell voxels: m.contains() is ray-based and takes many minutes on a 1M-face mesh
+    inside = m.voxelized(pitch=1.0).fill().is_filled(vol)
     vol = vol[~inside]
     return pts, surf.astype(np.float32), vol.astype(np.float32)
 
