@@ -66,7 +66,7 @@ def run_mesh(s: Sample, gpu: int) -> bool:
     from flowarc.mesh.stage import make_mesh
 
     tries = s.attempts["mesh"]
-    cells = config.PHASE.cells_per_length[-1]
+    cells = cells_per_length(s)
     rep = make_mesh(
         views_of(s),
         s.dir / "mesh",
@@ -113,11 +113,20 @@ def lattice_velocity(s: Sample) -> float:
     return u
 
 
+LAMINAR_MAX_CELLS = 128  # the 8x4x4 box at 256 cells/L needs ~120 GB, more than one A100
+
+
+def cells_per_length(s: Sample) -> int:
+    """The phase's finest grid; laminar samples (big box) stop at LAMINAR_MAX_CELLS."""
+    cells = config.PHASE.cells_per_length[-1]
+    return cells if s.concept["reynolds"] >= SMALL_BOX_RE else min(cells, LAMINAR_MAX_CELLS)
+
+
 def sim_config(s: Sample) -> SimConfig:
     return SimConfig(
         reynolds=s.concept["reynolds"],
         lattice_velocity=lattice_velocity(s),
-        cells_per_length=config.PHASE.cells_per_length[-1],
+        cells_per_length=cells_per_length(s),
         **(
             {"domain": (5.0, 2.5, 2.5), "body_offset": 1.25}
             if s.concept["reynolds"] >= SMALL_BOX_RE

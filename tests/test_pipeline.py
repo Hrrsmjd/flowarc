@@ -75,3 +75,9 @@ def test_failed_dns_retries_with_les_not_slower():
         {"name": "stable", "passed": False, "mach_max": 0.8, "u": 0.075, "les": True}
     )
     assert pipeline.sim_config(s).lattice_velocity == 0.075 * 0.5
+
+
+def test_laminar_samples_stay_at_128_cells(monkeypatch):
+    monkeypatch.setattr(pipeline.config, "PHASE", pipeline.config.PHASES["real"])
+    assert pipeline.sim_config(Sample(id="s1", concept={"reynolds": 3e4})).cells_per_length == 256
+    assert pipeline.sim_config(Sample(id="s2", concept={"reynolds": 500})).cells_per_length == 128

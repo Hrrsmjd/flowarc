@@ -20,6 +20,7 @@ PHASES = {
     "pilot": Phase("pilot", (64, 96), 100),
     "first": Phase("first", (80, 120), 100),
     "reference": Phase("reference", (170, 256), 20),
+    "real": Phase("real", (128, 256), 100),
 }
 
 DATA = Path(os.environ.get("FLOWARC_DATA", "data")).resolve()
