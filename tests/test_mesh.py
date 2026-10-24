@@ -84,3 +84,29 @@ def test_heading_lines_up_a_turned_body():
     assert np.allclose(ext, [1.0, 0.3, 0.2], atol=1e-6)
     cube = trimesh.creation.box(extents=[1.0, 1.0, 0.2])
     assert np.allclose(checks.heading(cube.vertices), np.eye(3))
+
+
+def test_off_axis_mesh_is_lined_up_when_flash_says_the_pose_is_wrong(tmp_path, monkeypatch):
+    from flowarc.mesh import review, stage
+
+    box = trimesh.creation.box(extents=[1.0, 0.3, 0.4])  # generator output is y-up
+    box.apply_transform(trimesh.transformations.rotation_matrix(np.radians(35), [0, 1, 0]))
+    raw = tmp_path / "raw.stl"
+    box.export(raw)
+    blank = io.BytesIO()
+    Image.new("RGB", (64, 64), "white").save(blank, "JPEG")
+    views = {}
+    for v in ("front", "side", "top", "three-quarter"):
+        views[v] = tmp_path / f"{v}.jpg"
+        views[v].write_bytes(blank.getvalue())
+
+    def fake_review(m, concept, imgs):
+        xy = m.vertices[:, :2] - m.vertices[:, :2].mean(0)
+        ang = np.degrees(np.arctan2(*np.linalg.eigh(xy.T @ xy)[1][::-1, 1])) % 180
+        failed = [] if min(ang, 180 - ang) < 2 else ["upright_facing_flow"]
+        return {"passed": not failed, "flash": {"failed": failed, "checks": [], "summary": ""}}
+
+    monkeypatch.setattr(review, "review", fake_review)
+    monkeypatch.setattr(checks, "best_orientation", lambda m, imgs: (checks.Y_UP, 0.0))
+    rep = stage.make_mesh(views, tmp_path / "out", 0, {"name": "box"}, raw=raw, min_thickness=0.01)
+    assert rep["review"]["passed"] and rep["review"]["turn"]["lined_up"]
