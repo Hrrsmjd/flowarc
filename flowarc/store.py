@@ -12,6 +12,32 @@ from functools import cache
 from flowarc import config
 
 VECTOR_INDEX = "concept_vectors"
+TEXT_INDEX = "samples_text"  # Atlas Search: names, descriptions, facets
+LOG_INDEX = "logs_text"  # Atlas Search: the agent's log
+
+# Atlas Search definitions. `token` fields can be faceted and matched exactly.
+TEXT_FIELDS = {
+    "concept": {
+        "type": "document",
+        "fields": {
+            "name": [{"type": "string"}, {"type": "autocomplete"}],
+            "description": {"type": "string"},
+            "facing": {"type": "string"},
+            "bucket": {"type": "token"},
+            "ground": {"type": "boolean"},
+            "reynolds": {"type": "number"},
+        },
+    },
+    "status": {"type": "token"},
+    "stage": {"type": "token"},
+}
+LOG_FIELDS = {
+    "msg": {"type": "string"},
+    "stage": {"type": "token"},
+    "sample": {"type": "token"},
+    "passed": {"type": "boolean"},
+}
+RE_BANDS = [1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8]
 
 
 @cache
@@ -24,22 +50,29 @@ def db():
     return MongoClient(config.MONGODB_URI, appname="flowarc")[config.MONGODB_DB]
 
 
-def ensure_indexes(dims: int) -> None:
-    """Create the query indexes and the vector search index (idempotent)."""
+def _search_index(coll, name: str, kind: str, definition: dict) -> None:
     from pymongo.operations import SearchIndexModel
 
+    if name not in {i["name"] for i in coll.list_search_indexes()}:
+        coll.create_search_index(SearchIndexModel(name=name, type=kind, definition=definition))
+
+
+def ensure_indexes(dims: int) -> None:
+    """Create the query indexes and the Atlas Search / Vector Search indexes (idempotent)."""
     d = db()
     d.samples.create_index([("stage", 1), ("status", 1)])
     d.samples.create_index("concept.bucket")
     d.logs.create_index([("sample", 1), ("t", 1)])
-    if VECTOR_INDEX in {i["name"] for i in d.samples.list_search_indexes()}:
-        return
     fields = [
         {"type": "vector", "path": "embedding", "numDimensions": dims, "similarity": "cosine"}
     ]
     fields += [{"type": "filter", "path": p} for p in ("status", "concept.bucket")]
-    d.samples.create_search_index(
-        SearchIndexModel(name=VECTOR_INDEX, type="vectorSearch", definition={"fields": fields})
+    _search_index(d.samples, VECTOR_INDEX, "vectorSearch", {"fields": fields})
+    _search_index(
+        d.samples, TEXT_INDEX, "search", {"mappings": {"dynamic": False, "fields": TEXT_FIELDS}}
+    )
+    _search_index(
+        d.logs, LOG_INDEX, "search", {"mappings": {"dynamic": False, "fields": LOG_FIELDS}}
     )
 
 
@@ -62,10 +95,98 @@ def nearest(vector: list[float], k: int = 5, bucket: str | None = None) -> list[
     return [{"id": r["_id"], "name": r.get("name"), "similarity": 2 * r["score"] - 1} for r in rows]
 
 
+NOT_FAILED = {"compound": {"mustNot": [{"equals": {"path": "status", "value": "failed"}}]}}
+
+
+def facets(operator: dict = NOT_FAILED) -> dict:
+    """Sample counts per bucket, status, stage, Reynolds band and ground/free stream.
+
+    One Atlas Search `$searchMeta` query; it feeds Argon's coverage prompt and the dashboard
+    filters. Returns {"total": n, "bucket": {...}, "status": {...}, ...}.
+    """
+    meta = {
+        "index": TEXT_INDEX,
+        "facet": {
+            "operator": operator,
+            "facets": {
+                "bucket": {"type": "string", "path": "concept.bucket", "numBuckets": 50},
+                "status": {"type": "string", "path": "status"},
+                "stage": {"type": "string", "path": "stage"},
+                "reynolds": {"type": "number", "path": "concept.reynolds", "boundaries": RE_BANDS},
+            },
+        },
+    }
+    rows = list(db().samples.aggregate([{"$searchMeta": meta}]))
+    if not rows:
+        return {"total": 0}
+    out = {"total": rows[0]["count"]["lowerBound"]}
+    for name, f in rows[0]["facet"].items():
+        out[name] = {str(b["_id"]): b["count"] for b in f["buckets"]}
+    return out
+
+
 def coverage() -> dict[str, int]:
-    """Non-failed samples per taxonomy bucket."""
+    """Non-failed samples per taxonomy bucket (Atlas Search facets)."""
+    return facets().get("bucket", {})
+
+
+def search(text: str, k: int = 10) -> list[dict]:
+    """Full-text search over sample names and descriptions, fuzzy, best first."""
     pipeline = [
-        {"$match": {"status": {"$ne": "failed"}}},
-        {"$group": {"_id": "$concept.bucket", "n": {"$sum": 1}}},
+        {
+            "$search": {
+                "index": TEXT_INDEX,
+                "text": {
+                    "query": text,
+                    "path": ["concept.name", "concept.description", "concept.facing"],
+                    "fuzzy": {"maxEdits": 1},
+                },
+            }
+        },
+        {"$limit": k},
+        {"$project": SUMMARY | {"score": {"$meta": "searchScore"}}},
     ]
-    return {r["_id"]: r["n"] for r in db().samples.aggregate(pipeline)}
+    return [_row(r) for r in db().samples.aggregate(pipeline)]
+
+
+def autocomplete(prefix: str, k: int = 8) -> list[str]:
+    """Sample names that start like `prefix`, for the dashboard search box."""
+    pipeline = [
+        {
+            "$search": {
+                "index": TEXT_INDEX,
+                "autocomplete": {"query": prefix, "path": "concept.name"},
+            }
+        },
+        {"$limit": k},
+        {"$project": {"name": "$concept.name"}},
+    ]
+    return [r["name"] for r in db().samples.aggregate(pipeline)]
+
+
+def search_log(text: str, k: int = 20, failed_only: bool = False) -> list[dict]:
+    """Full-text search over the agent log (check results, diagnoses, decisions)."""
+    op = {"text": {"query": text, "path": "msg"}}
+    if failed_only:
+        op = {
+            "compound": {"must": [op], "filter": [{"equals": {"path": "passed", "value": False}}]}
+        }
+    pipeline = [
+        {"$search": {"index": LOG_INDEX, **op}},
+        {"$limit": k},
+        {"$project": {"_id": 0, "sample": 1, "stage": 1, "msg": 1, "t": 1}},
+    ]
+    return list(db().logs.aggregate(pipeline))
+
+
+SUMMARY = {
+    "name": "$concept.name",
+    "bucket": "$concept.bucket",
+    "description": "$concept.description",
+    "status": 1,
+    "stage": 1,
+}
+
+
+def _row(r: dict) -> dict:
+    return {"id": r.pop("_id"), **r}

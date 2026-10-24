@@ -53,7 +53,9 @@ class Sample:
 
     def record_check(self, name: str, passed: bool, **values) -> bool:
         self.checks.setdefault(self.stage, []).append({"name": name, "passed": passed, **values})
-        self.log(f"check {name}: {'pass' if passed else 'FAIL'}", **values)
+        self.log(
+            f"check {name}: {'pass' if passed else 'FAIL'}", check=name, passed=passed, **values
+        )
         return passed
 
     @classmethod

@@ -28,7 +28,6 @@ def test_registry_roundtrip_in_atlas(atlas, tmp_path, monkeypatch):
     assert [x.id for x in all_samples()] == ["s0001"]
     assert atlas.logs.count_documents({"sample": "s0001"}) == 1
     assert not (tmp_path / "samples").exists()  # nothing written locally
-    assert coverage() == {"animals and organic forms": 1}
     with pytest.raises(KeyError):
         Sample.load("missing")
 
@@ -67,3 +66,60 @@ def test_novelty_check_local(local, monkeypatch):
         assert passed == (name != "heifer")
     check = Sample.load("s1").checks["concept"][0]
     assert check["nearest"][0]["name"] == "cow" and check["similarity"] > 0.92
+
+
+def _capture(monkeypatch, coll, rows):
+    seen = {}
+
+    def aggregate(pipeline):
+        seen["pipeline"] = pipeline
+        return [dict(r) for r in rows]
+
+    monkeypatch.setattr(coll, "aggregate", aggregate)
+    return seen
+
+
+def test_facets_from_search_meta(atlas, monkeypatch):
+    meta = {
+        "count": {"lowerBound": 3},
+        "facet": {
+            "bucket": {"buckets": [{"_id": "plants", "count": 2}, {"_id": "animals", "count": 1}]},
+            "status": {"buckets": [{"_id": "done", "count": 3}]},
+            "stage": {"buckets": []},
+            "reynolds": {"buckets": [{"_id": 1000.0, "count": 3}]},
+        },
+    }
+    seen = _capture(monkeypatch, atlas.samples, [meta])
+    f = store.facets()
+    stage = seen["pipeline"][0]["$searchMeta"]
+    assert stage["index"] == store.TEXT_INDEX
+    assert stage["facet"]["operator"] == store.NOT_FAILED
+    assert f["total"] == 3 and f["bucket"] == {"plants": 2, "animals": 1}
+    assert f["reynolds"] == {"1000.0": 3}
+    assert coverage() == {"plants": 2, "animals": 1}
+
+
+def test_facets_empty_registry(atlas, monkeypatch):
+    _capture(monkeypatch, atlas.samples, [])
+    assert store.facets() == {"total": 0} and store.coverage() == {}
+
+
+def test_text_search_and_autocomplete(atlas, monkeypatch):
+    seen = _capture(monkeypatch, atlas.samples, [{"_id": "s1", "name": "heron", "score": 2.5}])
+    assert store.search("long legged bird") == [{"id": "s1", "name": "heron", "score": 2.5}]
+    q = seen["pipeline"][0]["$search"]
+    assert q["index"] == store.TEXT_INDEX and q["text"]["query"] == "long legged bird"
+    _capture(monkeypatch, atlas.samples, [{"_id": "s1", "name": "heron"}])
+    assert store.autocomplete("her") == ["heron"]
+
+
+def test_check_results_are_searchable_log_fields(atlas, monkeypatch):
+    s = Sample(id="s9", stage="mesh")
+    s.record_check("watertight", False, holes=3)
+    entry = atlas.logs.find_one({"sample": "s9"})
+    assert entry["check"] == "watertight" and entry["passed"] is False and entry["holes"] == 3
+    seen = _capture(monkeypatch, atlas.logs, [])
+    store.search_log("holes", failed_only=True)
+    q = seen["pipeline"][0]["$search"]
+    assert q["index"] == store.LOG_INDEX
+    assert q["compound"]["filter"] == [{"equals": {"path": "passed", "value": False}}]
