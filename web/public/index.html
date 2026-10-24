@@ -84,13 +84,14 @@
           <h2 id="h-gallery">Gallery</h2>
           <span class="muted small" id="gallery-note"></span>
         </div>
+        <div class="filters gallery-kinds" id="gallery-kinds" role="tablist" aria-label="Filter by kind"></div>
         <div class="gallery" id="gallery"></div>
         <button class="ghost small more" id="gallery-more" type="button" hidden></button>
       </section>
       <section class="card" aria-labelledby="h-div">
         <div class="card-head">
           <h2 id="h-div">Diversity map</h2>
-          <span class="muted small">2D projection of shape embeddings</span>
+          <span class="muted small">each dot is a shape, placed by what it means: ours spread out, a car dataset sits in one corner</span>
         </div>
         <div class="chart" id="divmap"></div>
         <div class="legend-row" id="div-legend"></div>
@@ -100,12 +101,15 @@
     </div>
 
     <div class="page" id="page-shape" data-page="shape" hidden>
-      <section class="card" aria-labelledby="h-sample">
-        <div class="card-head">
-          <h2 id="h-sample">Sample</h2>
+      <section class="card shape-card" aria-labelledby="h-sample">
+        <div class="shape-head">
+          <div>
+            <p class="shape-meta" id="sh-meta"></p>
+            <h2 class="shape-title" id="h-sample">Sample</h2>
+            <p class="shape-desc" id="sh-desc"></p>
+          </div>
           <select id="sample-pick" aria-label="Choose sample"></select>
         </div>
-        <div class="grid three" id="sample-body"></div>
         <div class="grid media" id="sample-media">
           <div>
             <h3>Reference views <span class="muted small">Nano Banana · hover to enlarge</span></h3>
@@ -122,6 +126,8 @@
             <p class="muted small" id="flow-note"></p>
           </div>
         </div>
+        <h3>Details <span class="muted small">checks, mesh fit and the simulation</span></h3>
+        <div class="grid three" id="sample-body"></div>
         <h3>Similar shapes <span class="muted small" id="similar-note"></span></h3>
         <div class="similar" id="similar"></div>
         <h3>Prompts <span class="muted small">every Gemini call · click to open</span> <span class="muted small" id="prompts-note"></span></h3>

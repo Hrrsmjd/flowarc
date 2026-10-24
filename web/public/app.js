@@ -177,13 +177,10 @@ function renderOverview(run, samples) {
 
 function renderKpis(run, samples) {
   const n = (st) => samples.filter((s) => s.status === st).length;
-  const done = n("done");
-  const pct = Math.min(100, (100 * done) / run.target_samples);
   const kinds = new Set(samples.filter((s) => s.status !== "failed" && s.stage !== "concept").map((s) => s.bucket)).size;
   const repairs = samples.reduce((a, s) => a + s.log.filter((e) => e.fix).length, 0);
+  // The headline above already says how many are done and running; these are the rest.
   const tiles = [
-    ["done", "Shapes finished", done, 0, `<small> / ${run.target_samples}</small>`, `<div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>`],
-    ["running", "On the GPUs now", n("running"), 0, "", ""],
     ["kinds", "Kinds of shape", kinds, 0, "", `<div class="muted small">car datasets: 1</div>`],
     ["repairs", "<span class='argon-ink'>◆</span> Fixed by Argon", repairs, 0, "", ""],
     ["flagged", "<span class='bad'>⚑</span> Flagged or failed", n("flagged") + n("failed"), 0, "", ""],
@@ -237,6 +234,14 @@ function bubble(s) {
   return `<div class="bubble"><span class="who">${esc(e.actor)}</span>${esc(e.msg)}</div>`;
 }
 
+const DOING = {
+  concept: "Argon is writing the concept…",
+  images: "Nano Banana is drawing four views…",
+  mesh: "Hunyuan3D is building the mesh…",
+  sim: "FluidX3D is running the airflow…",
+  render: "FluidX3D is rendering the flow…",
+  package: "Packing the sample into Atlas…",
+};
 function renderHero() {
   const s = featured(), el = $("hero");
   el.hidden = !s;
@@ -247,13 +252,15 @@ function renderHero() {
   const v = s.status === "done" && s.media?.video;
   const pic = v
     ? `<video src="${esc(v.url)}" muted loop playsinline autoplay></video>`
-    : viewUrl(s) ? `<img src="${esc(viewUrl(s))}" alt="${esc(s.title)}">` : `<div class="hero-empty">${live ? "drawing…" : ""}</div>`;
+    : viewUrl(s) ? `<img src="${esc(viewUrl(s))}" alt="${esc(s.title)}">` : "";
   const c = s.concept || {};
-  const html = `<div class="hero-pic">${pic}</div>
+  // No picture yet: show what Argon asked for and who is working on it, not an empty box.
+  const empty = !pic && `<div class="hero-empty"><p class="he-who">${live ? esc(DOING[s.stage] || `${s.stage}…`) : "No pictures yet"}</p>${c.description ? `<blockquote>${esc(c.description)}</blockquote>` : ""}</div>`;
+  const html = `<div class="hero-pic">${pic || empty}</div>
     <div class="hero-body">
       <div class="hero-kicker">${live ? `<span class="pulse"></span>Now running${s.gpu != null ? ` · GPU ${s.gpu}` : ""}` : "Latest sample"}</div>
       <h2 class="hero-title">${esc(s.title)}</h2>
-      <p class="hero-sub">${esc(s.bucket)}${c.reynolds ? ` · Re ${fmtRe(c.reynolds)}` : ""}${c.description && c.description !== s.title ? ` · ${esc(c.description)}` : ""}</p>
+      <p class="hero-sub">${esc(s.bucket)}${c.reynolds ? ` · Re ${fmtRe(c.reynolds)}` : ""}${pic && c.description && c.description !== s.title ? ` · ${esc(c.description)}` : ""}</p>
       <ol class="steps">${steps}</ol>
       ${bubble(s)}
     </div>`;
@@ -266,10 +273,20 @@ function renderHero() {
 
 // ---------- gallery ----------
 const GALLERY_MAX = 24; // newest first; the rest behind "Show all"
-let galleryAll = false;
+let galleryAll = false, galleryKind = ""; // "" = every kind
 $("gallery-more").addEventListener("click", () => { galleryAll = !galleryAll; renderGallery(state.samples); });
 function renderGallery(samples) {
-  const shown = samples.filter((s) => viewUrl(s)).sort((a, b) => (b.status === "running") - (a.status === "running") || b.last_t - a.last_t);
+  const all = samples.filter((s) => viewUrl(s));
+  const kinds = [...new Set(all.map((s) => s.bucket))].sort();
+  if (galleryKind && !kinds.includes(galleryKind)) galleryKind = "";
+  const chips = [["", `All ${all.length}`], ...kinds.map((k) => [k, `${k} ${all.filter((s) => s.bucket === k).length}`])];
+  const chipHtml = kinds.length > 1 ? chips.map(([k, l]) => `<button type="button" class="${k === galleryKind ? "on" : ""}" data-kind="${esc(k)}">${esc(l)}</button>`).join("") : "";
+  if ($("gallery-kinds").dataset.html !== chipHtml) {
+    $("gallery-kinds").dataset.html = chipHtml;
+    $("gallery-kinds").innerHTML = chipHtml;
+    $("gallery-kinds").querySelectorAll("[data-kind]").forEach((b) => b.addEventListener("click", () => { galleryKind = b.dataset.kind; renderGallery(state.samples); }));
+  }
+  const shown = all.filter((s) => !galleryKind || s.bucket === galleryKind).sort((a, b) => (b.status === "running") - (a.status === "running") || b.last_t - a.last_t);
   $("gallery-note").textContent = shown.length ? `${shown.length} shapes · hover to turn, click to open` : "";
   const more = $("gallery-more");
   more.hidden = shown.length <= GALLERY_MAX;
@@ -292,10 +309,7 @@ function renderGallery(samples) {
       timer = setInterval(() => (img.src = views[++i % views.length]), 550);
     });
     t.addEventListener("mouseleave", () => { clearInterval(timer); img.src = views[0]; });
-    t.addEventListener("click", () => {
-      select(t.dataset.id);
-      $("h-sample").scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+    t.addEventListener("click", () => select(t.dataset.id));
   });
 }
 
@@ -468,9 +482,13 @@ function renderSample() {
   const c = s.concept || {};
   const checks = s.log.filter((e) => e.check);
   const ious = s.log.filter((e) => e.iou);
+  const where = s.status === "running" ? `Running now · ${s.stage}${s.gpu != null ? ` · GPU ${s.gpu}` : ""}` : s.status === "done" ? "Finished" : s.status;
+  $("h-sample").textContent = s.title;
+  $("sh-meta").textContent = [where, s.bucket, c.reynolds ? `Re ${fmtRe(c.reynolds)}` : ""].filter(Boolean).join(" · ");
+  $("sh-meta").className = `shape-meta ${s.status}`;
+  $("sh-desc").textContent = c.description && c.description !== s.title ? c.description : "";
   const facts = `
     <div>
-      <h3 style="margin-top:0">${esc(s.title)}</h3>
       <dl class="facts">
         <dt>Bucket</dt><dd>${esc(s.bucket)}</dd>
         <dt>Reynolds</dt><dd>${c.reynolds ? fmtRe(c.reynolds) : "–"}</dd>
