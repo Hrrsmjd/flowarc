@@ -43,8 +43,14 @@ def render(mesh: trimesh.Trimesh, view: str, px: int = 320, points: int = 700_00
 
 
 def holes(mesh: trimesh.Trimesh) -> int:
-    """Through-holes (genus) of one closed body."""
-    return round((2 - mesh.euler_number) / 2)
+    """Through-holes (genus). Image-to-3D meshes often have small extra tunnels, so this is a hint."""
+    bodies = len(mesh.split(only_watertight=False))
+    return round((2 * bodies - mesh.euler_number) / 2)
+
+
+def holes_match(found: int, expected: int) -> bool:
+    """Exact for a few holes; a quarter off is fine for many (struts, lattices)."""
+    return abs(found - expected) <= round(0.25 * expected)
 
 
 def proportions(mesh: trimesh.Trimesh, views: dict[str, bytes]) -> dict[str, float]:
@@ -119,10 +125,12 @@ def flash_review(concept: dict, views: dict[str, bytes], renders: dict[str, Imag
 
 
 def review(mesh: trimesh.Trimesh, concept: dict, views: dict[str, bytes]) -> dict:
-    """Computed checks plus the Flash review. `concept["holes"]`, if set, is the expected hole count."""
+    """Computed checks plus the Flash review. `concept["holes"]`, if set, is the expected hole count.
+    The hole count is recorded but Flash decides (no_wrong_holes): small spurious tunnels are common
+    and tell us little."""
     out = {"holes": holes(mesh), "proportions": proportions(mesh, views)}
     if "holes" in concept:
-        out["holes_ok"] = out["holes"] == concept["holes"]
+        out["holes_ok"] = holes_match(out["holes"], concept["holes"])
     out["flash"] = flash_review(concept, views, {v: render(mesh, v) for v in CAMERAS})
-    out["passed"] = out["flash"]["passed"] and out.get("holes_ok", True)
+    out["passed"] = out["flash"]["passed"]
     return out

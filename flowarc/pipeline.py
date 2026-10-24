@@ -61,7 +61,12 @@ def run_mesh(s: Sample, gpu: int) -> bool:
     tries = s.attempts["mesh"]
     cells = config.PHASE.cells_per_length[-1]
     rep = make_mesh(
-        views_of(s), s.dir / "mesh", gpu, s.concept, seed=tries, min_thickness=2 / cells
+        views_of(s),
+        s.dir / "mesh",
+        gpu,
+        s.concept,
+        seed=tries,
+        min_thickness=2 / cells,
     )
     (s.dir / "mesh" / f"report_{tries}.json").write_text(json.dumps(rep, indent=1, default=float))
     rev = rep.get("review", {})
