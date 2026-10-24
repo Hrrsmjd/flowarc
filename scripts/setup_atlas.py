@@ -25,7 +25,7 @@ def main():
         raise SystemExit("set MONGODB_URI in .env")
     dims = int(sys.argv[1]) if len(sys.argv) > 1 else len(gemini.embed(["a probe concept"])[0])
     store.ensure_indexes(dims)
-    for coll in ("samples", "repairs", "logs"):
+    for coll in ("samples", "repairs", "logs"):  # new indexes can take a few seconds to list
         for i in store.db()[coll].list_search_indexes():
             print(f"{coll:8} {i['name']:18} {i.get('status', '?')}")
     print(
