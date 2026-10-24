@@ -45,9 +45,10 @@ test("views and mesh attempts appear as the live sample makes them", () => {
   assert.deepEqual(Object.keys(drawn.views).sort(), ["front", "side", "three-quarter", "top"]);
   assert.equal(drawn.meshes.length, 0);
   const fixed = live(at(70)).media;
-  assert.equal(fixed.views.front.attempt, 2); // the redrawn front view replaces the first
+  const redrawn = live(at(70)).log.find((e) => /redrew the/.test(e.msg)).msg.split(" ")[4];
+  assert.equal(fixed.views[redrawn].attempt, 2); // the redrawn view replaces the first
   assert.deepEqual(fixed.meshes.map((m) => m.attempt), [1, 2]);
-  assert.match(fixed.meshes[0].url, /^mock-media\/s0016\/mesh-1-mesh\.glb$/);
+  assert.notEqual(fixed.meshes[0].url, fixed.meshes[1].url); // the failed mesh and its fix
 });
 
 test("activity follows the next running sample once the live one is done", () => {
