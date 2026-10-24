@@ -46,13 +46,18 @@ def make_mesh(
         rev = review.review(oriented, concept, imgs)
         if rev["flash"]["failed"] == ["upright_facing_flow"]:  # facing the wrong way: turn it
             rev["turns"] = []
-            for k in (2, 1, 3):  # nose and tail swapped is the usual case
-                r = checks.yaw(k) @ rot
+            lined = checks.heading(mesh.vertices @ rot.T) @ rot  # long axis along the flow
+            tries = [(False, k) for k in (2, 1, 3)]  # nose and tail swapped is the usual case
+            if not np.allclose(lined, rot):  # turned off-axis, which quarter turns can't fix
+                tries += [(True, k) for k in (0, 2, 1, 3)]
+            for lined_up, k in tries:
+                r = checks.yaw(k) @ (lined if lined_up else rot)
                 o = repair.normalize(mesh, r, ground=ground)
                 rv = review.review(o, concept, imgs)
-                rev["turns"].append({"deg": 90 * k, "failed": rv["flash"]["failed"]})
+                turn = {"deg": 90 * k, "lined_up": lined_up}
+                rev["turns"].append(turn | {"failed": rv["flash"]["failed"]})
                 if "upright_facing_flow" not in rv["flash"]["failed"]:
-                    rot, oriented, rev = r, o, rv | {"turned_deg": 90 * k}
+                    rot, oriented, rev = r, o, rv | {"turned_deg": 90 * k, "turn": turn}
                     break
         report["review"] = rev
     mesh = oriented

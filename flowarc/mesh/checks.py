@@ -109,19 +109,19 @@ def best_orientation(
     mesh: trimesh.Trimesh, views: dict[str, bytes], up: np.ndarray = Y_UP
 ) -> tuple[np.ndarray, float]:
     """Keep the generator's up axis and try the 4 headings, both as generated and with the long
-    axis lined up (heading); best silhouette wins. Silhouettes can't tell nose from tail,
+    axis lined up (heading); best silhouette wins, lined up on a near tie (the views are square-on). Silhouettes can't tell nose from tail,
     so the unflipped side view (nose on the left) breaks ties; the mesh review checks the result."""
     masks = {v: image_mask(views[v]) for v in VIEW_AXES if v in views}
     turned = heading(mesh.vertices @ up.T) @ up
     cands = []
-    for k, start in itertools.product(range(4), (up, turned)):
+    for k, (lined_up, start) in itertools.product(range(4), ((True, turned), (False, up))):
         r = yaw(k) @ start
         m = mesh.copy()
         m.vertices = m.vertices @ r.T
         score = float(np.mean([iou(projection(m, v), masks[v]) for v in masks]))
         side = iou(projection(m, "side"), masks["side"], flips=False) if "side" in masks else 0
-        cands.append((round(score, 2), side, k, r, score))
-    *_, r, score = max(cands, key=lambda c: c[:2])
+        cands.append((round(score, 2), lined_up, side, k, r, score))
+    *_, r, score = max(cands, key=lambda c: c[:3])
     return r, score
 
 
