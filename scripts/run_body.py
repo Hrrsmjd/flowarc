@@ -22,6 +22,7 @@ def main():
     p.add_argument("--cells", type=int, default=64)
     p.add_argument("--gpu", type=int, default=0)
     p.add_argument("--dns", action="store_true")
+    p.add_argument("--ground", action="store_true", help="body rests on a moving ground at z=0")
     p.add_argument("--domain", type=float, nargs=3, help="box size in L (default from SimConfig)")
     p.add_argument("--offset", type=float, help="nose distance from the inlet in L")
     p.add_argument("--no-render", action="store_true")
@@ -34,6 +35,7 @@ def main():
         mesh = a.out / "aircraft.stl"
         aircraft().export(mesh)
     cfg = SimConfig(reynolds=a.re, cells_per_length=a.cells, les=not a.dns, render=not a.no_render)
+    cfg.ground = a.ground
     if a.domain:
         cfg.domain = tuple(a.domain)
     if a.offset is not None:
