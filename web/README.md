@@ -18,6 +18,7 @@ deployment is live from the first minute; **Restart** starts the story again.
 | `GET /api/state` | run summary, samples with their logs, approvals |
 | `GET /api/map` | 2D PCA of concept embeddings (ours + `baseline`) |
 | `GET /api/search?q=` | sample search: Atlas Search index `samples_text`, regex if it's missing |
+| `GET /api/media?id=` | a view (JPEG) or mesh (GLB) from the GridFS bucket `media`; `?hf=` a view from the HF dataset |
 | `POST /api/approve` | `{id, decision: "approved" \| "rejected"}` sets the approval in Atlas |
 
 ## Run locally
@@ -35,6 +36,8 @@ npm test
 2. Environment variables:
    - `MONGODB_URI`: Atlas connection string. Leave unset for the mock replay.
    - `MONGODB_DB`: `flowarc` for the real registry, `flowarc_demo` for the demo feed.
+   - `FLOWARC_HF_REPO` and `HF_TOKEN` (read access): only for views from the private HF dataset
+     when `flowarc.media` isn't running.
    - `APPROVAL_TOKEN` (recommended): approving then asks for this token, so a public URL
      can't approve publishing.
 3. In Atlas, Network Access must allow Vercel (0.0.0.0/0 for the hackathon).
@@ -54,6 +57,20 @@ python scripts/demo_feed.py            # once; --loop to repeat, --speed 2 for f
 ```
 
 Regenerate the mock batch with `python -m flowarc.mock web/lib/mock.json`.
+
+## Views and meshes
+
+The Sample panel shows the four reference views (hover to enlarge) and the mesh in a 3D viewer
+(three.js, vendored in `public/vendor`), with a tab per mesh attempt so a failed mesh and its
+fix can be compared. They come from the GridFS bucket `media` in Atlas. On the GPU box, next to
+the runner:
+
+```bash
+python -m flowarc.media --watch 15   # uploads new views (512 px JPEG) and meshes (GLB, ≤20k faces)
+```
+
+Without it, views the runner uploaded to the HF dataset (`meta.files`) still show, but no meshes:
+the full STL is too large to pass through a Vercel function.
 
 ## What the pipeline needs to write
 

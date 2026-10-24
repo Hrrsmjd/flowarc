@@ -79,6 +79,23 @@ function mediaBySample(media) {
 
 export const VIEWS = ["three-quarter", "front", "side", "top"];
 
+// Views the runner uploaded to the private HF dataset (meta.files, flowarc/publish.py), for
+// samples flowarc/media.py hasn't copied to Atlas. api/media fetches them with HF_TOKEN.
+function withHf(media, views) {
+  if (!Object.keys(views).length) return media || null;
+  const m = media || { views: {}, meshes: [] };
+  return { ...m, views: { ...views, ...m.views } };
+}
+
+function hfViews(s) {
+  const views = {};
+  for (const f of s.meta?.files || []) {
+    const m = /^views\/([\w-]+)\.jpg$/.exec(f.path || "");
+    if (m) views[m[1]] = { url: `api/media?hf=${encodeURIComponent(`${s._id}/${f.path}`)}`, attempt: s.attempts?.images || 1, t: 0 };
+  }
+  return views;
+}
+
 export function buildState({ run = {}, samples, logs, approvals = [], media = [], mode, now = Date.now() / 1000 }) {
   const files = mediaBySample(media);
   const bySample = new Map();
@@ -106,7 +123,7 @@ export function buildState({ run = {}, samples, logs, approvals = [], media = []
         convergence: past ? s.meta?.convergence || null : null,
         sim: pick(s.meta?.sim?.stats, STAT_KEYS),
         zarr_gb: s.meta?.zarr_gb ?? null,
-        media: files.get(s._id) || null,
+        media: withHf(files.get(s._id), hfViews(s)),
         log,
         last_t: log.length ? log[log.length - 1].t : 0,
       };

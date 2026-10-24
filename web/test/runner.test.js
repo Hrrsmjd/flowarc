@@ -44,3 +44,13 @@ test("media uploaded to GridFS keeps the latest view per name and every mesh att
   assert.equal(m.views.front.url, "api/media?id=b");
   assert.deepEqual(m.meshes.map((x) => x.url), ["api/media?id=c", "api/media?id=d"]);
 });
+
+test("views the runner put on the HF dataset show when GridFS has none", () => {
+  const samples = reg.samples.map((s) =>
+    s._id === "s00001" ? { ...s, meta: { ...s.meta, files: [{ path: "views/front.jpg", stage: "images" }, { path: "mesh/mesh.stl", stage: "mesh" }] } } : s,
+  );
+  const m = buildState({ ...reg, samples, mode: "atlas", now: 1792856143 }).samples.find((s) => s.id === "s00001").media;
+  assert.deepEqual(Object.keys(m.views), ["front"]);
+  assert.equal(m.views.front.url, "api/media?hf=s00001%2Fviews%2Ffront.jpg");
+  assert.equal(m.meshes.length, 0);
+});
