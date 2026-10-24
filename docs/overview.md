@@ -33,7 +33,7 @@ flowchart LR
 | Mesh | Flash review of mesh renders | see below |
 | Mesh | Silhouette vs the views | low bar only (the views don't match each other exactly) |
 | Simulate | Mach, mass, drag settled | Mach below 0.3, drag halves within a few % |
-| Video (planned) | Flash watches it | no leaks through the body, flow goes the right way |
+| Video | Flash reviews 3 frames (soft check: flags the sample) | body framed, flow visible, no artifacts |
 
 ## Mesh review
 
@@ -118,7 +118,7 @@ flowchart LR
 
 Green works, amber works but needs tuning, grey is not built yet.
 
-First full sample (manta ray, Re 250) ran end to end on one A100 through the runner: 4 min of sim, 0.5 GB packed. Flash now reviews 3 video frames and flagged the first video's framing.
+First full sample (manta ray, Re 250) ran end to end on one A100 through the runner: 4 min of sim, 0.5 GB packed. Flash now reviews 3 video frames and flagged the first video's framing. The camera now matches the F-35 reference (upstream, above, wake to the upper right), the vortex cut-off rises with Re, and most samples are at Re 1e4–1e5.
 
 Mesh bake-off on 4 objects: Hunyuan3D-2.1 was as good as 2mv or better (2mv lost the aircraft's inner wings), so 2.1 is the default and 2mv the backup.
 
