@@ -277,6 +277,47 @@ def past_fixes(diagnosis: str, stage: str, k: int = 5) -> list[dict]:
     return list(db().repairs.aggregate(pipeline))
 
 
+def metrics(minutes: int = 60) -> list[dict]:
+    """Per-stage counts per minute, newest first.
+
+    Written by the Atlas Stream Processing job in scripts/stream_metrics.js. When that job
+    isn't running, the same counts are computed from the log with one aggregation.
+    """
+    import datetime as dt
+
+    since = dt.datetime.now(dt.UTC) - dt.timedelta(minutes=minutes)
+    rows = list(db().metrics.find({"window": {"$gte": since}}, {"_id": 0}).sort("window", -1))
+    return rows or stage_stats(minutes)
+
+
+def stage_stats(minutes: int = 60) -> list[dict]:
+    """Checks, passes, failures and samples moved on per stage over the last `minutes`."""
+    import time
+
+    pipeline = [
+        {"$match": {"t": {"$gte": time.time() - 60 * minutes}}},
+        {
+            "$group": {
+                "_id": "$stage",
+                "events": {"$sum": 1},
+                "passed": {"$sum": {"$cond": [{"$eq": ["$passed", True]}, 1, 0]}},
+                "failed": {"$sum": {"$cond": [{"$eq": ["$passed", False]}, 1, 0]}},
+                "advanced": {"$sum": {"$cond": [{"$eq": ["$msg", "advanced"]}, 1, 0]}},
+                "samples": {"$addToSet": "$sample"},
+            }
+        },
+        {
+            "$set": {
+                "stage": "$_id",
+                "samples": {"$size": "$samples"},
+                "checks": {"$add": ["$passed", "$failed"]},
+            }
+        },
+        {"$project": {"_id": 0}},
+    ]
+    return list(db().logs.aggregate(pipeline))
+
+
 SUMMARY = {
     "name": "$concept.name",
     "bucket": "$concept.bucket",

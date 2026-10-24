@@ -26,7 +26,7 @@ def test_registry_roundtrip_in_atlas(atlas, tmp_path, monkeypatch):
     loaded = Sample.load("s0001")
     assert loaded.stage == "images" and loaded.checks["concept"][0]["passed"]
     assert [x.id for x in all_samples()] == ["s0001"]
-    assert atlas.logs.count_documents({"sample": "s0001"}) == 1
+    assert atlas.logs.count_documents({"sample": "s0001"}) == 2  # the check + "advanced"
     assert not (tmp_path / "samples").exists()  # nothing written locally
     with pytest.raises(KeyError):
         Sample.load("missing")
@@ -178,3 +178,23 @@ def test_failure_memory_in_atlas(atlas, monkeypatch):
     pipes = seen["pipeline"][0]["$rankFusion"]["input"]["pipelines"]
     assert pipes["semantic"][0]["$vectorSearch"]["filter"] == {"stage": "mesh", "fixed": True}
     assert pipes["keyword"][0]["$search"]["index"] == store.REPAIR_TEXT_INDEX
+
+
+def test_stage_stats_fallback_counts_the_log(atlas):
+    s = Sample(id="s1", stage="mesh")
+    s.record_check("watertight", False)
+    s.record_check("watertight", True)
+    advance(s)
+    Sample(id="s2", stage="mesh").record_check("watertight", True)
+    rows = {r["stage"]: r for r in store.metrics(minutes=5)}
+    mesh = rows["mesh"]
+    assert (mesh["checks"], mesh["passed"], mesh["failed"]) == (3, 2, 1)
+    assert mesh["advanced"] == 1 and mesh["samples"] == 2
+
+
+def test_metrics_prefers_stream_processor_output(atlas):
+    import datetime as dt
+
+    now = dt.datetime.now(dt.UTC)
+    atlas.metrics.insert_one({"_id": "mesh@now", "stage": "mesh", "window": now, "passed": 4})
+    assert store.metrics()[0]["passed"] == 4
