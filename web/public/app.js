@@ -43,6 +43,7 @@ async function load() {
 
 // Old test samples stay in the registry; by default the page counts only the current run.
 let everything = false;
+let olderIds = new Set(); // samples hidden by the run scope, so opening one can show them
 function scopeRun(st) {
   const btn = $("scope");
   btn.hidden = !st.run.scope;
@@ -50,6 +51,7 @@ function scopeRun(st) {
   const outside = st.samples.filter((s) => !s.in_run).length;
   btn.textContent = everything ? `All samples · show ${st.run.scope} only` : `${st.run.scope} · ${outside} older hidden`;
   btn.title = everything ? "Count only this run's samples" : "Show older samples too";
+  olderIds = new Set(everything ? [] : st.samples.filter((s) => !s.in_run).map((s) => s.id));
   if (everything) return void (st.run.gpu_hours = st.run.gpu_hours_all);
   st.samples = st.samples.filter((s) => s.in_run);
   const g = { calls: 0, tokens: 0, by_model: {} };
@@ -143,6 +145,12 @@ const featured = () => state.samples.find((s) => s.id === state.run.featured) ||
 const selectedSample = () => (selected && state.samples.find((s) => s.id === selected)) || featured();
 function select(id) {
   selected = id;
+  // Search and similar shapes can point at an older sample the run scope hides: show all.
+  if (olderIds.has(id)) {
+    everything = true;
+    sampleSig = "";
+    return void load();
+  }
   render();
 }
 
