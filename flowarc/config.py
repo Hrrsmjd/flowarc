@@ -31,6 +31,10 @@ FAST_MODEL = os.environ.get("FLOWARC_FAST_MODEL", "gemini-3.8-flash")
 IMAGE_MODEL = os.environ.get("FLOWARC_IMAGE_MODEL", "gemini-nano-banana-2.1")
 EMBED_MODEL = os.environ.get("FLOWARC_EMBED_MODEL", "gemini-embedding-2")
 
+# MongoDB Atlas registry; empty URI = JSON files under DATA (see store.py).
+MONGODB_URI = os.environ.get("MONGODB_URI", "")
+MONGODB_DB = os.environ.get("MONGODB_DB", "flowarc")
+
 # Time in convective units (body length / free-stream speed).
 STARTUP_TIME = 10.0
 RECORD_TIME = 30.0
