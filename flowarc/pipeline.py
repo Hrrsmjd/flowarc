@@ -302,6 +302,8 @@ def upload(s: Sample, stage: str, attempt: int | None = None) -> None:
 def run_sample(s: Sample, gpu: int, budget_hours: float = math.inf) -> Sample:
     """Run the remaining stages. Ends done, flagged (a soft check failed) or failed."""
     s.meta.setdefault("phase", config.PHASE.name)
+    if s.meta.pop("in_try", None) == s.stage:  # a restart cut the last try short; don't count it
+        s.attempts[s.stage] -= 1
     while s.stage != "done":
         if s.stage == "sim" and gpu_hours() >= budget_hours:
             s.status = "pending"
@@ -316,6 +318,7 @@ def run_sample(s: Sample, gpu: int, budget_hours: float = math.inf) -> Sample:
             return s
         s.status = "running"
         s.meta["gpu"] = gpu
+        s.meta["in_try"] = stage
         s.save()
         n_checks, error = len(s.checks.get(stage, [])), None
         token = gemini.CALLS.set([])
@@ -328,6 +331,7 @@ def run_sample(s: Sample, gpu: int, budget_hours: float = math.inf) -> Sample:
             for c in gemini.CALLS.get():
                 s.log(f"gemini {c['model']}", actor="gemini", **c)
             gemini.CALLS.reset(token)
+        s.meta.pop("in_try", None)
         triage.close_repair(s, stage, passed)
         if passed:
             advance(s)

@@ -202,3 +202,22 @@ def test_no_argon_keeps_the_checks(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "ARGON_REPAIR", False)
     d = {"symmetric": False, "decision": "accept", "reason": ""}
     assert not run_mesh_with(tmp_path, monkeypatch, ["symmetry"], d)[0]
+
+
+def test_sim_just_over_mach_limit_reruns_slower_without_argon(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "DATA", tmp_path)
+    calls = []
+
+    def sim(s, gpu):
+        calls.append(("sim",))
+        return s.record_check("stable", len(calls) > 1, mach_max=0.51, u=0.075, les=True)
+
+    monkeypatch.setattr(pipeline, "STAGE_FNS", stages(calls, None) | {"sim": sim})
+
+    def no_argon(*a, **kw):
+        raise AssertionError("Argon should not be asked")
+
+    monkeypatch.setattr(gemini, "argon", no_argon)
+    s = pipeline.run_sample(Sample(id="s00011", stage="sim", concept={"description": "x"}), 0)
+    assert s.status == "done" and s.attempts["sim"] == 2
+    assert any("slower inflow" in e["msg"] for e in logs(s))

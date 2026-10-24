@@ -45,6 +45,15 @@ def test_out_of_attempts_fails(tmp_path, monkeypatch):
     assert s.status == "failed" and s.attempts["images"] == config.MAX_ATTEMPTS["images"] + 1
 
 
+def test_try_cut_short_by_restart_is_not_counted(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "DATA", tmp_path)
+    ok = lambda s, g: True
+    monkeypatch.setattr(pipeline, "STAGE_FNS", {n: ok for n in ["sim", "render", "package"]})
+    s = Sample(id="s00008", stage="sim", attempts={"sim": 3}, meta={"in_try": "sim"})
+    s = pipeline.run_sample(s, 0)
+    assert s.status == "done" and s.attempts["sim"] == 3 and "in_try" not in s.meta
+
+
 def test_too_fast_sim_retries_slower():
     s = Sample(id="s00009", stage="sim")
     assert pipeline.lattice_velocity(s) == SimConfig.lattice_velocity
