@@ -62,7 +62,7 @@ Regenerate the mock batch with `python -m flowarc.mock web/lib/mock.json`.
 
 The Sample panel shows the four reference views (hover to enlarge), the mesh in a 3D viewer
 (three.js, vendored in `public/vendor`), with a tab per mesh attempt so a failed mesh and its
-fix can be compared. They come from the GridFS bucket `media` in Atlas. On the GPU box, next to
+fix can be compared, and the flow video. They come from the GridFS bucket `media` in Atlas. On the GPU box, next to
 the runner:
 
 ```bash
