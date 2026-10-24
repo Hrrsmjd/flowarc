@@ -49,18 +49,19 @@ def place(mesh: trimesh.Trimesh, cfg: SimConfig, lat: dict) -> trimesh.Trimesh:
 
 
 def camera(m: trimesh.Trimesh, lat: dict, L: float) -> dict:
-    """Three-quarter view centred just behind the body's middle (target is relative to the box centre)."""
+    """View from upstream and above, nose lower left, wake to the upper right like the F-35 reference.
+    The target is relative to the box centre."""
     lo, hi = m.bounds
     c = (lo + hi) / 2
-    t = [lo[0] + 0.8 * L - lat["Nx"] / 2, c[1] - lat["Ny"] / 2, c[2] - lat["Nz"] / 2]
+    t = [c[0] + 0.3 * L - lat["Nx"] / 2, c[1] - lat["Ny"] / 2, c[2] - lat["Nz"] / 2]
     return {
-        "cam_rx": -50.0,
-        "cam_ry": 25.0,
+        "cam_rx": -130.0,
+        "cam_ry": 30.0,
         "cam_fov": 50.0,
         "cam_tx": round(t[0], 2),
         "cam_ty": round(t[1], 2),
         "cam_tz": round(t[2], 2),
-        "cam_rad": round(1.0 * L, 2),
+        "cam_rad": round(0.6 * L, 2),
     }
 
 
