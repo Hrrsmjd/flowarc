@@ -36,9 +36,19 @@ def new_samples(n: int, seed: int | None = None) -> list[Sample]:
     existing = all_samples()
     start = 1 + max((int(s.id[1:]) for s in existing), default=0)
     out = []
-    for i, c in enumerate(concepts.select(n, seed)):
+    token = gemini.CALLS.set([])
+    try:
+        picked = concepts.select(n, seed)
+        calls = gemini.CALLS.get()
+    finally:
+        gemini.CALLS.reset(token)
+    for i, c in enumerate(picked):
         s = Sample(id=f"s{start + i:05d}", embedding=c.pop("embedding"), concept=c)
         s.meta["phase"] = config.PHASE.name  # the dashboard counts this run's samples by it
+        # Argon proposes the whole batch in one call: every sample shows it under Prompts,
+        # and only the first counts it towards the run's totals.
+        for call in calls:
+            s.log(f"gemini {call['model']}", actor="gemini", **call, shared=len(picked), copy=i > 0)
         s.record_check("novel", True)
         advance(s)
         out.append(s)
@@ -334,7 +344,14 @@ def run_sample(s: Sample, gpu: int, budget_hours: float = math.inf) -> Sample:
             upload(s, stage)
             continue
         upload(s, stage, s.attempts[stage])
-        if not triage.handle(s, stage, s.checks.get(stage, [])[n_checks:], error):
+        token = gemini.CALLS.set([])
+        try:
+            go_on = triage.handle(s, stage, s.checks.get(stage, [])[n_checks:], error)
+        finally:
+            for c in gemini.CALLS.get():
+                s.log(f"gemini {c['model']}", actor="gemini", **c)
+            gemini.CALLS.reset(token)
+        if not go_on:
             s.status = "failed"
             s.save()
             return s

@@ -54,7 +54,11 @@ function scopeRun(st) {
   if (everything) return void (st.run.gpu_hours = st.run.gpu_hours_all);
   st.samples = st.samples.filter((s) => s.in_run);
   const g = { calls: 0, tokens: 0, by_model: {} };
-  for (const s of st.samples) { g.calls += s.gemini?.calls || 0; g.tokens += s.gemini?.tokens || 0; }
+  for (const s of st.samples) { // minus copies of a batch-wide call, so it counts once
+    const c = s.gemini?.copies || {};
+    g.calls += (s.gemini?.calls || 0) - (c.calls || 0);
+    g.tokens += (s.gemini?.tokens || 0) - (c.tokens || 0);
+  }
   st.run.gemini = g;
 }
 
