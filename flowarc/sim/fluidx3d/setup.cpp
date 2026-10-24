@@ -37,7 +37,7 @@ void main_setup() {
 	const float u=(float)num("u"), nu=(float)num("nu");
 	const ulong startup=(ulong)num("startup_steps"), record=(ulong)num("record_steps");
 	const ulong frame_every=(ulong)num("frame_every"), force_every=(ulong)num("force_every");
-	const bool ground = num("ground")!=0.0, render = num("render")!=0.0;
+	const bool ground = num("ground")!=0.0, render = num("render")!=0.0, periodic_y = num("periodic_y")!=0.0;
 	const string out = c["out"]+"/";
 
 	LBM lbm(Nx, Ny, Nz, nu);
@@ -46,7 +46,7 @@ void main_setup() {
 	parallel_for(lbm.get_N(), [&](ulong n) { uint x=0u, y=0u, z=0u; lbm.coordinates(n, x, y, z);
 		if(ground&&z==0u) { lbm.flags[n] = TYPE_S; lbm.u.x[n] = u; return; } // moving ground
 		if(lbm.flags[n]!=(TYPE_S|TYPE_X)) lbm.u.x[n] = u;
-		if(x==0u||x==Nx-1u||y==0u||y==Ny-1u||z==Nz-1u||(!ground&&z==0u)) lbm.flags[n] = TYPE_E;
+		if(x==0u||x==Nx-1u||(!periodic_y&&(y==0u||y==Ny-1u))||z==Nz-1u||(!ground&&z==0u)) lbm.flags[n] = TYPE_E;
 	});
 
 	const vector<float> probes = read_floats(c["probes"]); // x,y,z triples
