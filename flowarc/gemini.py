@@ -154,13 +154,18 @@ def generate_image(prompt, refs: list[bytes] = (), aspect="1:1") -> bytes:
     return base64.b64decode(it.output_image.data)
 
 
+EMBED_BATCH = 100  # the API's limit per call
+
+
 def embed(texts: list[str]) -> list[list[float]]:
     """One vector per text. A plain list of strings is embedded as a single text."""
     from google.genai import types
 
-    contents = [types.Content(parts=[types.Part(text=t)]) for t in texts]
-    res = client().models.embed_content(model=config.EMBED_MODEL, contents=contents)
-    out = [e.values for e in res.embeddings]
+    out = []
+    for i in range(0, len(texts), EMBED_BATCH):
+        contents = [types.Content(parts=[types.Part(text=t)]) for t in texts[i : i + EMBED_BATCH]]
+        res = client().models.embed_content(model=config.EMBED_MODEL, contents=contents)
+        out += [e.values for e in res.embeddings]
     if len(out) != len(texts):
         raise RuntimeError(f"asked for {len(texts)} embeddings, got {len(out)}")
     return out
