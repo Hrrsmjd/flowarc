@@ -15,10 +15,13 @@ Approve or Reject on the dashboard, then logs what it did.
 import argparse
 import os
 import time
+from pathlib import Path
 
 from dotenv import load_dotenv
 
-from flowarc import mock
+from flowarc import media, mock
+
+WEB = Path(__file__).resolve().parent.parent / "web" / "public"  # the mock views and meshes
 
 load_dotenv()
 
@@ -34,8 +37,11 @@ def connect(db_name: str):
 
 def reset(db, batch: dict, t0: float) -> None:
     """History (events before t=0) is written at once; samples still to come start pending."""
-    for coll in ("samples", "logs", "approvals", "baseline", "runs"):
+    for coll in ("samples", "logs", "approvals", "baseline", "runs", "media.files", "media.chunks"):
         db[coll].delete_many({})
+    for m in batch.get("media", []):
+        if m["t"] <= 0:
+            upload(db, m)
     started = {e["sample"] for e in batch["logs"] if e["t"] <= 0}
     has_log = {e["sample"] for e in batch["logs"]}
     for s in batch["samples"]:
@@ -54,6 +60,15 @@ def reset(db, batch: dict, t0: float) -> None:
     for a in batch["approvals"]:
         if a["t"] <= 0:
             db.approvals.insert_one({**a, "t": t0 + a["t"]})
+
+
+def upload(db, m: dict) -> None:
+    """Copy one mock view or mesh into the GridFS bucket the dashboard reads."""
+    ctype = "image/jpeg" if m["kind"] == "view" else "model/gltf-binary"
+    data = (WEB / m["url"]).read_bytes()
+    media.publish(
+        db, m["sample"], m["kind"], m["name"], m["attempt"], data, ctype, f"demo:{m['url']}"
+    )
 
 
 def progress(batch: dict, sid: str, rel: float) -> dict:
@@ -76,10 +91,13 @@ def play(db, batch: dict, speed: float) -> None:
     final = {s["_id"]: s for s in batch["samples"]}
     live = [e for e in batch["logs"] if e["t"] > 0]
     approvals = [a for a in batch["approvals"] if a["t"] > 0]
+    files = sorted((m for m in batch.get("media", []) if m["t"] > 0), key=lambda m: m["t"])
     print(f"playing {len(live)} events over {live[-1]['t'] / speed:.0f} s")
     for e in live:
         time.sleep(max(0.0, t0 + e["t"] / speed - time.time()))
         sid = e["sample"]
+        while files and files[0]["t"] <= e["t"]:
+            upload(db, files.pop(0))
         db.logs.insert_one({**e, "t": time.time()})
         last = e is [x for x in batch["logs"] if x["sample"] == sid][-1]
         if last:

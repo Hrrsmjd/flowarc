@@ -49,3 +49,20 @@ test("views and mesh attempts appear as the live sample makes them", () => {
   assert.deepEqual(fixed.meshes.map((m) => m.attempt), [1, 2]);
   assert.match(fixed.meshes[0].url, /^mock-media\/s0016\/mesh-1-mesh\.glb$/);
 });
+
+test("activity follows the next running sample once the live one is done", () => {
+  const st = at(130);
+  assert.equal(live(st).status, "done");
+  const running = st.samples.filter((s) => s.status === "running").map((s) => s.id);
+  assert.ok(running.length && running.includes(st.run.featured));
+});
+
+test("a mock approval stays with the viewer who made it", async () => {
+  const { mockDecide } = await import("../lib/mock.js");
+  const pub = (start, now) => mockRegistry(start, now).approvals.find((a) => a.kind === "publish");
+  const alice = T0, bob = T0 + 60, now = T0 + 160;
+  mockDecide(pub(alice, now)._id, "approved", alice, now);
+  mockRegistry(bob, now + 2); // another viewer polls
+  assert.equal(pub(alice, now + 4).status, "approved");
+  assert.equal(pub(bob, now + 62)?.status ?? "pending", "pending");
+});

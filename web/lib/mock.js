@@ -6,20 +6,30 @@ import { readFileSync } from "node:fs";
 import { STAGES } from "./state.js";
 
 const batch = JSON.parse(readFileSync(new URL("./mock.json", import.meta.url), "utf8"));
-const decisions = new Map(); // approvals made during this loop, per server instance
+// Approvals made in the mock, per replay (viewer start and loop), per server instance.
+const decisions = new Map();
+const MAX_REPLAYS = 200;
+
+function replay(start, nowAbs) {
+  const since = start > 0 && start <= nowAbs ? nowAbs - start : nowAbs;
+  const loop = Math.floor(since / batch.cycle);
+  return { rel: since - loop * batch.cycle, key: `${start}:${loop}` };
+}
+
+function decided(key) {
+  if (!decisions.has(key)) {
+    if (decisions.size >= MAX_REPLAYS) decisions.delete(decisions.keys().next().value);
+    decisions.set(key, new Map());
+  }
+  return decisions.get(key);
+}
 
 const after = (stage) => STAGES[STAGES.indexOf(stage) + 1] || "done";
 
 // `start` (epoch seconds) lets a viewer restart the story from the beginning.
 export function mockRegistry(start = 0, nowAbs = Date.now() / 1000) {
-  const since = start > 0 && start <= nowAbs ? nowAbs - start : nowAbs;
-  const loop = Math.floor(since / batch.cycle);
-  const rel = since - loop * batch.cycle; // seconds into this loop
-  const key = `${start}:${loop}`;
-  if (decisions.key !== key) {
-    decisions.clear();
-    decisions.key = key;
-  }
+  const { rel, key } = replay(start, nowAbs); // rel: seconds into this loop
+  const mine = decisions.get(key);
   const toAbs = (t) => nowAbs - (rel - t);
   const logs = batch.logs.filter((e) => e.t <= rel);
   const samples = batch.samples.map((s) => {
@@ -39,7 +49,7 @@ export function mockRegistry(start = 0, nowAbs = Date.now() / 1000) {
   });
   const approvals = batch.approvals
     .filter((a) => a.t <= rel)
-    .map((a) => ({ ...a, t: toAbs(a.t), ...(decisions.get(a._id) || {}) }));
+    .map((a) => ({ ...a, t: toAbs(a.t), ...(mine?.get(a._id) || {}) }));
   const media = (batch.media || []).filter((m) => m.t <= rel).map((m) => ({ ...m, t: toAbs(m.t) }));
   return {
     run: batch.run,
@@ -51,8 +61,8 @@ export function mockRegistry(start = 0, nowAbs = Date.now() / 1000) {
   };
 }
 
-export function mockDecide(id, status) {
-  decisions.set(id, { status, decided_at: Date.now() / 1000 });
+export function mockDecide(id, status, start = 0, nowAbs = Date.now() / 1000) {
+  decided(replay(start, nowAbs).key).set(id, { status, decided_at: nowAbs });
 }
 
 export function mockSearch(q, start = 0) {

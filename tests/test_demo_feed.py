@@ -34,6 +34,13 @@ def test_feed_plays_into_mongo_and_waits_for_approval(monkeypatch):
         return real_find(q)
 
     monkeypatch.setattr(db.approvals, "find_one", approve_on_poll)
+    uploaded = []  # mongomock has no GridFS
+
+    def publish(db, sample, kind, name, attempt, data, ctype, src):
+        assert data and ctype in ("image/jpeg", "model/gltf-binary")
+        uploaded.append((sample, kind, name, attempt))
+
+    monkeypatch.setattr(demo_feed.media, "publish", publish)
     b = mock.batch()
     demo_feed.play(db, b, speed=1000)
     live = db.samples.find_one({"_id": b["run"]["live"]})
@@ -41,3 +48,5 @@ def test_feed_plays_into_mongo_and_waits_for_approval(monkeypatch):
     assert db.logs.count_documents({}) == len(b["logs"]) + 1
     assert db.logs.find_one({"msg": {"$regex": "^published"}})
     assert db.baseline.count_documents({}) == len(b["baseline"])
+    assert len(uploaded) == len(b["media"])
+    assert (b["run"]["live"], "mesh", "mesh", 2) in uploaded

@@ -38,8 +38,8 @@ npm test
    - `MONGODB_DB`: `flowarc` for the real registry, `flowarc_demo` for the demo feed.
    - `FLOWARC_HF_REPO` and `HF_TOKEN` (read access): only for views from the private HF dataset
      when `flowarc.media` isn't running.
-   - `APPROVAL_TOKEN` (recommended): approving then asks for this token, so a public URL
-     can't approve publishing.
+   - `APPROVAL_TOKEN`: required with Atlas (approvals are refused without it). Approving asks
+     for this token once per browser, so a public URL can't approve publishing.
 3. In Atlas, Network Access must allow Vercel (0.0.0.0/0 for the hackathon).
 
 On a Hobby (free) Vercel team, Git deployments only build commits by team members unless the

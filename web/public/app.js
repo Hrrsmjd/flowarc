@@ -268,7 +268,7 @@ function renderMedia(s) {
       : `<figure class="view empty"><div></div><figcaption>${esc(v)}</figcaption></figure>`;
   }).join("");
   $("views").querySelectorAll(".view[data-src]").forEach((el) => {
-    el.addEventListener("mousemove", (ev) => showTip(`<img class="tip-img" src="${el.dataset.src}" alt=""><div>${el.dataset.cap}</div>`, ev));
+    el.addEventListener("mousemove", (ev) => showTip(`<img class="tip-img" src="${esc(el.dataset.src)}" alt=""><div>${esc(el.dataset.cap)}</div>`, ev));
     el.addEventListener("mouseleave", hideTip);
   });
 
@@ -291,7 +291,7 @@ function renderMedia(s) {
   $("mesh-view").classList.toggle("has-mesh", Boolean(pick));
   const failed = pick && verdicts[pick.attempt - 1] === "fail";
   $("mesh-note").textContent = failed ? "This attempt failed the mesh check · drag to rotate · scroll to zoom" : "Drag to rotate · scroll to zoom";
-  if (!pick) return;
+  if (!pick) return viewerP?.then((v) => v.clear());
   viewerP ??= import("./mesh.js").then((m) => m.createViewer($("mesh-view")));
   viewerP
     .then((v) => v.show(pick.url, { failed }))
@@ -317,7 +317,7 @@ function iouChart(events) {
     events.forEach((e, k) => {
       const val = e.iou[view] ?? 0;
       const x = x0 + k * (bw + 2), top = y(Math.max(val, 0.5));
-      g += `<path d="${barPath(x, top, bw, y(0.5) - top)}" fill="${colors[k % colors.length]}" data-tip="<b>${view}</b>, attempt ${k + 1}<br>IoU ${val.toFixed(2)}${perView ? ` ${val < thr ? "✕ below" : "✓ above"} ${thr}` : ""}${e.failed ? "<br>mesh check failed" : ""}"/>`;
+      g += `<path d="${barPath(x, top, bw, y(0.5) - top)}" fill="${colors[k % colors.length]}" data-tip="${esc(`<b>${esc(view)}</b>, attempt ${k + 1}<br>IoU ${val.toFixed(2)}${perView ? ` ${val < thr ? "✕ below" : "✓ above"} ${thr}` : ""}${e.failed ? "<br>mesh check failed" : ""}`)}"/>`;
     });
     g += `<text x="${L + i * gw + gw / 2}" y="${H - 6}" text-anchor="middle">${view}</text>`;
   });
@@ -440,7 +440,7 @@ function renderDiversity() {
   let g = `<rect x="0" y="0" width="${W}" height="${H}" fill="none" stroke="var(--grid)" rx="8"/>`;
   for (const p of order) {
     const mine = ids.has(p.id), r = mine ? 5.5 : 4;
-    g += `<circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="${r}" fill="${color[p.source] || "var(--muted)"}" stroke="var(--surface)" stroke-width="1.5" opacity="${p.source === "car_baseline" ? 0.85 : 1}" data-tip="<b>${esc(p.label)}</b><br>${esc(p.bucket)} · ${p.source === "car_baseline" ? "car baseline" : "FlowArc"}" ${mine ? `data-id="${p.id}" style="cursor:pointer"` : ""}/>`;
+    g += `<circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="${r}" fill="${color[p.source] || "var(--muted)"}" stroke="var(--surface)" stroke-width="1.5" opacity="${p.source === "car_baseline" ? 0.85 : 1}" data-tip="${esc(`<b>${esc(p.label)}</b><br>${esc(p.bucket)} · ${p.source === "car_baseline" ? "car baseline" : "FlowArc"}`)}" ${mine ? `data-id="${p.id}" style="cursor:pointer"` : ""}/>`;
     if (p.id === selectedSample()?.id) g += `<circle cx="${sx(p.x)}" cy="${sy(p.y)}" r="10" fill="none" stroke="var(--ink)" stroke-width="1.5"/>`;
   }
   $("divmap").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Shape embedding map, FlowArc samples versus a car-only baseline">${g}</svg>`;
@@ -476,7 +476,7 @@ function renderApprovals() {
 async function decide(id, decision) {
   let token = localStorage.getItem("approvalToken") || "";
   for (let tries = 0; tries < 2; tries++) {
-    const r = await fetch("api/approve", {
+    const r = await fetch(`api/approve?start=${start}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-approval-token": token },
       body: JSON.stringify({ id, decision }),
@@ -487,7 +487,7 @@ async function decide(id, decision) {
       try { localStorage.setItem("approvalToken", token); } catch {}
       continue;
     }
-    if (!r?.ok) return alert("Could not record the decision. Try again.");
+    if (!r?.ok) return alert((await r?.json().catch(() => null))?.error || "Could not record the decision. Try again.");
     localApprovals[id] = { status: decision };
     Object.assign(state.approvals.find((a) => a.id === id), localApprovals[id]);
     return renderApprovals();

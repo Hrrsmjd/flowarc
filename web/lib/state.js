@@ -129,9 +129,9 @@ export function buildState({ run = {}, samples, logs, approvals = [], media = []
       };
     });
 
-  // Follow the sample the demo is about while it runs, else whichever moved last.
+  // Follow the sample the demo is about while it runs, then any running sample, else whichever moved last.
   const running = rows.filter((r) => r.status === "running").sort((a, b) => b.last_t - a.last_t);
-  const live = rows.find((r) => r.id === run.live && r.log.length);
+  const live = rows.find((r) => r.id === run.live && r.status === "running");
   const featured = (live || running[0] || [...rows].sort((a, b) => b.last_t - a.last_t)[0])?.id;
 
   const times = logs.map((e) => e.t);

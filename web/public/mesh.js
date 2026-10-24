@@ -76,5 +76,12 @@ export function createViewer(el) {
     resize();
   }
 
-  return { show };
+  function clear() {
+    token++; // a pending show() for the previous sample won't paint
+    shown = "";
+    if (current) scene.remove(current);
+    current = null;
+  }
+
+  return { show, clear };
 }
