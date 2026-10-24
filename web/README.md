@@ -39,6 +39,10 @@ npm test
      can't approve publishing.
 3. In Atlas, Network Access must allow Vercel (0.0.0.0/0 for the hackathon).
 
+On a Hobby (free) Vercel team, Git deployments only build commits by team members unless the
+repo is public. For a private repo, deploy from your own account with the CLI instead:
+`cd web && npx vercel@latest link && npx vercel@latest --prod`.
+
 ## Demo feed
 
 `scripts/demo_feed.py` plays the mock batch into Atlas in real time (database `flowarc_demo`),
