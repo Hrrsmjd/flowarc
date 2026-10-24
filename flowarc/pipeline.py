@@ -51,7 +51,13 @@ def run_images(s: Sample, gpu: int) -> bool:
     for v, img in views.items():
         views_of(s)[v].parent.mkdir(parents=True, exist_ok=True)
         views_of(s)[v].write_bytes(img)
-    s.record_check("views_consistent", review["consistent"], bad=review["bad_views"], hard=False)
+    s.record_check(
+        "views_consistent",
+        review["consistent"],
+        bad=review["bad_views"],
+        reason=review.get("reason"),
+        hard=False,
+    )
     return True  # views are only a reference for the mesh review
 
 
@@ -78,6 +84,8 @@ def run_mesh(s: Sample, gpu: int) -> bool:
         holes=rev.get("holes"),
         flash_failed=rev.get("flash", {}).get("failed"),
         summary=rev.get("flash", {}).get("summary"),
+        flash=rev.get("flash", {}).get("checks"),
+        turns=rev.get("turns"),
     )
     if not rep["passed"] and tries % 2 == 0:  # two meshes failed from these views: redo them
         s.stage = "images"
