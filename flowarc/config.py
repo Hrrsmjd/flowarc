@@ -36,4 +36,6 @@ STARTUP_TIME = 10.0
 RECORD_TIME = 30.0
 FRAME_INTERVAL = 0.1
 
+# Runs stop here until Harris approves more (--budget).
+PHASE_GPU_HOURS = float(os.environ.get("FLOWARC_GPU_HOURS", "5"))
 MAX_ATTEMPTS = {"concept": 3, "images": 3, "mesh": 4, "sim": 3, "render": 2}
