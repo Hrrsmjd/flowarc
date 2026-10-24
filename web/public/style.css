@@ -707,3 +707,74 @@ select option { background: var(--surface); color: var(--ink); }
 .btn.reject:hover, .ghost:hover { border-color: var(--ink-2); }
 .sim-card { background: transparent; }
 .sim-card img { object-fit: contain; padding: 6px; }
+
+/* ---------- demo polish: Live on one laptop screen ---------- */
+/* The running shape on the left; approvals and the pipeline beside it. Sized for 1280×720 up. */
+.overview { padding: 6px 0 0; }
+.headline { font-size: clamp(34px, 3.8vw, 58px); margin: 2px 0 6px; }
+.lede { margin-bottom: 10px; }
+.progress-key .totals { margin-left: auto; color: var(--ink-2); font-family: var(--mono); }
+.live-main { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(300px, 1fr); gap: 16px; align-items: start; }
+.live-main .hero { margin: 0; }
+.live-main .hero-title { font-size: clamp(26px, 2.6vw, 42px); }
+.live-main .hero-sub { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.live-main .hero-pic { max-height: none; }
+.live-main .hero-empty blockquote { font-size: clamp(14px, 1.15vw, 18px); }
+.live-main .hero-pic .hero-empty { padding: 20px; }
+.live-side { display: grid; gap: 16px; min-width: 0; }
+.live-side .card { padding: 14px 16px; }
+.live-side .card-head { margin-bottom: 10px; }
+.live-side .card-head h2 { font-size: 16px; }
+.live-side .approval { padding: 10px 12px; }
+.live-side .approval h3 { font-size: 13px; }
+.live-side .approval p { font-size: 12.5px; margin-bottom: 8px; }
+.live-side .funnel { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.live-side .f-n { font-size: 18px; }
+.all-link { color: var(--ink-2); font-family: var(--mono); text-decoration: none; }
+.all-link:hover { color: var(--accent); }
+.also { border-top: 1px dashed var(--border); padding-top: 8px; }
+.also p { margin: 0 0 4px; font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.also ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.also a { display: flex; gap: 10px; align-items: baseline; color: var(--ink); text-decoration: none; font-size: 13px; }
+.also a:hover { color: var(--accent); }
+.also .gpu { font: 11px var(--mono); color: var(--muted); min-width: 40px; }
+.also .st { margin-left: auto; font: 11px var(--mono); text-transform: uppercase; color: var(--accent); }
+@media (max-width: 1100px) { .live-main { grid-template-columns: minmax(0, 1fr); } }
+@media (max-height: 820px) and (min-width: 1101px) {
+  main { padding-top: 12px; }
+  .live-main .hero-pic { aspect-ratio: 1; }
+  .live-main .hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+
+/* ---------- demo polish: shape page without empty boxes ---------- */
+/* No airflow yet: the mesh takes its place, as wide as two columns and as tall as the views. */
+.grid.media.no-flow > div:nth-child(2) { grid-column: span 2; }
+#flow-col[hidden], #similar-head[hidden], #similar[hidden] { display: none; }
+
+/* ---------- demo polish: diversity map ---------- */
+#divmap .cluster-label { fill: var(--accent); font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+#divmap .cluster-label.sub { fill: var(--muted); font-size: 9.5px; text-transform: none; letter-spacing: 0; }
+.live-main .steps { flex-wrap: nowrap; }
+.live-main .steps li { min-width: 0; padding: 6px 2px; font-size: 11px; letter-spacing: .02em; overflow: hidden; text-overflow: ellipsis; }
+.live-side .funnel { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+.live-side .f-stage { padding: 5px 6px; }
+.live-side .f-l { font-size: 10px; letter-spacing: 0; }
+.live-side .f-run { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grid.media.no-flow .mesh-view { aspect-ratio: 2 / 1; }
+#divmap svg { max-height: min(560px, 70vh); margin: 0 auto; }
+#divmap .cluster-label { font-size: 8px; }
+#divmap .cluster-label.sub { font-size: 7px; }
+#card-all .stages-wrap { max-height: none; }
+@media (max-width: 800px) { .grid.media.no-flow > div:nth-child(2) { grid-column: auto; } .grid.media.no-flow .mesh-view { aspect-ratio: 1; } }
+
+/* ---------- demo polish: laptop screens (T14 at 1280×720 or 1536×864, 13" MacBook at 1440×900) ---------- */
+.l-pic img { max-height: calc(100vh - 250px); }
+@media (max-height: 820px) and (min-width: 861px) {
+  .l-hero { min-height: calc(100vh - 100px); padding: 12px 0 24px; gap: 32px; }
+  .l-copy { gap: 16px; }
+  .l-title { font-size: clamp(44px, 10vh, 84px); }
+  .l-hero .lead { font-size: 17px; }
+  .l-pic { padding: 16px; }
+}
+.l-live { line-height: 1.7; }
+@media (max-width: 600px) { .live-side .funnel { grid-template-columns: repeat(3, minmax(0, 1fr)); } .live-main .steps { flex-wrap: wrap; } }

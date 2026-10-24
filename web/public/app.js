@@ -9,6 +9,13 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const fmtRe = (re) => { const e = Math.floor(Math.log10(re)); const m = re / 10 ** e; return e < 4 ? Math.round(re).toLocaleString() : `${m.toFixed(1)}×10${sup(e)}`; };
 const sup = (n) => String(n).split("").map((d) => "⁰¹²³⁴⁵⁶⁷⁸⁹"[d]).join("");
 const fmtDur = (s) => (s < 60 ? `${Math.round(s)}s` : s < 3600 ? `${Math.floor(s / 60)}m ${String(Math.round(s % 60)).padStart(2, "0")}s` : `${(s / 3600).toFixed(1)}h`);
+// Wall-clock time in words, for "N shapes in 19 hours".
+const fmtSpan = (s) => {
+  const n = (x, unit) => `${x} ${unit}${x === 1 ? "" : "s"}`;
+  if (s < 3600) return n(Math.max(1, Math.round(s / 60)), "minute");
+  if (s < 48 * 3600) return n(Math.round(s / 3600), "hour");
+  return n(+(s / 86400).toFixed(1), "day");
+};
 
 // The mock replay starts its story when the page opens; Restart begins it again.
 let start = Math.floor(Date.now() / 1000);
@@ -74,9 +81,9 @@ function liveTick() {
   const age = (Date.now() - lastOk) / 1000;
   const el = $("live-status");
   el.classList.toggle("stale", Boolean(lastError) || !lastOk || age > 10);
-  el.title = lastError;
+  el.title = lastError || (state?.db ? `database ${state.db}` : "");
   if (lastError) return ($("live-text").textContent = `API error: ${lastError.slice(0, 60)}`);
-  const src = state?.mode === "atlas" ? `MongoDB Atlas · ${state.db}` : "mock replay";
+  const src = state?.mode === "atlas" ? "MongoDB Atlas" : "mock replay";
   $("live-text").textContent = !lastOk ? "connecting…" : age > 10 ? `offline ${fmtDur(age)}` : `Live · ${src}`;
 }
 
@@ -108,12 +115,10 @@ function render() {
     `running ${fmtDur(elapsed)}`,
   ].filter(Boolean).join(" · ");
   renderOverview(run, samples);
-  renderKpis(run, samples);
   renderHero();
   renderGallery(samples);
   renderFinale();
   celebrate(samples);
-  renderNow(run, samples);
   renderStages(samples);
   renderPicker(samples);
   renderApprovals();
@@ -170,37 +175,24 @@ function renderOverview(run, samples) {
   const segs = [["done", done], ["running", running], ["flagged", flagged], ["failed", bad], ["waiting", waiting]];
   const bar = segs.filter(([, v]) => v).map(([k, v]) => `<span class="seg ${k}" style="flex:${v}" title="${v} ${k}"></span>`).join("");
   const key = segs.map(([k, v]) => `<span class="key ${k}"><i></i>${v} ${k}</span>`).join("");
-  const html = `<p class="ov-label">${esc(run.phase || "")} run · started ${fmtDur(Date.now() / 1000 - run.started_at)} ago</p>
+  const g = run.gemini || { calls: 0 };
+  const totals = `<span class="key totals">${run.gpu_hours.toFixed(1)} GPU-hours · ${g.calls} Gemini calls</span>`;
+  const html = `<p class="ov-label">${esc(run.phase || "")} run · ${runSpan()}</p>
     <h1 class="headline"><span class="num">${done}</span> of ${total} shapes are done.</h1>
     <p class="lede">${running ? `${running} ${running === 1 ? "is" : "are"} running now. ` : ""}Argon has fixed ${fixes} problem${fixes === 1 ? "" : "s"} on its own${bad + flagged ? `; ${bad + flagged} need${bad + flagged === 1 ? "s" : ""} a look` : ""}.</p>
-    <div class="progress" aria-label="Run progress">${bar}</div><div class="progress-key">${key}</div>`;
+    <div class="progress" aria-label="Run progress">${bar}</div><div class="progress-key">${key}${totals}</div>`;
   const el = $("overview");
-  if (el.dataset.html !== html.replace(/started [^·<]+ago/, "")) { el.dataset.html = html.replace(/started [^·<]+ago/, ""); el.innerHTML = html; }
-  else el.querySelector(".ov-label").textContent = `${run.phase || ""} run · started ${fmtDur(Date.now() / 1000 - run.started_at)} ago`;
+  if (el.dataset.html !== html) { el.dataset.html = html; el.innerHTML = html; }
 }
 
-function renderKpis(run, samples) {
-  const n = (st) => samples.filter((s) => s.status === st).length;
-  const kinds = new Set(samples.filter((s) => s.status !== "failed" && s.stage !== "concept").map((s) => s.bucket)).size;
-  const repairs = samples.reduce((a, s) => a + s.log.filter((e) => e.fix).length, 0);
-  // The headline above already says how many are done and running; these are the rest.
-  const tiles = [
-    ["kinds", "Kinds of shape", kinds, 0, "", `<div class="muted small">car datasets: 1</div>`],
-    ["repairs", "<span class='argon-ink'>◆</span> Fixed by Argon", repairs, 0, "", ""],
-    ["flagged", "<span class='bad'>⚑</span> Flagged or failed", n("flagged") + n("failed"), 0, "", ""],
-    ["gpuh", "GPU-hours", run.gpu_hours, 1, "", ""],
-  ];
-  const el = $("kpis");
-  if (!el.children.length) {
-    el.innerHTML = tiles.map(([k, l]) => `<div class="kpi" data-k="${k}"><div class="label">${l}</div><div class="value"><span class="num">0</span><span class="suffix"></span></div><div class="x"></div></div>`).join("");
-  }
-  for (const [k, , v, dp, suffix, x] of tiles) {
-    const tile = el.querySelector(`[data-k="${k}"]`);
-    tile.querySelector(".suffix").innerHTML = suffix;
-    if (tile.querySelector(".x").innerHTML !== x) tile.querySelector(".x").innerHTML = x;
-    tick(tile.querySelector(".num"), v, dp);
-  }
+// How long the run has taken, wall clock: start to now while anything runs, else start to the last event.
+function runTime() {
+  const { run, samples } = state;
+  const live = samples.some((s) => s.status === "running");
+  const end = live || !samples.length ? Date.now() / 1000 : Math.max(...samples.map((s) => s.last_t || 0));
+  return Math.max(0, end - run.started_at);
 }
+const runSpan = () => `${fmtSpan(runTime())}${state.run.gpus ? ` on ${state.run.gpus} GPUs` : ""}`;
 
 // Counts up (or down) to a new value instead of jumping, so changes catch the eye.
 function tick(el, to, dp = 0) {
@@ -267,12 +259,21 @@ function renderHero() {
       <p class="hero-sub">${esc(s.bucket)}${c.reynolds ? ` · Re ${fmtRe(c.reynolds)}` : ""}${pic && c.description && c.description !== s.title ? ` · ${esc(c.description)}` : ""}</p>
       <ol class="steps">${steps}</ol>
       ${bubble(s)}
+      ${alsoRunning(s)}
     </div>`;
   if (el.dataset.html !== html) {
     el.dataset.html = html;
     el.innerHTML = html;
     el.querySelector("video")?.play().catch(() => {});
   }
+}
+
+// The other GPUs, one line each, so the hero stands in for the old GPU table.
+function alsoRunning(s) {
+  const others = state.samples.filter((x) => x.status === "running" && x.id !== s.id).sort((a, b) => (a.gpu ?? 99) - (b.gpu ?? 99));
+  if (!others.length) return "";
+  const row = (x) => `<li><a href="#shape/${encodeURIComponent(x.id)}">${x.gpu != null ? `<span class="gpu">GPU ${x.gpu}</span>` : ""}${esc(x.title)}<span class="st">${esc(x.stage)}</span></a></li>`;
+  return `<div class="also"><p>Also running</p><ul>${others.slice(0, 6).map(row).join("")}</ul>${others.length > 6 ? `<p class="more">+${others.length - 6} more</p>` : ""}</div>`;
 }
 
 // ---------- gallery ----------
@@ -329,31 +330,6 @@ function celebrate(samples) {
 
 const fmtTok = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n));
 
-// What each GPU is doing right now, plus the run totals.
-function renderNow(run, samples) {
-  const n = (st) => samples.filter((s) => s.status === st).length;
-  const now = Date.now() / 1000;
-  const g = run.gemini || { calls: 0, tokens: 0 };
-  $("now-note").innerHTML = [
-    `<b>${n("done")}</b> / ${run.target_samples} done`,
-    `<b>${n("running")}</b> running`,
-    `<b>${n("pending")}</b> waiting`,
-    `<span class="${n("flagged") ? "warn" : ""}"><b>${n("flagged")}</b> flagged</span>`,
-    `<span class="${n("failed") ? "bad" : ""}"><b>${n("failed")}</b> failed</span>`,
-    `<b>${run.gpu_hours.toFixed(1)}</b> GPU-hours`,
-    `<b>${g.calls}</b> Gemini calls${g.tokens ? ` · ${fmtTok(g.tokens)} tokens` : ""}`,
-  ].join(" · ");
-  const running = samples.filter((s) => s.status === "running").sort((a, b) => (a.gpu ?? 99) - (b.gpu ?? 99));
-  $("now").innerHTML = running.length
-    ? `<thead><tr><th>GPU</th><th>Sample</th><th>Stage</th><th>In stage for</th><th>Progress</th></tr></thead><tbody>${running.map((s) => {
-        const p = s.progress?.of ? `${s.progress.frames} / ${s.progress.of} frames` : "";
-        const tries = s.attempts?.[s.stage] > 1 ? ` <span class="muted">try ${s.attempts[s.stage]}</span>` : "";
-        return `<tr data-id="${s.id}" class="${s.id === selectedSample()?.id ? "sel" : ""}"><td>${s.gpu ?? "–"}</td><td><span class="id">${s.id}</span> ${esc(s.title)}</td><td>${esc(s.stage)}${tries}</td><td>${s.stage_since ? fmtDur(now - s.stage_since) : "–"}</td><td>${p}</td></tr>`;
-      }).join("")}</tbody>`
-    : `<tbody><tr><td class="muted">Nothing running.</td></tr></tbody>`;
-  $("now").querySelectorAll("tr[data-id]").forEach((tr) => tr.addEventListener("click", () => select(tr.dataset.id)));
-}
-
 let toastTimer;
 function toast(msg, kind = "") {
   const el = $("toast");
@@ -389,14 +365,11 @@ let stageFilter = null; // null: "active" once the run is big, else "all"
 
 function renderFunnel(samples) {
   const at = (st) => samples.filter((s) => s.stage === st && s.status !== "done" && s.status !== "failed");
-  const n = (st) => samples.filter((s) => s.status === st).length;
   const cells = STAGES.map((st) => {
     const here = at(st), run = here.filter((s) => s.status === "running").length;
     return `<div class="f-stage"><span class="f-n">${here.length}</span><span class="f-l">${st}</span>${run ? `<span class="f-run">${run} running</span>` : ""}</div>`;
   }).join("");
-  const ends = [["done", n("done"), "ok"], ["flagged", n("flagged"), "warn"], ["failed", n("failed"), "bad"]]
-    .map(([l, v, c]) => `<div class="f-stage end ${v ? c : ""}"><span class="f-n">${v}</span><span class="f-l">${l}</span></div>`).join("");
-  const html = cells + ends;
+  const html = cells;
   if ($("funnel").dataset.html !== html) $("funnel").innerHTML = $("funnel").dataset.html = html;
   const sel = selectedSample()?.id;
   const dots = samples.map((s) => `<button type="button" class="sdot ${s.status}${s.id === sel ? " sel" : ""}" data-id="${esc(s.id)}" data-tip="${esc(`<b>${esc(s.id)} · ${esc(s.title)}</b><br>${esc(s.status)}${s.status === "running" || s.status === "pending" ? ` · ${esc(s.stage)}` : ""}`)}" aria-label="${esc(s.title)}"></button>`).join("");
@@ -409,7 +382,7 @@ function renderFunnel(samples) {
 
 function renderStages(samples) {
   renderFunnel(samples);
-  const key = stageFilter || (samples.length > 20 ? "active" : "all");
+  const key = stageFilter || "all";
   const fhtml = Object.entries(FILTERS).map(([k, [label, f]]) => `<button type="button" role="tab" class="tab${k === key ? " on" : ""}" data-k="${k}">${label} <span class="muted">${samples.filter(f).length}</span></button>`).join("");
   if ($("stage-filter").dataset.html !== fhtml) {
     $("stage-filter").innerHTML = $("stage-filter").dataset.html = fhtml;
@@ -430,6 +403,7 @@ function renderStages(samples) {
   $("stages").querySelectorAll("tbody tr").forEach((tr) => tr.addEventListener("click", () => select(tr.dataset.id)));
   const running = samples.filter((s) => s.status === "running").length;
   $("progress-note").textContent = `${samples.length} samples · ${running} on GPUs`;
+  $("all-note").textContent = `${shown.length} of ${samples.length} · click a row to open it`;
   $("stage-legend").innerHTML = [
     ["done", "✓ passed"], ["running", "running"], ["flagged", "⚑ flagged"], ["failed", "✕ failed"], ["done retried", "✓ fixed after a failed check"],
   ].map(([c, t]) => `<span><span class="cell ${c}" style="display:inline-flex;width:22px;height:14px;font-size:10px;vertical-align:-2px"></span> ${t}</span>`).join("");
@@ -527,13 +501,15 @@ async function loadSimilar(s) {
   const byId = new Map(state.samples.map((x) => [x.id, x]));
   const pic = (x) => byId.get(x.id) && viewUrl(byId.get(x.id));
   // Nearest first, but shapes with pictures before concepts still waiting for their images.
-  const rows = (r.results || []).map((x, i) => ({ ...x, i })).sort((a, b) => !pic(a) - !pic(b) || a.i - b.i).slice(0, 6);
+  // Only shapes with pictures: a grey "no images yet" tile reads as broken on stage.
+  const rows = (r.results || []).filter(pic).slice(0, 6);
+  $("similar-head").hidden = $("similar").hidden = !rows.length;
   const engines = { "vector-search": "Atlas Vector Search", mock: "mock" };
   $("similar-note").textContent = rows.length ? `nearest concepts · ${engines[r.engine] || ""}` : "";
   $("similar").innerHTML = rows.map((x) => {
-    const img = pic(x);
-    return `<button type="button" class="sim-card" data-id="${esc(x.id)}">${img ? `<img src="${esc(img)}" alt="" loading="lazy">` : `<span class="sim-noimg">no images yet</span>`}<span class="cap">${esc(x.name || x.id)}<small>${x.similarity != null ? `cos ${x.similarity.toFixed(3)} · ` : ""}${esc(x.bucket || "")}</small></span></button>`;
-  }).join("") || "<p class='muted small'>No embedding for this sample yet.</p>";
+    const alike = x.similarity > 0 ? `${Math.round(x.similarity * 100)}% alike · ` : "";
+    return `<button type="button" class="sim-card" data-id="${esc(x.id)}"><img src="${esc(pic(x))}" alt="" loading="lazy"><span class="cap">${esc(x.name || x.id)}<small>${alike}${esc(x.bucket || "")}</small></span></button>`;
+  }).join("");
   $("similar").querySelectorAll("[data-id]").forEach((b) => b.addEventListener("click", () => select(b.dataset.id)));
 }
 
@@ -587,6 +563,9 @@ function meshVerdicts(s) {
 function renderFlow(s) {
   const v = s.media?.video, el = $("flow-video");
   $("flow-empty").hidden = Boolean(v);
+  // No airflow yet: drop the column rather than show an empty box.
+  $("flow-col").hidden = !v;
+  $("sample-media").classList.toggle("no-flow", !v);
   el.hidden = !v;
   $("flow-note").textContent = v && s.sim?.cd_mean != null ? `Mean drag coefficient ${s.sim.cd_mean.toFixed(3)}` : "";
   if (!v) return el.removeAttribute("src");
@@ -788,12 +767,22 @@ function renderDiversity() {
     if (img) { // our finished shapes show as their own picture
       const T = 30, x = sx(p.x) - T / 2, y = sy(p.y) - T / 2;
       const tipHtml = esc(`<b>${esc(p.label)}</b><br>${esc(p.bucket)} · FlowArc`);
-      g += `<g class="thumb" data-id="${p.id}" data-tip="${tipHtml}" style="cursor:pointer"><circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="${T / 2 + 2}" fill="var(--surface)" stroke="var(--series-1)" stroke-width="2"/><image href="${esc(img)}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${T}" height="${T}" clip-path="url(#dot)" preserveAspectRatio="xMidYMid slice"/></g>`;
+      g += `<g class="thumb" data-id="${p.id}" data-tip="${tipHtml}" style="cursor:pointer"><circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="${T / 2 + 2}" fill="var(--page)" stroke="var(--series-1)" stroke-width="1.5"/><g clip-path="url(#dot)"><image href="${esc(img)}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${T}" height="${T}" preserveAspectRatio="xMidYMid meet" filter="url(#line-art)"/></g></g>`;
       if (p.id === selectedSample()?.id) g += `<circle cx="${sx(p.x)}" cy="${sy(p.y)}" r="${T / 2 + 6}" fill="none" stroke="var(--ink)" stroke-width="1.5"/>`;
       continue;
     }
     g += `<circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="${r}" fill="${color[p.source] || "var(--muted)"}" stroke="var(--surface)" stroke-width="1.5" opacity="${p.source === "car_baseline" ? 0.85 : 1}" data-tip="${esc(`<b>${esc(p.label)}</b><br>${esc(p.bucket)} · ${p.source === "car_baseline" ? "car baseline" : "FlowArc"}`)}" ${mine ? `data-id="${p.id}" style="cursor:pointer"` : ""}/>`;
     if (p.id === selectedSample()?.id) g += `<circle cx="${sx(p.x)}" cy="${sy(p.y)}" r="10" fill="none" stroke="var(--ink)" stroke-width="1.5"/>`;
+  }
+  // Name the car cluster on the map itself, just above it (below when it sits at the top).
+  const cars = pts.filter((p) => p.source === "car_baseline");
+  if (cars.length) {
+    const cx = cars.reduce((a, p) => a + sx(p.x), 0) / cars.length;
+    const top = Math.min(...cars.map((p) => sy(p.y))), bottom = Math.max(...cars.map((p) => sy(p.y)));
+    const above = top > 34, y = above ? top - 18 : bottom + 16;
+    const x = Math.min(Math.max(cx, 60), W - 60);
+    const name = esc((map.baseline || "car baseline").replace(/\s*\(.*\)\s*$/, ""));
+    g += `<text class="cluster-label" x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle">${name}</text><text class="cluster-label sub" x="${x.toFixed(1)}" y="${(y + 9).toFixed(1)}" text-anchor="middle">every one a car</text>`;
   }
   $("divmap").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Shape embedding map, FlowArc samples versus a car-only baseline">${g}</svg>`;
   bindHover($("divmap"));
@@ -942,6 +931,7 @@ function showPage(route = location.hash.slice(1)) {
   document.body.dataset.page = page;
   if (page === "home") renderHome();
   if (page === "about") { renderDeck(); $("deck").focus({ preventScroll: true }); }
+  if (page === "shapes" && id === "all") return void requestAnimationFrame(() => $("card-all").scrollIntoView());
   scrollTo(0, 0);
 }
 addEventListener("hashchange", () => showPage());
@@ -962,7 +952,7 @@ function renderHome() {
         <h1 class="l-title">Text in.<br>Checked flow<br>simulation out.</h1>
         <p class="lead">FlowArc is an agent that turns a sentence into a 3D shape and a verified airflow simulation, so flow models can learn from more than cars.</p>
         <div class="l-cta"><a class="btn approve" href="#live">Watch it live →</a></div>
-        <p class="l-live">${live ? `<span class="dot"></span>Running now: <b>${esc(live.title)}</b> · ` : ""}${done.length} shapes checked · ${kinds} kinds of object</p></div>
+        <p class="l-live">${live ? `<span class="dot"></span>Running now: <b>${esc(live.title)}</b><br>` : ""}${done.length} shapes checked · ${kinds} kinds of object${state ? ` · in ${runSpan()}` : ""}</p></div>
       ${pic ? `<figure class="l-pic"><p class="l-pic-label"><span class="dot"></span>Latest finished shape <span>updates as the run goes</span></p><img src="${esc(viewUrl(pic))}" alt="${esc(pic.title)}"><figcaption><b>${esc(pic.title)}</b> · ${esc(pic.bucket)}${when}</figcaption></figure>` : ""}
     </section>
     ${slides().slice(1).map((x) => `<section class="slide l-sec">${x}</section>`).join("")}
@@ -999,7 +989,7 @@ function slides() {
      <div class="facts"><div><b>${samples.length}</b><span>shapes remembered</span></div><div><b>${media}</b><span>files in GridFS</span></div></div>`,
     `<p class="kick">So far</p><h2>${done.length} checked shapes, ${kinds} kinds of object${flows ? `, ${flows} airflows` : ""}.</h2>
      <div class="strip">${pics.map((s) => `<figure><img src="${esc(viewUrl(s))}" alt=""><figcaption>${esc(s.title)}</figcaption></figure>`).join("")}</div>
-     <div class="facts"><div><b>${state ? state.run.gpu_hours.toFixed(1) : "–"}</b><span>GPU-hours</span></div><div><b>1</b><span>kind in DrivAerNet++</span></div></div>`,
+     <div class="facts"><div><b>${state ? fmtSpan(runTime()) : "–"}</b><span>start to finish${state?.run.gpus ? `, on ${state.run.gpus} GPUs` : ""}</span></div><div><b>${state ? state.run.gpu_hours.toFixed(1) : "–"}</b><span>GPU-hours</span></div></div>`,
     `<p class="kick">Who it's for</p><h2>Diverse, verified flow datasets in days, not months.</h2><p class="lead">For researchers and frontier AI4Physics teams, starting with us.</p>`,
   ];
 }
