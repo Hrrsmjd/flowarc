@@ -6,6 +6,7 @@ With `ground`, z=0 is the ground plane. Everything is converted to lattice units
 
 import math
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -192,8 +193,10 @@ class FluidX3D:
         """`progress`, if given, is called every PROGRESS_EVERY s with frames done, the frame
         total and the newest frame image."""
         out = Path(out)
-        (out / "probes").mkdir(parents=True, exist_ok=True)
-        (out / "render").mkdir(exist_ok=True)
+        for d in ("probes", "render"):  # a retry must not mix in the last run's frames
+            shutil.rmtree(out / d, ignore_errors=True)
+        (out / "probes").mkdir(parents=True)
+        (out / "render").mkdir()
         lat = lattice(cfg)
         m = place(trimesh.load(mesh, force="mesh"), cfg, lat)
         m.export(out / "body.stl")
