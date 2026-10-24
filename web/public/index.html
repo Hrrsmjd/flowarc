@@ -27,6 +27,7 @@
       <span class="badge" id="mode-badge" hidden>Mock replay</span>
       <button class="ghost small" id="restart" type="button" hidden>↺ Restart</button>
       <button class="ghost small" id="present" type="button" title="Presenter mode (P)">▶ Present</button>
+      <button class="ghost small" id="finale-open" type="button" title="Finale: everything made so far (F)">★ Finale</button>
       <button class="ghost" id="theme" type="button" aria-label="Toggle theme">◐</button>
     </div>
   </header>
@@ -112,6 +113,16 @@
 
   <div class="tooltip" id="tip" role="tooltip" hidden></div>
   <div class="toast" id="toast" role="status" hidden></div>
+  <section class="finale" id="finale" aria-label="Finale" hidden>
+    <button class="ghost finale-close" id="finale-close" type="button" aria-label="Close finale">✕</button>
+    <div class="finale-stats" id="finale-stats"></div>
+    <div class="spot" id="spot">
+      <figure class="spot-pic"><img id="spot-img" alt=""><figcaption id="spot-cap"></figcaption></figure>
+      <div class="spot-mesh" id="spot-mesh"></div>
+      <div class="spot-flow"><video id="spot-video" muted loop playsinline></video><div class="spot-noflow" id="spot-noflow">flow still simulating</div></div>
+    </div>
+    <div class="finale-grid" id="finale-grid"></div>
+  </section>
   <script src="app.js"></script>
 </body>
 </html>

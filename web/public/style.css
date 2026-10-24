@@ -277,9 +277,6 @@ table.qoi { width: 100%; border-collapse: collapse; font-size: 12px; margin-top:
 .hero-pic > img, .hero-pic > video { width: 100%; height: 100%; object-fit: contain; display: block; }
 .hero-pic > video { background: #000; }
 .hero-empty { height: 100%; display: grid; place-items: center; color: var(--muted); background: var(--wash); }
-.hero-flow { position: absolute; right: 10px; bottom: 10px; width: 42%; margin: 0; border-radius: 8px; overflow: hidden; background: #000; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25); }
-.hero-flow video { width: 100%; display: block; aspect-ratio: 16 / 10; object-fit: cover; }
-.hero-flow figcaption { font-size: 11px; color: #e8e7e2; padding: 3px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hero-body { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
 .hero-kicker { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); display: flex; align-items: center; gap: 8px; }
 .hero-title { font-size: 28px; line-height: 1.15; margin: 0; }
@@ -333,7 +330,39 @@ body.present .search, body.present #card-progress { display: none; }
 body.present .grid.two { grid-template-columns: minmax(0, 1fr); }
 body.present .hero-title { font-size: 36px; }
 .hero-pic { max-height: 380px; width: 100%; }
-.hero-flow.big { inset: 0; width: auto; border-radius: 0; box-shadow: none; display: flex; flex-direction: column; }
-.hero-flow.big video, .hero-flow.big img { flex: 1; min-height: 0; aspect-ratio: auto; width: 100%; object-fit: contain; }
-.hero-flow.big img { background: #fff; }
 @media (max-width: 520px) { .top-right { flex-wrap: wrap; gap: 6px; } #present { display: none; } }
+
+/* finale */
+.finale { position: fixed; inset: 0; z-index: 40; overflow-y: auto; background: #0d0d0c; color: #f0efec; padding: 28px clamp(16px, 4vw, 48px) 40px; }
+body.finale-on { overflow: hidden; }
+.finale-close { position: fixed; top: 14px; right: 18px; color: #f0efec; border-color: rgba(255, 255, 255, 0.2); background: transparent; z-index: 1; }
+.fs-head { font-size: 15px; color: #c3c2b7; }
+.fs-head .brand { font-weight: 700; color: #f0efec; margin-right: 6px; }
+.fs-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 14px 0 8px; }
+.fs-row div { border-top: 2px solid #3987e5; padding-top: 6px; }
+.fs-row b { display: block; font-size: clamp(28px, 4vw, 52px); line-height: 1.05; }
+.fs-row span { color: #c3c2b7; font-size: 13px; }
+.fs-vs { color: #ec835a; font-size: 14px; margin-bottom: 18px; }
+.fs-vs b { color: #ec835a; }
+.spot { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+.spot > * { aspect-ratio: 4 / 3; border-radius: 12px; overflow: hidden; margin: 0; position: relative; }
+.spot-pic { background: #fff; }
+.spot-pic img { width: 100%; height: 100%; object-fit: contain; display: block; animation: rise 0.5s ease; }
+.spot-pic figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 6px 10px; background: rgba(0, 0, 0, 0.72); font-size: 14px; color: #f0efec; }
+.spot-mesh { background: #1f1f1d; --mesh: #b8b8c0; }
+.spot-mesh canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
+.spot-flow { background: #000; display: grid; place-items: center; }
+.spot-flow video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.spot-noflow { color: #898781; font-size: 14px; }
+.finale-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.ftile { position: relative; padding: 0; border: 2px solid transparent; border-radius: 10px; overflow: hidden; background: #fff; cursor: pointer; font: inherit; text-align: left; }
+.ftile.on { border-color: #3987e5; }
+.ftile img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+.ftile .cap { display: block; padding: 4px 6px; background: #1a1a19; color: #f0efec; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ftile .cap small { display: block; color: #898781; font-size: 10px; }
+.tag.flow { background: #000; color: #fff; border-color: transparent; }
+@media (max-width: 800px) {
+  .fs-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .spot { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) { #finale-open { display: none; } }

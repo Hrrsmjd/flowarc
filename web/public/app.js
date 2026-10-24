@@ -88,6 +88,7 @@ function render() {
   renderKpis(run, samples);
   renderHero();
   renderGallery(samples);
+  renderFinale();
   celebrate(samples);
   renderStages(samples);
   renderPicker(samples);
@@ -198,16 +199,9 @@ function renderHero() {
   const v = s.status === "done" && s.media?.video;
   const pic = v
     ? `<video src="${esc(v.url)}" muted loop playsinline autoplay></video>`
-    : viewUrl(s) ? `<img src="${esc(viewUrl(s))}" alt="${esc(s.title)}">` : "";
-  // A simulation takes longer than a demo: while this one runs, play the last finished flow
-  // (big while there's no picture of this one yet).
-  const prev = !v && lastFlow(s);
-  const shot = !pic && !prev && state.samples.filter((x) => x !== s && x.status === "done" && viewUrl(x)).sort((a, b) => b.last_t - a.last_t)[0];
-  const inset = prev ? `<figure class="hero-flow${pic ? "" : " big"}"><video src="${esc(prev.media.video.url)}" muted loop playsinline autoplay></video><figcaption>Last flow · ${esc(prev.title)}</figcaption></figure>`
-    : shot ? `<figure class="hero-flow big"><img src="${esc(viewUrl(shot))}" alt=""><figcaption>Last finished · ${esc(shot.title)}</figcaption></figure>`
-    : pic ? "" : `<div class="hero-empty">${live ? "drawing…" : ""}</div>`;
+    : viewUrl(s) ? `<img src="${esc(viewUrl(s))}" alt="${esc(s.title)}">` : `<div class="hero-empty">${live ? "drawing…" : ""}</div>`;
   const c = s.concept || {};
-  const html = `<div class="hero-pic">${pic}${inset}</div>
+  const html = `<div class="hero-pic">${pic}</div>
     <div class="hero-body">
       <div class="hero-kicker">${live ? `<span class="pulse"></span>Now running${s.gpu != null ? ` · GPU ${s.gpu}` : ""}` : "Latest sample"}</div>
       <h2 class="hero-title">${esc(s.title)}</h2>
@@ -218,11 +212,9 @@ function renderHero() {
   if (el.dataset.html !== html) {
     el.dataset.html = html;
     el.innerHTML = html;
-    el.querySelectorAll("video").forEach((x) => x.play().catch(() => {}));
+    el.querySelector("video")?.play().catch(() => {});
   }
 }
-
-const lastFlow = (not) => state.samples.filter((x) => x !== not && x.status === "done" && x.media?.video).sort((a, b) => b.last_t - a.last_t)[0];
 
 // ---------- gallery ----------
 function renderGallery(samples) {
@@ -723,3 +715,88 @@ addEventListener("keydown", (e) => {
   present(!document.body.classList.contains("present"));
 });
 if (new URLSearchParams(location.search).has("present")) present(true);
+
+// ---------- finale ----------
+// The closing shot: everything the batch made, each shape as picture, mesh and flow, with the
+// totals against a hand-built dataset. A spotlight steps through the shapes on its own.
+const SPOT_MS = 7000;
+let spotId = null, spotTimer = null, spotViewer = null;
+const finaleOpen = () => !$("finale").hidden;
+const finished = () => state.samples.filter((s) => s.status === "done" && viewUrl(s));
+
+function finale(on) {
+  $("finale").hidden = !on;
+  document.body.classList.toggle("finale-on", on);
+  clearInterval(spotTimer);
+  if (!on) return $("spot-video").pause();
+  spotId = null;
+  renderFinale();
+  spot(nextSpot());
+  spotTimer = setInterval(() => spot(nextSpot()), SPOT_MS);
+}
+
+function nextSpot() {
+  const pool = finished();
+  const withFlow = pool.filter((s) => s.media.video); // shapes with a flow first
+  const order = [...withFlow, ...pool.filter((s) => !s.media.video)];
+  const i = order.findIndex((s) => s.id === spotId);
+  return order[(i + 1) % order.length]?.id;
+}
+
+function renderFinale() {
+  if (!state || !finaleOpen()) return;
+  const pool = finished();
+  const kinds = new Set(pool.map((s) => s.bucket)).size;
+  const flows = pool.filter((s) => s.media.video).length;
+  const t0 = Math.min(...state.samples.map((s) => s.log[0]?.t).filter(Boolean));
+  const t1 = Math.max(...pool.map((s) => s.last_t));
+  const span = pool.length && t1 > t0 ? fmtDur(t1 - t0) : "–";
+  const stats = `<div class="fs-head"><span class="brand">≋ FlowArc</span> made by Argon, checked at every step</div>
+    <div class="fs-row">
+      <div><b>${pool.length}</b><span>shapes</span></div>
+      <div><b>${kinds}</b><span>kinds of shape</span></div>
+      <div><b>${flows}</b><span>flow simulations</span></div>
+      <div><b>${span}</b><span>start to finish</span></div>
+      <div><b>${state.run.gpu_hours.toFixed(0)}</b><span>GPU-hours</span></div>
+    </div>
+    <div class="fs-vs">DrivAerNet++: <b>1 kind</b> (cars), months of expert work</div>`;
+  if ($("finale-stats").dataset.html !== stats) $("finale-stats").innerHTML = $("finale-stats").dataset.html = stats;
+  const grid = pool.map((s) => `<button class="ftile${s.id === spotId ? " on" : ""}" type="button" data-id="${esc(s.id)}">
+      <img src="${esc(viewUrl(s))}" alt="" loading="lazy">${s.media.video ? `<span class="tag flow">flow</span>` : ""}
+      <span class="cap">${esc(s.title)}<small>${esc(s.bucket)}</small></span></button>`).join("");
+  const el = $("finale-grid");
+  if (el.dataset.html === grid) return;
+  el.innerHTML = el.dataset.html = grid;
+  el.querySelectorAll(".ftile").forEach((t) => t.addEventListener("click", () => {
+    spot(t.dataset.id);
+    clearInterval(spotTimer); // the presenter took over; resume after a pause
+    spotTimer = setInterval(() => spot(nextSpot()), SPOT_MS * 2);
+  }));
+}
+
+function spot(id) {
+  const s = state.samples.find((x) => x.id === id);
+  if (!s) return;
+  spotId = id;
+  $("spot-img").src = viewUrl(s);
+  $("spot-cap").innerHTML = `<b>${esc(s.title)}</b> · ${esc(s.bucket)}${s.concept?.reynolds ? ` · Re ${fmtRe(s.concept.reynolds)}` : ""}${s.log.some((e) => e.fix) ? ` · <span class="argon-ink">fixed by Argon</span>` : ""}`;
+  const v = $("spot-video"), url = s.media.video?.url || "";
+  $("spot-noflow").hidden = Boolean(url);
+  if (v.getAttribute("src") !== url) {
+    if (url) { v.src = url; v.play().catch(() => {}); } else { v.removeAttribute("src"); v.load(); }
+  }
+  const mesh = s.media.meshes?.[s.media.meshes.length - 1];
+  spotViewer ??= import("./mesh.js").then((m) => m.createViewer($("spot-mesh")));
+  spotViewer.then((vw) => (mesh ? vw.show(mesh.url) : vw.clear())).catch(() => {});
+  $("finale-grid").querySelectorAll(".ftile").forEach((t) => t.classList.toggle("on", t.dataset.id === id));
+}
+
+$("finale-open").addEventListener("click", () => finale(true));
+$("finale-close").addEventListener("click", () => finale(false));
+addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.target.closest("input, textarea, select")) return;
+  if (e.key.toLowerCase() === "f") finale(!finaleOpen());
+  else if (e.key === "Escape" && finaleOpen()) finale(false);
+  else if (finaleOpen() && (e.key === "ArrowRight" || e.key === " ")) { e.preventDefault(); spot(nextSpot()); }
+});
+if (new URLSearchParams(location.search).has("finale")) addEventListener("load", () => setTimeout(() => state && finale(true), 2500));

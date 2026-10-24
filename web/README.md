@@ -69,6 +69,10 @@ the runner:
 python -m flowarc.media --watch 5    # new views (512 px JPEG), meshes (GLB, ≤20k faces), flow video (MP4, ≤4 MB)
 ```
 
+**Finale** (★ Finale, the F key, or `?finale`) is the closing shot: every finished shape as picture,
+turning mesh and flow video, with the totals next to DrivAerNet++. It steps through the shapes
+by itself every 7 s; → or a click picks one, Esc closes it.
+
 Without it, views the runner uploaded to the HF dataset (`meta.files`) still show, but no meshes:
 the full STL is too large to pass through a Vercel function.
 
