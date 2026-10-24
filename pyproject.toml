@@ -12,6 +12,7 @@ dependencies = [
     "trimesh",
     "rtree",
     "manifold3d",
+    "scikit-image",
     "zarr>=3",
     "python-dotenv",
 ]
