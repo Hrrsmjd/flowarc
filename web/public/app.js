@@ -239,7 +239,7 @@ const DOING = {
   images: "Nano Banana is drawing four views…",
   mesh: "Hunyuan3D is building the mesh…",
   sim: "FluidX3D is running the airflow…",
-  render: "FluidX3D is rendering the flow…",
+  render: "FluidX3D is rendering the airflow…",
   package: "Packing the sample into Atlas…",
 };
 function renderHero() {
@@ -993,7 +993,7 @@ function slides() {
     `<p class="kick">MongoDB Atlas</p><h2>Atlas is the agent's memory.</h2>
      <ul class="uses"><li><b>Vector Search</b> on 3072-d Gemini embeddings, so Argon never repeats a shape</li><li><b>Hybrid search</b> with Voyage AI and <code>$rankFusion</code>, to find any shape by meaning</li><li><b>GridFS</b> for every view, mesh and flow video</li><li><b>The agent log</b>, every step and every fix</li></ul>
      <div class="facts"><div><b>${samples.length}</b><span>shapes remembered</span></div><div><b>${media}</b><span>files in GridFS</span></div></div>`,
-    `<p class="kick">So far</p><h2>${done.length} checked shapes, ${kinds} kinds of object${flows ? `, ${flows} flows` : ""}.</h2>
+    `<p class="kick">So far</p><h2>${done.length} checked shapes, ${kinds} kinds of object${flows ? `, ${flows} airflows` : ""}.</h2>
      <div class="strip">${pics.map((s) => `<figure><img src="${esc(viewUrl(s))}" alt=""><figcaption>${esc(s.title)}</figcaption></figure>`).join("")}</div>
      <div class="facts"><div><b>${state ? state.run.gpu_hours.toFixed(1) : "–"}</b><span>GPU-hours</span></div><div><b>1</b><span>kind in DrivAerNet++</span></div></div>`,
     `<p class="kick">Who it's for</p><h2>Diverse, verified flow datasets in days, not months.</h2><p class="lead">For researchers and frontier AI4Physics teams, starting with us.</p>`,
@@ -1082,14 +1082,14 @@ function renderFinale() {
     <div class="fs-row">
       <div><b>${pool.length}</b><span>shapes</span></div>
       <div><b>${kinds}</b><span>kinds of shape</span></div>
-      <div><b>${flows}</b><span>flow simulations</span></div>
+      <div><b>${flows}</b><span>airflow simulations</span></div>
       <div><b>${span}</b><span>start to finish</span></div>
       <div><b>${state.run.gpu_hours.toFixed(0)}</b><span>GPU-hours</span></div>
     </div>
     <div class="fs-vs">DrivAerNet++: <b>1 kind</b> (cars), months of expert work</div>`;
   if ($("finale-stats").dataset.html !== stats) $("finale-stats").innerHTML = $("finale-stats").dataset.html = stats;
   const grid = pool.map((s) => `<button class="ftile${s.id === spotId ? " on" : ""}" type="button" data-id="${esc(s.id)}">
-      <img src="${esc(viewUrl(s))}" alt="" loading="lazy">${s.media.video ? `<span class="tag flow">flow</span>` : ""}
+      <img src="${esc(viewUrl(s))}" alt="" loading="lazy">${s.media.video ? `<span class="tag flow">airflow</span>` : ""}
       <span class="cap">${esc(s.title)}<small>${esc(s.bucket)}</small></span></button>`).join("");
   const el = $("finale-grid");
   if (el.dataset.html === grid) return;
