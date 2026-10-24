@@ -19,13 +19,14 @@
       </div>
     </div>
     <div class="search" role="search">
-      <input id="q" type="search" placeholder="Search samples" autocomplete="off" aria-label="Search samples">
+      <input id="q" type="search" placeholder="Search by meaning: something that flies" autocomplete="off" aria-label="Search samples">
       <div class="results" id="results" hidden></div>
     </div>
     <div class="top-right">
       <span class="live" id="live"><span class="dot"></span><span id="live-text">connecting…</span></span>
       <span class="badge" id="mode-badge" hidden>Mock replay</span>
       <button class="ghost small" id="restart" type="button" hidden>↺ Restart</button>
+      <button class="ghost small" id="scope" type="button" hidden></button>
       <button class="ghost small" id="present" type="button" title="Presenter mode (P)">▶ Present</button>
       <button class="ghost small" id="finale-open" type="button" title="Finale: everything made so far (F)">★ Finale</button>
       <button class="ghost" id="theme" type="button" aria-label="Toggle theme">◐</button>
@@ -37,13 +38,24 @@
 
     <section class="kpis" id="kpis" aria-label="Run summary"></section>
 
+    <section class="card" id="card-now" aria-labelledby="h-now">
+      <div class="card-head">
+        <h2 id="h-now">Now running</h2>
+        <span class="small" id="now-note"></span>
+      </div>
+      <div class="table-wrap"><table class="now" id="now"></table></div>
+    </section>
+
     <div class="grid two">
       <section class="card" id="card-progress" aria-labelledby="h-progress">
         <div class="card-head">
           <h2 id="h-progress">Run progress</h2>
           <span class="muted small" id="progress-note"></span>
         </div>
-        <div class="table-wrap"><table class="stages" id="stages"></table></div>
+        <div class="funnel" id="funnel"></div>
+        <div class="dots" id="dots" aria-label="Every sample, coloured by status"></div>
+        <div class="filters" id="stage-filter" role="tablist"></div>
+        <div class="table-wrap stages-wrap"><table class="stages" id="stages"></table></div>
         <p class="legend small" id="stage-legend"></p>
       </section>
 
@@ -79,6 +91,10 @@
           <p class="muted small" id="flow-note"></p>
         </div>
       </div>
+      <h3>Similar shapes <span class="muted small" id="similar-note"></span></h3>
+      <div class="similar" id="similar"></div>
+      <h3>Prompts <span class="muted small">every Gemini call · click to open</span> <span class="muted small" id="prompts-note"></span></h3>
+      <div class="prompts" id="prompts"></div>
     </section>
 
     <section class="card" aria-labelledby="h-gallery">
@@ -87,6 +103,7 @@
         <span class="muted small" id="gallery-note"></span>
       </div>
       <div class="gallery" id="gallery"></div>
+      <button class="ghost small more" id="gallery-more" type="button" hidden></button>
     </section>
 
     <div class="grid two">

@@ -54,3 +54,17 @@ test("views the runner put on the HF dataset show when GridFS has none", () => {
   assert.equal(m.views.front.url, "api/media?hf=s00001%2Fviews%2Ffront.jpg");
   assert.equal(m.meshes.length, 0);
 });
+
+test("Gemini calls become per-sample usage and stay out of the activity feed", () => {
+  const logs = [
+    ...reg.logs,
+    { sample: "s00002", t: 1792856000, stage: "mesh", msg: "gemini gemini-3.8-flash", actor: "gemini", model: "gemini-3.8-flash", tokens: 1500 },
+    { sample: "s00002", t: 1792856001, stage: "mesh", msg: "gemini gemini-3.8-flash", actor: "gemini", model: "gemini-3.8-flash" },
+  ];
+  const st2 = buildState({ ...reg, logs, mode: "atlas", hfRepo: "me/data", now: 1792856143 });
+  const s = st2.samples.find((x) => x.id === "s00002");
+  assert.deepEqual(s.gemini, { calls: 2, tokens: 1500, by_model: { "gemini-3.8-flash": { calls: 2, tokens: 1500 } } });
+  assert.equal(st2.run.gemini.calls, 2);
+  assert.ok(!s.log.some((e) => e.actor === "gemini"));
+  assert.ok(s.stage_since > 0);
+});

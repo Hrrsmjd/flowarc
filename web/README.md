@@ -17,7 +17,9 @@ deployment is live from the first minute; **Restart** starts the story again.
 |---|---|
 | `GET /api/state` | run summary, samples with their logs, approvals |
 | `GET /api/map` | 2D PCA of concept embeddings (ours + `baseline`) |
-| `GET /api/search?q=` | sample search: Atlas Search index `samples_text`, regex if it's missing |
+| `GET /api/sample?id=` | one sample's Gemini calls: model, prompt, reply, tokens |
+| `GET /api/search?q=` | sample search: hybrid search (`$rankFusion` of Voyage `concept_voyage` and Atlas Search `samples_text`), then Atlas Search alone, then a regex |
+| `GET /api/similar?id=` | the 6 nearest concepts, Atlas Vector Search on `concept_vectors` |
 | `GET /api/media?id=` | a view (JPEG) or mesh (GLB) from the GridFS bucket `media`; `?hf=` a view from the HF dataset |
 | `POST /api/approve` | `{id, decision: "approved" \| "rejected"}` sets the approval in Atlas |
 
@@ -38,6 +40,9 @@ npm test
    - `MONGODB_DB`: `flowarc` for the real registry, `flowarc_demo` for the demo feed.
    - `FLOWARC_HF_REPO` and `HF_TOKEN` (read access): only for views from the private HF dataset
      when `flowarc.media` isn't running.
+   - `FLOWARC_RUN_FROM` (optional): first sample id of the current run, e.g. `s00120`. Without it the
+     page counts the samples tagged with the latest phase (`meta.phase`, set by the runner) and hides
+     older test samples behind a toggle.
    - `APPROVAL_TOKEN`: required with Atlas (approvals are refused without it). Approving asks
      for this token once per browser, so a public URL can't approve publishing.
 3. In Atlas, Network Access must allow Vercel (0.0.0.0/0 for the hackathon).

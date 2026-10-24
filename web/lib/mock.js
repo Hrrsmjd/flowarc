@@ -65,6 +65,20 @@ export function mockDecide(id, status, start = 0, nowAbs = Date.now() / 1000) {
   decided(replay(start, nowAbs).key).set(id, { status, decided_at: nowAbs });
 }
 
+// Cosine similarity over the mock batch's concept embeddings, in place of Atlas Vector Search.
+export function mockSimilar(id, start = 0, k = 6) {
+  const all = mockRegistry(start).samples.filter((s) => !s.meta?.batch && s.embedding?.length);
+  const me = all.find((s) => s._id === id);
+  if (!me) return [];
+  const norm = (v) => Math.hypot(...v);
+  const cos = (a, b) => a.reduce((t, x, i) => t + x * b[i], 0) / (norm(a) * norm(b) || 1);
+  return all
+    .filter((s) => s._id !== id && s.status !== "failed")
+    .map((s) => ({ id: s._id, name: s.concept.name, bucket: s.concept.bucket, status: s.status, similarity: cos(me.embedding, s.embedding) }))
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, k);
+}
+
 export function mockSearch(q, start = 0) {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   return mockRegistry(start).samples

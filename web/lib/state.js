@@ -59,6 +59,15 @@ function event(e) {
   };
 }
 
+// Gemini calls (pipeline.run_sample logs one line per call): counts and tokens per model.
+function addCall(u, e) {
+  const m = (u.by_model[e.model] ??= { calls: 0, tokens: 0 });
+  m.calls += 1;
+  m.tokens += e.tokens || 0;
+  u.calls += 1;
+  u.tokens += e.tokens || 0;
+}
+
 const STAT_KEYS = ["cd_mean", "cl_rms", "cs_rms", "st", "cd_half_change", "mach_max", "mass_drift"];
 const pick = (o, keys) => (o ? Object.fromEntries(keys.filter((k) => o[k] != null).map((k) => [k, o[k]])) : null);
 
@@ -97,11 +106,23 @@ function hfViews(s) {
   return views;
 }
 
-export function buildState({ run = {}, samples, logs, approvals = [], media = [], mode, now = Date.now() / 1000 }) {
+const noCalls = () => ({ calls: 0, tokens: 0, by_model: {} });
+
+export function buildState({ run = {}, samples, logs, approvals = [], media = [], mode, hfRepo = "", runFrom = "", now = Date.now() / 1000 }) {
   const files = mediaBySample(media);
   const bySample = new Map();
+  const calls = new Map();
+  const stageStart = new Map(); // when each sample's current stage began
+  const total = noCalls();
   for (const e of logs) {
+    if (!stageStart.has(e.sample) || e.msg === "advanced") stageStart.set(e.sample, e.t);
     if (e.msg === "advanced") continue; // stage moves show in the progress table
+    if (e.actor === "gemini") {
+      if (!calls.has(e.sample)) calls.set(e.sample, noCalls());
+      addCall(calls.get(e.sample), e);
+      addCall(total, e);
+      continue; // shown under Prompts, not in the activity feed
+    }
     if (!bySample.has(e.sample)) bySample.set(e.sample, []);
     bySample.get(e.sample).push(event(e));
   }
@@ -124,36 +145,51 @@ export function buildState({ run = {}, samples, logs, approvals = [], media = []
         convergence: past ? s.meta?.convergence || null : null,
         sim: pick(s.meta?.sim?.stats, STAT_KEYS),
         zarr_gb: s.meta?.zarr_gb ?? null,
+        stage_since: s.status === "running" ? stageStart.get(s._id) ?? null : null,
+        progress: s.status === "running" && s.stage === "sim" ? pick(s.meta?.sim_progress, ["frames", "of"]) : null,
+        gemini: calls.get(s._id) || noCalls(),
+        hf: hfRepo && s.meta?.files?.length ? `https://huggingface.co/datasets/${hfRepo}/tree/main/samples/${s._id}` : null,
+        published: Boolean(s.meta?.published),
+        phase: s.meta?.phase || null,
         media: withHf(files.get(s._id), hfViews(s)),
         log,
         last_t: log.length ? log[log.length - 1].t : 0,
       };
     });
 
+  // The current run: samples from FLOWARC_RUN_FROM on (an id), else those tagged with the phase
+  // of the sample that moved last (pipeline.run_sample sets meta.phase). Older test samples
+  // stay in the registry but out of the run's counts; the page can still show everything.
+  const tagged = rows.filter((r) => r.phase).sort((a, b) => b.last_t - a.last_t)[0];
+  const current = runFrom ? null : tagged?.phase || null;
+  for (const r of rows) r.in_run = runFrom ? r.id >= runFrom : current ? r.phase === current : true;
+
   // Follow the sample the demo is about while it runs, then any running sample, else whichever moved last.
   const running = rows.filter((r) => r.status === "running").sort((a, b) => b.last_t - a.last_t);
   const live = rows.find((r) => r.id === run.live && r.status === "running");
   const featured = (live || running[0] || [...rows].sort((a, b) => b.last_t - a.last_t)[0])?.id;
 
-  const times = logs.map((e) => e.t);
+  const inRun = new Set(rows.filter((r) => r.in_run).map((r) => r.id));
+  const times = logs.filter((e) => inRun.has(e.sample)).map((e) => e.t);
   const started = times.length ? Math.min(...times) : now;
   const hours = Math.max((now - started) / 3600, 1 / 60);
-  const done = rows.filter((r) => r.status === "done").length;
-  const allSeconds = samples
-    .filter((s) => s.status === "done" || s.status === "flagged")
-    .reduce((a, s) => a + (s.meta?.gpu_seconds || 0), 0);
+  const done = rows.filter((r) => r.in_run && r.status === "done").length;
+  const seconds = (keep) => rows.filter((r) => keep(r) && (r.status === "done" || r.status === "flagged")).reduce((a, r) => a + r.gpu_seconds, 0);
 
   return {
     mode,
     generated_at: now,
     run: {
-      phase: run.phase || "pilot",
+      phase: current || run.phase || "pilot",
+      scope: runFrom ? `from ${runFrom}` : current ? `${current} phase` : null, // null: nothing to tell runs apart
       cells_per_length: run.cells_per_length || null, // from the `runs` document, when written
       target_samples: run.target_samples || 20,
       gpus: run.gpus || null,
       started_at: started,
       samples_per_hour: done / hours,
-      gpu_hours: allSeconds / 3600,
+      gpu_hours: seconds((r) => r.in_run) / 3600,
+      gpu_hours_all: seconds(() => true) / 3600,
+      gemini: total,
       featured,
     },
     samples: rows,

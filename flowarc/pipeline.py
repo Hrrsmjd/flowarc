@@ -6,6 +6,7 @@ When a stage fails, Argon picks the fix (triage.py).
 
 import json
 import math
+import shutil
 import time
 import traceback
 from dataclasses import asdict
@@ -37,6 +38,7 @@ def new_samples(n: int, seed: int | None = None) -> list[Sample]:
     out = []
     for i, c in enumerate(concepts.select(n, seed)):
         s = Sample(id=f"s{start + i:05d}", embedding=c.pop("embedding"), concept=c)
+        s.meta["phase"] = config.PHASE.name  # the dashboard counts this run's samples by it
         s.record_check("novel", True)
         advance(s)
         out.append(s)
@@ -80,6 +82,8 @@ def run_mesh(s: Sample, gpu: int) -> bool:
         remesh=remesh,
     )
     (s.dir / "mesh" / f"report_{tries}.json").write_text(json.dumps(rep, indent=1, default=float))
+    if (s.dir / "mesh" / "mesh.stl").exists():  # each try's mesh, for the dashboard (flowarc.media)
+        shutil.copyfile(s.dir / "mesh" / "mesh.stl", s.dir / "mesh" / f"mesh_{tries}.stl")
     rev = rep.get("review", {})
     s.record_check(
         "mesh",
@@ -265,6 +269,7 @@ def upload(s: Sample, stage: str, attempt: int | None = None) -> None:
 
 def run_sample(s: Sample, gpu: int, budget_hours: float = math.inf) -> Sample:
     """Run the remaining stages. Ends done, flagged (a soft check failed) or failed."""
+    s.meta.setdefault("phase", config.PHASE.name)
     while s.stage != "done":
         if s.stage == "sim" and gpu_hours() >= budget_hours:
             s.status = "pending"
@@ -278,6 +283,7 @@ def run_sample(s: Sample, gpu: int, budget_hours: float = math.inf) -> Sample:
             s.save()
             return s
         s.status = "running"
+        s.meta["gpu"] = gpu
         s.save()
         n_checks, error = len(s.checks.get(stage, [])), None
         token = gemini.CALLS.set([])

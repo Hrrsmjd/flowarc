@@ -36,9 +36,27 @@ async function load() {
     return liveTick();
   }
   for (const a of state.approvals) Object.assign(a, localApprovals[a.id] || {});
+  scopeRun(state);
   if (selected && !state.samples.find((s) => s.id === selected)) selected = null;
   render();
 }
+
+// Old test samples stay in the registry; by default the page counts only the current run.
+let everything = false;
+function scopeRun(st) {
+  const btn = $("scope");
+  btn.hidden = !st.run.scope;
+  if (!st.run.scope) return;
+  const outside = st.samples.filter((s) => !s.in_run).length;
+  btn.textContent = everything ? `All samples · show ${st.run.scope} only` : `${st.run.scope} · ${outside} older hidden`;
+  btn.title = everything ? "Count only this run's samples" : "Show older samples too";
+  if (everything) return void (st.run.gpu_hours = st.run.gpu_hours_all);
+  st.samples = st.samples.filter((s) => s.in_run);
+  const g = { calls: 0, tokens: 0, by_model: {} };
+  for (const s of st.samples) { g.calls += s.gemini?.calls || 0; g.tokens += s.gemini?.tokens || 0; }
+  st.run.gemini = g;
+}
+$("scope").addEventListener("click", () => { everything = !everything; sampleSig = ""; load(); });
 
 async function loadMap() {
   try {
@@ -90,12 +108,13 @@ function render() {
   renderGallery(samples);
   renderFinale();
   celebrate(samples);
+  renderNow(run, samples);
   renderStages(samples);
   renderPicker(samples);
   renderApprovals();
   if (!samples.length) return renderEmpty();
   const s = selectedSample();
-  const sig = `${s.id}|${s.status}|${s.stage}|${s.log.length}|${mediaSig(s)}`;
+  const sig = `${s.id}|${s.status}|${s.stage}|${s.log.length}|${s.gemini?.calls}|${mediaSig(s)}`;
   if (sig !== sampleSig) {
     sampleSig = sig;
     renderSample();
@@ -217,10 +236,16 @@ function renderHero() {
 }
 
 // ---------- gallery ----------
+const GALLERY_MAX = 24; // newest first; the rest behind "Show all"
+let galleryAll = false;
+$("gallery-more").addEventListener("click", () => { galleryAll = !galleryAll; renderGallery(state.samples); });
 function renderGallery(samples) {
   const shown = samples.filter((s) => viewUrl(s)).sort((a, b) => (b.status === "running") - (a.status === "running") || b.last_t - a.last_t);
   $("gallery-note").textContent = shown.length ? `${shown.length} shapes · hover to turn, click to open` : "";
-  const html = shown.map((s) => {
+  const more = $("gallery-more");
+  more.hidden = shown.length <= GALLERY_MAX;
+  more.textContent = galleryAll ? "Show fewer" : `Show all ${shown.length}`;
+  const html = shown.slice(0, galleryAll ? Infinity : GALLERY_MAX).map((s) => {
     const fixed = s.log.some((e) => e.fix);
     const badge = s.status === "running" ? `<span class="tag live">running</span>` : s.status === "flagged" ? `<span class="tag bad">⚑</span>` : s.status === "failed" ? `<span class="tag bad">✕</span>` : fixed ? `<span class="tag argon">fixed by Argon</span>` : "";
     const views = VIEWS.map((v) => s.media.views[v]?.url).filter(Boolean);
@@ -255,6 +280,33 @@ function celebrate(samples) {
   }
 }
 
+const fmtTok = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n));
+
+// What each GPU is doing right now, plus the run totals.
+function renderNow(run, samples) {
+  const n = (st) => samples.filter((s) => s.status === st).length;
+  const now = Date.now() / 1000;
+  const g = run.gemini || { calls: 0, tokens: 0 };
+  $("now-note").innerHTML = [
+    `<b>${n("done")}</b> / ${run.target_samples} done`,
+    `<b>${n("running")}</b> running`,
+    `<b>${n("pending")}</b> waiting`,
+    `<span class="${n("flagged") ? "warn" : ""}"><b>${n("flagged")}</b> flagged</span>`,
+    `<span class="${n("failed") ? "bad" : ""}"><b>${n("failed")}</b> failed</span>`,
+    `<b>${run.gpu_hours.toFixed(1)}</b> GPU-hours`,
+    `<b>${g.calls}</b> Gemini calls${g.tokens ? ` · ${fmtTok(g.tokens)} tokens` : ""}`,
+  ].join(" · ");
+  const running = samples.filter((s) => s.status === "running").sort((a, b) => (a.gpu ?? 99) - (b.gpu ?? 99));
+  $("now").innerHTML = running.length
+    ? `<thead><tr><th>GPU</th><th>Sample</th><th>Stage</th><th>In stage for</th><th>Progress</th></tr></thead><tbody>${running.map((s) => {
+        const p = s.progress?.of ? `${s.progress.frames} / ${s.progress.of} frames` : "";
+        const tries = s.attempts?.[s.stage] > 1 ? ` <span class="muted">try ${s.attempts[s.stage]}</span>` : "";
+        return `<tr data-id="${s.id}" class="${s.id === selectedSample()?.id ? "sel" : ""}"><td>${s.gpu ?? "–"}</td><td><span class="id">${s.id}</span> ${esc(s.title)}</td><td>${esc(s.stage)}${tries}</td><td>${s.stage_since ? fmtDur(now - s.stage_since) : "–"}</td><td>${p}</td></tr>`;
+      }).join("")}</tbody>`
+    : `<tbody><tr><td class="muted">Nothing running.</td></tr></tbody>`;
+  $("now").querySelectorAll("tr[data-id]").forEach((tr) => tr.addEventListener("click", () => select(tr.dataset.id)));
+}
+
 let toastTimer;
 function toast(msg, kind = "") {
   const el = $("toast");
@@ -278,9 +330,47 @@ function stageState(s, stage) {
   return { cls: "pending", txt: "·" };
 }
 
+// A run can have 100+ samples: the funnel and the dots show all of them at a glance, the table
+// only the ones that need a look unless you ask for all.
+const FILTERS = {
+  active: ["Needs a look", (s) => ["running", "flagged", "failed"].includes(s.status)],
+  waiting: ["Waiting", (s) => s.status === "pending"],
+  done: ["Done", (s) => s.status === "done"],
+  all: ["All", () => true],
+};
+let stageFilter = null; // null: "active" once the run is big, else "all"
+
+function renderFunnel(samples) {
+  const at = (st) => samples.filter((s) => s.stage === st && s.status !== "done" && s.status !== "failed");
+  const n = (st) => samples.filter((s) => s.status === st).length;
+  const cells = STAGES.map((st) => {
+    const here = at(st), run = here.filter((s) => s.status === "running").length;
+    return `<div class="f-stage"><span class="f-n">${here.length}</span><span class="f-l">${st}</span>${run ? `<span class="f-run">${run} running</span>` : ""}</div>`;
+  }).join("");
+  const ends = [["done", n("done"), "ok"], ["flagged", n("flagged"), "warn"], ["failed", n("failed"), "bad"]]
+    .map(([l, v, c]) => `<div class="f-stage end ${v ? c : ""}"><span class="f-n">${v}</span><span class="f-l">${l}</span></div>`).join("");
+  const html = cells + ends;
+  if ($("funnel").dataset.html !== html) $("funnel").innerHTML = $("funnel").dataset.html = html;
+  const sel = selectedSample()?.id;
+  const dots = samples.map((s) => `<button type="button" class="sdot ${s.status}${s.id === sel ? " sel" : ""}" data-id="${esc(s.id)}" data-tip="${esc(`<b>${esc(s.id)} · ${esc(s.title)}</b><br>${esc(s.status)}${s.status === "running" || s.status === "pending" ? ` · ${esc(s.stage)}` : ""}`)}" aria-label="${esc(s.title)}"></button>`).join("");
+  const el = $("dots");
+  if (el.dataset.html === dots) return;
+  el.innerHTML = el.dataset.html = dots;
+  bindHover(el);
+  el.querySelectorAll(".sdot").forEach((d) => d.addEventListener("click", () => select(d.dataset.id)));
+}
+
 function renderStages(samples) {
+  renderFunnel(samples);
+  const key = stageFilter || (samples.length > 20 ? "active" : "all");
+  const fhtml = Object.entries(FILTERS).map(([k, [label, f]]) => `<button type="button" role="tab" class="tab${k === key ? " on" : ""}" data-k="${k}">${label} <span class="muted">${samples.filter(f).length}</span></button>`).join("");
+  if ($("stage-filter").dataset.html !== fhtml) {
+    $("stage-filter").innerHTML = $("stage-filter").dataset.html = fhtml;
+    $("stage-filter").querySelectorAll("[data-k]").forEach((b) => b.addEventListener("click", () => { stageFilter = b.dataset.k; renderStages(state.samples); }));
+  }
+  const shown = samples.filter(FILTERS[key][1]);
   const head = `<thead><tr><th>Sample</th>${STAGES.map((s) => `<th>${s}</th>`).join("")}</tr></thead>`;
-  const rows = samples.map((s) => {
+  const rows = shown.map((s) => {
     const cells = STAGES.map((st) => {
       const c = stageState(s, st);
       const tries = s.attempts?.[st];
@@ -289,7 +379,7 @@ function renderStages(samples) {
     }).join("");
     return `<tr data-id="${s.id}" class="${s.id === selectedSample()?.id ? "sel" : ""}"><td class="name"><span class="id">${s.id}</span>${esc(s.title)}</td>${cells}</tr>`;
   }).join("");
-  $("stages").innerHTML = head + `<tbody>${rows}</tbody>`;
+  $("stages").innerHTML = head + `<tbody>${rows || `<tr><td class="muted" colspan="${STAGES.length + 1}">Nothing here.</td></tr>`}</tbody>`;
   $("stages").querySelectorAll("tbody tr").forEach((tr) => tr.addEventListener("click", () => select(tr.dataset.id)));
   const running = samples.filter((s) => s.status === "running").length;
   $("progress-note").textContent = `${samples.length} samples · ${running} on GPUs`;
@@ -323,10 +413,10 @@ function eventHtml(e, t0, fresh) {
 }
 
 function renderTimeline() {
-  const s = featured();
+  const s = selectedSample();
   if (!s) return;
   const where = s.status === "running" ? `${s.stage}${s.gpu != null ? `, GPU ${s.gpu}` : ""}` : s.status;
-  $("activity-sample").innerHTML = `Following <b>${s.id} · ${esc(s.title)}</b> (${esc(where)})`;
+  $("activity-sample").innerHTML = `${selected ? "Showing" : "Following"} <b>${s.id} · ${esc(s.title)}</b> (${esc(where)})`;
   $("activity-note").textContent = `${s.log.length} events`;
   const t0 = s.log[0]?.t ?? 0;
   const first = renderTimeline.last !== s.id;
@@ -360,6 +450,8 @@ function renderSample() {
         <dt>Setup</dt><dd>${c.ground ? "ground plane" : "free stream"}</dd>
         <dt>Status</dt><dd>${esc(s.status)}${s.status === "running" ? ` (${esc(s.stage)}${s.gpu != null ? `, GPU ${s.gpu}` : ""})` : ""}</dd>
         <dt>GPU time</dt><dd>${s.gpu_seconds ? fmtDur(s.gpu_seconds) : "–"}</dd>
+        <dt>Gemini</dt><dd>${usage(s.gemini)}</dd>
+        <dt>Output</dt><dd>${output(s)}</dd>
       </dl>
       <ul class="checks">${checks.map((e) => `<li><span>${esc(e.stage)} · ${esc(e.check)}</span><span class="${e.failed ? (e.soft ? "warn" : "bad") : "ok"}">${e.failed ? (e.soft ? "⚠ soft fail" : "✕ fail") : "✓ pass"}</span></li>`).join("") || "<li class='muted'>no checks yet</li>"}</ul>
     </div>`;
@@ -368,6 +460,60 @@ function renderSample() {
   $("sample-body").innerHTML = facts + iou + conv;
   bindHover($("sample-body"));
   renderMedia(s);
+  loadPrompts(s);
+  loadSimilar(s);
+}
+
+// The nearest concepts in the registry (Atlas Vector Search on the Gemini embeddings).
+const similarCache = new Map();
+async function loadSimilar(s) {
+  const id = s.id;
+  if (!similarCache.has(id)) {
+    similarCache.set(id, fetch(`api/similar?id=${encodeURIComponent(id)}&start=${start}`).then((r) => r.json()).catch(() => ({ results: [] })));
+  }
+  const r = await similarCache.get(id);
+  if (selectedSample()?.id !== id) return;
+  const rows = r.results || [];
+  const engines = { "vector-search": "Atlas Vector Search", mock: "mock" };
+  $("similar-note").textContent = rows.length ? `nearest concepts · ${engines[r.engine] || ""}` : "";
+  const byId = new Map(state.samples.map((x) => [x.id, x]));
+  $("similar").innerHTML = rows.map((x) => {
+    const img = byId.get(x.id) && viewUrl(byId.get(x.id));
+    return `<button type="button" class="sim-card" data-id="${esc(x.id)}">${img ? `<img src="${esc(img)}" alt="" loading="lazy">` : `<span class="sim-noimg"></span>`}<span class="cap">${esc(x.name || x.id)}<small>${x.similarity != null ? `${(100 * x.similarity).toFixed(0)}% alike · ` : ""}${esc(x.bucket || "")}</small></span></button>`;
+  }).join("") || "<p class='muted small'>No embedding for this sample yet.</p>";
+  $("similar").querySelectorAll("[data-id]").forEach((b) => b.addEventListener("click", () => select(b.dataset.id)));
+}
+
+function usage(g) {
+  if (!g?.calls) return "–";
+  const by = Object.entries(g.by_model).map(([m, x]) => `${esc(m)}: ${x.calls}${x.tokens ? ` · ${fmtTok(x.tokens)} tok` : ""}`).join("<br>");
+  return `<span title="calls · tokens per model">${g.calls} calls${g.tokens ? ` · ${fmtTok(g.tokens)} tokens` : ""}</span><div class="muted small">${by}</div>`;
+}
+
+function output(s) {
+  const size = s.zarr_gb != null ? `${s.zarr_gb.toFixed(2)} GB Zarr` : s.status === "done" ? "packed" : "not packed yet";
+  const link = s.hf ? ` · <a href="${esc(s.hf)}" target="_blank" rel="noopener">files on HF</a>` : "";
+  return size + (s.published ? " · published" : "") + link;
+}
+
+// Every Gemini call for the sample, newest first, each folded to one line until opened.
+async function loadPrompts(s) {
+  const el = $("prompts");
+  const id = s.id;
+  if (!s.gemini.calls) {
+    $("prompts-note").textContent = "";
+    return (el.innerHTML = "<p class='muted small'>No Gemini calls logged for this sample.</p>");
+  }
+  const r = await fetch(`api/sample?id=${encodeURIComponent(id)}&start=${start}`, { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+  if (selectedSample()?.id !== id) return;
+  const calls = r?.calls || [];
+  const open = new Set([...el.querySelectorAll("details[open]")].map((d) => d.dataset.k));
+  $("prompts-note").textContent = `${calls.length} calls`;
+  el.innerHTML = calls.map((c) => {
+    const k = `${id}|${c.t}`;
+    const head = `<span class="stage-tag">${esc(c.stage)}</span><b>${esc(c.model)}</b> <span class="muted">${c.seconds != null ? `${c.seconds}s` : ""}${c.tokens ? ` · ${fmtTok(c.tokens)} tokens` : ""}</span> <span class="gist">${esc((c.prompt || "").slice(0, 120))}</span>`;
+    return `<details data-k="${esc(k)}" ${open.has(k) ? "open" : ""}><summary>${head}</summary><h4>Prompt</h4><pre>${esc(c.prompt)}</pre><h4>Reply</h4><pre>${esc(c.reply)}</pre></details>`;
+  }).reverse().join("") || "<p class='muted small'>Couldn't load the prompts.</p>";
 }
 
 // ---------- views and mesh ----------
@@ -653,7 +799,7 @@ $("q").addEventListener("input", (e) => {
   if (!q) return ($("results").hidden = true);
   searchTimer = setTimeout(async () => {
     const r = await fetch(`api/search?q=${encodeURIComponent(q)}&start=${start}`).then((r) => r.json()).catch(() => ({ results: [] }));
-    const engines = { "atlas-search": "Atlas Search", regex: "Atlas (no search index)", mock: "mock" };
+    const engines = { hybrid: "Atlas hybrid search · Voyage AI meaning + keywords", "atlas-search": "Atlas Search", regex: "Atlas (no search index)", mock: "mock" };
     $("results").innerHTML = (r.results.map((x) => `<button type="button" data-id="${esc(x.id)}"><span>${esc(x.name)}</span><span class="muted small">${esc(x.status)}</span></button>`).join("") || "<div class='engine'>No matches</div>") +
       `<div class="engine">${engines[r.engine] || ""}</div>`;
     $("results").hidden = false;

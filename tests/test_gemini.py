@@ -164,6 +164,17 @@ def test_prompts_and_replies_are_recorded():
     assert c["model"] == "m" and c["prompt"] == "hi\n[image]" and c["reply"] == "ok"
 
 
+def test_calls_record_token_usage(fake):
+    reply = text_reply("hi")
+    reply.usage = NS(total_input_tokens=120, total_output_tokens=30, total_tokens=150)
+    fake(reply)
+    token = gemini.CALLS.set([])
+    gemini.ask("hello")
+    calls = gemini.CALLS.get()
+    gemini.CALLS.reset(token)
+    assert calls[0]["input_tokens"] == 120 and calls[0]["tokens"] == 150
+
+
 def test_embed_splits_into_batches(monkeypatch):
     sizes = []
 
