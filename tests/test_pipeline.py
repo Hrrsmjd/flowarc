@@ -2,6 +2,7 @@ import pytest
 
 from flowarc import config, pipeline
 from flowarc.sample import Sample
+from flowarc.sim.solver import SimConfig
 
 
 def test_retry_resume_and_budget(tmp_path, monkeypatch):
@@ -42,3 +43,12 @@ def test_out_of_attempts_fails(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "STAGE_FNS", {"images": lambda s, g: False})
     s = pipeline.run_sample(Sample(id="s00003", stage="images"), 0)
     assert s.status == "failed" and s.attempts["images"] == config.MAX_ATTEMPTS["images"] + 1
+
+
+def test_too_fast_sim_retries_slower():
+    s = Sample(id="s00009", stage="sim")
+    assert pipeline.lattice_velocity(s) == SimConfig.lattice_velocity
+    s.checks["sim"] = [{"name": "stable", "passed": False, "mach_max": 0.8}]
+    assert pipeline.lattice_velocity(s) == pytest.approx(SimConfig.lattice_velocity / 2)
+    s.checks["sim"].append({"name": "stable", "passed": False, "mach_max": 0.5, "u": 0.0375})
+    assert pipeline.lattice_velocity(s) == pytest.approx(0.0375 * 0.8)

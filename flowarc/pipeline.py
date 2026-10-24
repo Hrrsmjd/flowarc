@@ -88,9 +88,20 @@ DNS_MAX_RE = 1e3  # resolved at 64 cells/L without a subgrid model
 SMALL_BOX_RE = 1e4  # drag within ~1% of the 8x4x4 box on the manta; walls matter more at low Re
 
 
+def lattice_velocity(s: Sample) -> float:
+    """After a run that went too fast (Mach >= 0.5), slow the inflow so its peak lands near 0.4.
+    Without this a retry reruns the same sim and fails the same way. Costs more steps."""
+    u = SimConfig.lattice_velocity
+    for c in s.checks.get("sim", []):
+        if c["name"] == "stable" and not c["passed"] and c.get("mach_max"):
+            u = c.get("u", u) * min(1.0, 0.4 / c["mach_max"])
+    return u
+
+
 def sim_config(s: Sample) -> SimConfig:
     return SimConfig(
         reynolds=s.concept["reynolds"],
+        lattice_velocity=lattice_velocity(s),
         cells_per_length=config.PHASE.cells_per_length[-1],
         **(
             {"domain": (5.0, 2.5, 2.5), "body_offset": 1.25}
@@ -125,7 +136,9 @@ def run_sim(s: Sample, gpu: int) -> bool:
     s.meta.setdefault("gpu_seconds", 0)
     s.meta["gpu_seconds"] += r.cost.get("seconds", 0) or 0
     stable = r.ok and math.isfinite(st.get("cd_mean", math.nan)) and st.get("mach_max", 0) < 0.5
-    s.record_check("stable", stable, mach_max=st.get("mach_max"), cd=st.get("cd_mean"))
+    s.record_check(
+        "stable", stable, mach_max=st.get("mach_max"), cd=st.get("cd_mean"), u=cfg.lattice_velocity
+    )
     s.record_check("mass", st.get("mass_drift", 1) < 1e-2, drift=st.get("mass_drift"), hard=False)
     s.record_check(
         "converged", st.get("cd_half_change", 1) < 0.05, change=st.get("cd_half_change"), hard=False
