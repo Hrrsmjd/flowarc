@@ -4,6 +4,7 @@ Meshes are in flow axes: x along the flow (nose at min x), y across, z up.
 """
 
 import io
+import itertools
 
 import numpy as np
 import trimesh
@@ -92,21 +93,35 @@ def yaw(quarter_turns: int) -> np.ndarray:
     return np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]], float)
 
 
+def heading(pts: np.ndarray) -> np.ndarray:
+    """Turn about the vertical (z) so the body's long horizontal axis lies along x. The generator
+    sometimes returns a body turned off-axis (e.g. 45 degrees), which no quarter turn can fix."""
+    xy = pts[:, :2] - pts[:, :2].mean(0)
+    w, v = np.linalg.eigh(xy.T @ xy)
+    if w[1] < 1.1 * w[0]:  # no clear long axis (round or square plan): leave it
+        return np.eye(3)
+    a = -np.arctan2(v[1, 1], v[0, 1])
+    c, s = np.cos(a), np.sin(a)
+    return np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
+
+
 def best_orientation(
     mesh: trimesh.Trimesh, views: dict[str, bytes], up: np.ndarray = Y_UP
 ) -> tuple[np.ndarray, float]:
-    """Keep the generator's up axis and try the 4 headings. Silhouettes can't tell nose from tail,
+    """Keep the generator's up axis and try the 4 headings, both as generated and with the long
+    axis lined up (heading); best silhouette wins, lined up on a near tie (the views are square-on). Silhouettes can't tell nose from tail,
     so the unflipped side view (nose on the left) breaks ties; the mesh review checks the result."""
     masks = {v: image_mask(views[v]) for v in VIEW_AXES if v in views}
+    turned = heading(mesh.vertices @ up.T) @ up
     cands = []
-    for k in range(4):
-        r = yaw(k) @ up
+    for k, (lined_up, start) in itertools.product(range(4), ((True, turned), (False, up))):
+        r = yaw(k) @ start
         m = mesh.copy()
         m.vertices = m.vertices @ r.T
         score = float(np.mean([iou(projection(m, v), masks[v]) for v in masks]))
         side = iou(projection(m, "side"), masks["side"], flips=False) if "side" in masks else 0
-        cands.append((round(score, 2), side, k, r, score))
-    *_, r, score = max(cands, key=lambda c: c[:2])
+        cands.append((round(score, 2), lined_up, side, k, r, score))
+    *_, r, score = max(cands, key=lambda c: c[:3])
     return r, score
 
 
