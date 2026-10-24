@@ -14,6 +14,8 @@ import trimesh
 
 from flowarc.sim.solver import SimConfig, SimResult
 
+PROGRESS_EVERY = 120  # seconds between progress calls
+
 BIN = Path(os.environ.get("FLOWARC_FLUIDX3D_BIN", Path(__file__).resolve().parents[3] / "bin"))
 
 
@@ -186,7 +188,9 @@ class FluidX3D:
         self.n_surface = n_surface
         self.n_volume = n_volume
 
-    def run(self, mesh: Path, cfg: SimConfig, out: Path, gpu: int) -> SimResult:
+    def run(self, mesh: Path, cfg: SimConfig, out: Path, gpu: int, progress=None) -> SimResult:
+        """`progress`, if given, is called every PROGRESS_EVERY s with frames done, the frame
+        total and the newest frame image."""
         out = Path(out)
         (out / "probes").mkdir(parents=True, exist_ok=True)
         (out / "render").mkdir(exist_ok=True)
@@ -224,9 +228,19 @@ class FluidX3D:
         ) ** 2
         env = {**os.environ, "FLOWARC_CFG": str(out / "fluidx3d.cfg"), "FLOWARC_Q": f"{q:.6g}"}
         with open(out / "fluidx3d.log", "w") as log:
-            proc = subprocess.run(
-                [str(exe), str(gpu)], check=False, env=env, stdout=log, stderr=subprocess.STDOUT
+            proc = subprocess.Popen(
+                [str(exe), str(gpu)], env=env, stdout=log, stderr=subprocess.STDOUT
             )
+            total = lat["record_steps"] // lat["frame_every"] + 1 if cfg.render else 0
+            while proc.poll() is None:
+                try:
+                    proc.wait(timeout=PROGRESS_EVERY)
+                except subprocess.TimeoutExpired:
+                    if progress:
+                        pngs = sorted((out / "render").glob("*.png"))
+                        progress(
+                            {"frames": len(pngs), "of": total, "latest": pngs[-1] if pngs else None}
+                        )
         status = (
             dict(line.split() for line in (out / "status.txt").read_text().splitlines())
             if (out / "status.txt").exists()

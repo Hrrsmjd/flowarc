@@ -6,13 +6,14 @@ Fixed retry policy for now; Argon choosing the fix comes later.
 
 import json
 import math
+import time
 import traceback
 from dataclasses import asdict
 from pathlib import Path
 
 import trimesh
 
-from flowarc import concepts, config, images
+from flowarc import concepts, config, gemini, images
 from flowarc.sample import STAGES, Sample, all_samples
 from flowarc.sim.solver import SimConfig, SimResult
 
@@ -122,6 +123,33 @@ def sim_config(s: Sample) -> SimConfig:
     )
 
 
+LIVE_EVERY = 600  # seconds between live-frame uploads per sim (HF limits commits)
+
+
+def sim_progress(s: Sample, p: dict) -> None:
+    """Frames done so far in Atlas; the newest frame on HF every LIVE_EVERY s."""
+    from PIL import Image
+
+    from flowarc import publish
+
+    last = s.meta.get("sim_progress", {}).get("live_t", 0)
+    s.meta["sim_progress"] = {
+        "frames": p["frames"],
+        "of": p["of"],
+        "t": time.time(),
+        "live_t": last,
+    }
+    if p["latest"] and config.HF_REPO and time.time() - last >= LIVE_EVERY:
+        try:
+            jpg = s.dir / "sim" / "live.jpg"
+            Image.open(p["latest"]).convert("RGB").save(jpg, quality=80)
+            publish.upload_live(s, jpg)
+            s.meta["sim_progress"]["live_t"] = time.time()
+        except Exception as e:  # noqa: BLE001
+            s.log(f"live frame upload error: {e!r}")
+    s.save()
+
+
 def run_sim(s: Sample, gpu: int) -> bool:
     from flowarc.sim.fluidx3d import FluidX3D
 
@@ -133,7 +161,9 @@ def run_sim(s: Sample, gpu: int) -> bool:
     )
     m.export(s.dir / "mesh" / "sim_body.stl")
     cfg = sim_config(s)
-    r = FluidX3D().run(s.dir / "mesh" / "sim_body.stl", cfg, s.dir / "sim", gpu)
+    r = FluidX3D().run(
+        s.dir / "mesh" / "sim_body.stl", cfg, s.dir / "sim", gpu, lambda p: sim_progress(s, p)
+    )
     st = r.stats
     s.meta["sim"] = {
         **asdict(r),
@@ -160,7 +190,7 @@ def run_render(s: Sample, gpu: int) -> bool:
     video = s.dir / "sim" / "video.mp4"
     if not s.record_check("video", video.exists() and video.stat().st_size > 0):
         return False
-    rev = render.review(video, s.concept)
+    rev = render.review(video, s.concept, save_to=s.dir / "sim" / "frames")
     s.meta["video_review"] = rev
     s.record_check(
         "video_review", rev["passed"], failed=rev["failed"], summary=rev["summary"], hard=False
@@ -198,12 +228,13 @@ def gpu_hours() -> float:
     return sum(s.meta.get("gpu_seconds", 0) for s in all_samples()) / 3600
 
 
-def upload(s: Sample, stage: str) -> None:
-    """Stage files to the private HF dataset for the dashboard. A failed upload doesn't fail the sample."""
+def upload(s: Sample, stage: str, attempt: int | None = None) -> None:
+    """Stage files to the private HF dataset for the dashboard. A failed upload doesn't fail the sample.
+    `attempt` marks a failed try, kept under its own folder."""
     from flowarc import publish
 
     try:
-        publish.upload_stage(s, stage)
+        publish.upload_stage(s, stage, attempt)
     except Exception as e:  # noqa: BLE001
         s.log(f"{stage} upload error: {e!r}")
     s.save()
@@ -225,16 +256,21 @@ def run_sample(s: Sample, gpu: int, budget_hours: float = math.inf) -> Sample:
             return s
         s.status = "running"
         s.save()
+        token = gemini.CALLS.set([])
         try:
             passed = STAGE_FNS[stage](s, gpu)
         except Exception as e:  # noqa: BLE001 - any stage crash counts as a failed try
             s.log(f"{stage} error: {e!r}", trace=traceback.format_exc())
             passed = False
+        finally:
+            for c in gemini.CALLS.get():
+                s.log(f"gemini {c['model']}", actor="gemini", **c)
+            gemini.CALLS.reset(token)
         if passed:
             advance(s)
             upload(s, stage)
         else:
-            s.save()
+            upload(s, stage, s.attempts[stage])
     soft = [c for cs in s.checks.values() for c in cs if not c["passed"] and c.get("hard") is False]
     s.status = "flagged" if soft else "done"
     s.save()

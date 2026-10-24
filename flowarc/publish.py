@@ -17,7 +17,7 @@ from flowarc.sample import Sample
 STAGE_FILES = {
     "images": ["views/*.jpg"],
     "mesh": ["mesh/mesh.stl", "mesh/renders/*.jpg"],
-    "render": ["sim/video.mp4"],
+    "render": ["sim/video.mp4", "sim/forces.csv", "sim/frames/*.jpg"],
 }
 
 
@@ -33,21 +33,41 @@ def url(sample_id: str, path: str) -> str:
     )
 
 
-def upload_stage(s: Sample, stage: str) -> list[str]:
-    """Upload the files a stage made; list them in s.meta["files"] with their links."""
+def upload_stage(s: Sample, stage: str, attempt: int | None = None) -> list[str]:
+    """Upload the files a stage made; list them in s.meta["files"] with their links.
+    With `attempt`, the files of that failed try go under tries/<stage>-<attempt>/."""
     if not config.HF_REPO:
         return []
     from huggingface_hub import CommitOperationAdd
 
     paths = sorted(p for pat in STAGE_FILES.get(stage, []) for p in s.dir.glob(pat))
-    rel = [p.relative_to(s.dir).as_posix() for p in paths]
+    prefix = f"tries/{stage}-{attempt}/" if attempt else ""
+    rel = [prefix + p.relative_to(s.dir).as_posix() for p in paths]
     if not rel:
         return []
     ops = [CommitOperationAdd(f"samples/{s.id}/{r}", str(p)) for r, p in zip(rel, paths)]
-    api().create_commit(config.HF_REPO, ops, commit_message=f"{s.id} {stage}", repo_type="dataset")
+    msg = f"{s.id} {stage}" + (f" try {attempt} failed" if attempt else "")
+    api().create_commit(config.HF_REPO, ops, commit_message=msg, repo_type="dataset")
     files = [f for f in s.meta.get("files", []) if f["path"] not in rel]
-    s.meta["files"] = files + [{"path": r, "stage": stage, "url": url(s.id, r)} for r in rel]
+    extra = {"try": attempt, "passed": False} if attempt else {}
+    s.meta["files"] = files + [
+        {"path": r, "stage": stage, "url": url(s.id, r), **extra} for r in rel
+    ]
     return rel
+
+
+def upload_live(s: Sample, path: Path) -> None:
+    """The latest flow frame of a running sim, as sim/live.jpg."""
+    rel = "sim/live.jpg"
+    api().upload_file(
+        path_or_fileobj=str(path),
+        path_in_repo=f"samples/{s.id}/{rel}",
+        repo_id=config.HF_REPO,
+        repo_type="dataset",
+        commit_message=f"{s.id} sim progress",
+    )
+    if not any(f["path"] == rel for f in s.meta.get("files", [])):
+        s.meta.setdefault("files", []).append({"path": rel, "stage": "sim", "url": url(s.id, rel)})
 
 
 def sha256(p: Path) -> str:

@@ -35,9 +35,15 @@ def frames(video: Path, times=(1.0, 5.0, 9.5)) -> list[bytes]:
     return out
 
 
-def review(video: Path, concept: dict) -> dict:
+def review(video: Path, concept: dict, save_to: Path | None = None) -> dict:
+    """Flash checks 3 frames; `save_to` keeps them as frame_<i>.jpg for the dashboard."""
+    fr = frames(video)
+    if save_to:
+        save_to.mkdir(parents=True, exist_ok=True)
+        for i, f in enumerate(fr):
+            (save_to / f"frame_{i}.jpg").write_bytes(f)
     parts = [{"type": "text", "text": PROMPT.format(name=concept["name"], re=concept["reynolds"])}]
-    parts += [gemini.image_part(f) for f in frames(video)]
+    parts += [gemini.image_part(f) for f in fr]
     out = gemini.ask(parts, schema=SCHEMA)
     failed = [k for k in ITEMS if not out[k]["passed"]]
     return {"passed": not failed, "failed": failed, "summary": out["summary"], "items": out}
