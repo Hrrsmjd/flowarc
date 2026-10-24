@@ -161,6 +161,7 @@ def run_sim(s: Sample, gpu: int) -> bool:
     )
     m.export(s.dir / "mesh" / "sim_body.stl")
     cfg = sim_config(s)
+    s.meta.pop("sim_progress", None)  # from an earlier try
     r = FluidX3D().run(
         s.dir / "mesh" / "sim_body.stl", cfg, s.dir / "sim", gpu, lambda p: sim_progress(s, p)
     )
