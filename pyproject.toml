@@ -11,6 +11,7 @@ dependencies = [
     "pillow",
     "trimesh",
     "rtree",
+    "embreex",  # fast ray casts; without it trimesh mesh checks can take 20-50 GB of RAM
     "manifold3d",
     "scikit-image",
     "zarr>=3",
