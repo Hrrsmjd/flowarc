@@ -58,6 +58,9 @@ def test_review_computed_checks():
     torus = trimesh.creation.torus(major_radius=1.0, minor_radius=0.3)
     assert review.holes(torus) == 1
     assert review.holes(trimesh.creation.icosphere()) == 0
+    assert (
+        review.holes_match(9, 10) and not review.holes_match(1, 0) and not review.holes_match(22, 2)
+    )
     box = trimesh.creation.box(extents=[2.0, 1.0, 0.5])
     front = _img(lambda d: d.rectangle([28, 78, 228, 178], fill="grey"))  # y by z = 2:1
     assert abs(review.proportions(box, {"front": front})["front"] - 1) < 0.05

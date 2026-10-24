@@ -9,7 +9,7 @@ from typing import Protocol
 class MeshGenerator(Protocol):
     name: str
 
-    def generate(self, views: dict[str, Path], out: Path, gpu: int) -> Path:
+    def generate(self, views: dict[str, Path], out: Path, gpu: int, seed: int = 0) -> Path:
         """Write a mesh file to `out` from reference views and return its path."""
         ...
 
@@ -23,14 +23,21 @@ class Hunyuan21:
         self.repo = Path(repo or os.environ["FLOWARC_HUNYUAN"])
         self.view = view
 
-    def generate(self, views: dict[str, Path], out: Path, gpu: int) -> Path:
+    def generate(self, views: dict[str, Path], out: Path, gpu: int, seed: int = 0) -> Path:
         out.mkdir(parents=True, exist_ok=True)
         mesh = out / "raw.glb"
         script = Path(__file__).with_name("hunyuan_run.py")
         env = {**os.environ, "CUDA_VISIBLE_DEVICES": str(gpu)}
         with open(out / "hunyuan.log", "w") as log:
             subprocess.run(
-                [self.repo / ".venv/bin/python", script, self.repo, views[self.view], mesh],
+                [
+                    self.repo / ".venv/bin/python",
+                    script,
+                    self.repo,
+                    views[self.view],
+                    mesh,
+                    str(seed),
+                ],
                 env=env,
                 stdout=log,
                 stderr=subprocess.STDOUT,

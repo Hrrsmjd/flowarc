@@ -33,7 +33,7 @@ flowchart LR
 | Mesh | Flash review of mesh renders | see below |
 | Mesh | Silhouette vs the views | low bar only (the views don't match each other exactly) |
 | Simulate | Mach, mass, drag settled | Mach below 0.3, drag halves within a few % |
-| Video (planned) | Flash watches it | no leaks through the body, flow goes the right way |
+| Video | Flash reviews 3 frames (soft check: flags the sample) | body framed, flow visible, no artifacts |
 
 ## Mesh review
 
@@ -130,6 +130,7 @@ flowchart LR
     P2 --> P7[PR 7: concepts + views]
     P7 --> P8[PR 8: mesh stage + mesh review]
     P2 --> P11[PR 11: this overview]
+    P8 --> P12[PR 12: runner]
     P7 --> P13[PR 13: Atlas registry,<br/>search and agent memory]
 ```
 
@@ -147,13 +148,27 @@ flowchart LR
 
 Green works, amber works but needs tuning, grey is not built yet.
 
+First full sample (manta ray, Re 250) ran end to end on one A100 through the runner: 4 min of sim, 0.5 GB packed. Flash now reviews 3 video frames and flagged the first video's framing. The camera now matches the F-35 reference (upstream, above, wake to the upper right), the vortex cut-off rises with Re, and most samples are at Re 1e4–1e5.
+
 Mesh bake-off on 4 objects: Hunyuan3D-2.1 was as good as 2mv or better (2mv lost the aircraft's inner wings), so 2.1 is the default and 2mv the backup.
+
+## Dashboard access
+
+The dashboard needs no access to w7830. It reads two places:
+
+| What | Where | How |
+|---|---|---|
+| Stage, status, checks and their reasons, Gemini reviews, costs, agent log | Atlas `samples`, `logs`, `repairs` | Read-only Atlas user. Updated live by every GPU worker |
+| Views, mesh, mesh renders, video | Private HF dataset `hrrsmjd/flowarc-pilot`, under `samples/<id>/` | Uploaded after each stage. Links are in `samples.meta.files` (`path`, `stage`, `url`) |
+| Finished Zarr | Same dataset, `samples/<id>/sample.zarr.zip` | `scripts/publish.py` uploads it and checks its sha256; `--delete` then removes the RDS copy. Link and checksum in `samples.meta.published` |
+
+HF links need a read token from an account with access to the dataset. Nothing is made public by the code.
 
 ## Next
 
-1. Runner: one sample per GPU on w7830, resume after a crash, approval before publishing or going over budget.
-2. First full samples end to end, then 10–20, then 100.
-3. Upload to a private HF dataset (needs a write token), then delete the copy on RDS.
+1. Runner approvals: before publishing and before going over the GPU-hour budget.
+2. Pilot of 10–20 samples, then 100.
+3. Delete verified Zarrs from RDS (`scripts/publish.py --delete`) once you approve.
 4. Atlas Stream Processing (optional): deploy `scripts/stream_metrics.js` only once the end-to-end demo and dashboard work. It adds a fifth Atlas feature for the MongoDB bounty, but the dashboard already gets the same numbers from a plain aggregation, so it is about 20 minutes of setup plus per-hour cost for points, not function.
 
 ## Where things live

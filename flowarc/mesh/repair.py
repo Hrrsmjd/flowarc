@@ -35,11 +35,11 @@ def voxel_remesh(mesh: trimesh.Trimesh, cells: int = 256) -> trimesh.Trimesh:
 def normalize(
     mesh: trimesh.Trimesh, rotation: np.ndarray | None = None, ground: bool = False
 ) -> trimesh.Trimesh:
-    """Rotate into flow axes, scale to unit length along x, nose at x = 0, centred in y, and z centred or on z = 0."""
+    """Rotate into flow axes, scale the longest side to 1, nose at x = 0, centred in y, and z centred or on z = 0."""
     m = mesh.copy()
     if rotation is not None:
         m.vertices = m.vertices @ np.asarray(rotation).T
-    m.vertices /= m.extents[0]
+    m.vertices /= m.extents.max()
     lo, hi = m.bounds
     m.vertices -= [lo[0], (lo[1] + hi[1]) / 2, lo[2] if ground else (lo[2] + hi[2]) / 2]
     return m

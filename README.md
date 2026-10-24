@@ -51,7 +51,7 @@ Atlas is the dataset registry and the agent's memory. Each sample is one documen
 | Hybrid Search | `$rankFusion` of Voyage semantic and keyword search. Argon calls it as the `search_registry` tool before proposing concepts, and `past_fixes` uses it to find repairs that worked for similar failures. |
 | Stream Processing | `scripts/stream_metrics.js` turns the change stream on `logs` into per-minute, per-stage counts in `metrics` for the dashboard. |
 
-Bulk outputs (Zarr, video, meshes) stay on disk under `FLOWARC_DATA`; Atlas holds the record. Without `MONGODB_URI` everything falls back to JSON files (used by the tests).
+Bulk outputs (views, meshes, video, Zarr) go to a private HF dataset (`FLOWARC_HF_REPO`); Atlas holds the record and the links (`meta.files`). See `docs/overview.md`, Dashboard access. Without `MONGODB_URI` everything falls back to JSON files (used by the tests).
 
 ## Compute
 

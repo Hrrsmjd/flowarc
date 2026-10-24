@@ -1,11 +1,12 @@
 """FluidX3D backend: voxelized body in a D3Q19 LBM box, inflow along +x.
 
-The mesh must already be normalized: length 1 along x, flow along +x.
+The mesh must already be normalized: longest side 1, flow along +x.
 With `ground`, z=0 is the ground plane. Everything is converted to lattice units here.
 """
 
 import math
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -13,6 +14,8 @@ import numpy as np
 import trimesh
 
 from flowarc.sim.solver import SimConfig, SimResult
+
+PROGRESS_EVERY = 120  # seconds between progress calls
 
 BIN = Path(os.environ.get("FLOWARC_FLUIDX3D_BIN", Path(__file__).resolve().parents[3] / "bin"))
 
@@ -48,6 +51,29 @@ def place(mesh: trimesh.Trimesh, cfg: SimConfig, lat: dict) -> trimesh.Trimesh:
     return m
 
 
+def q_level(re: float) -> float:
+    """Q isosurface level in (U/L)^2. Vorticity grows with Re, so a fixed level coats the body
+    at high Re. Tuned by eye on a manta: 50 at Re 250, ~600 at Re 3e4."""
+    return 50.0 * math.sqrt(max(re, 250.0) / 250.0)
+
+
+def camera(m: trimesh.Trimesh, lat: dict, L: float) -> dict:
+    """View from upstream and above, nose lower left, wake to the upper right like the F-35 reference.
+    The target is relative to the box centre."""
+    lo, hi = m.bounds
+    c = (lo + hi) / 2
+    t = [c[0] + 0.4 * L - lat["Nx"] / 2, c[1] - lat["Ny"] / 2, c[2] - lat["Nz"] / 2]
+    return {
+        "cam_rx": -130.0,
+        "cam_ry": 30.0,
+        "cam_fov": 50.0,
+        "cam_tx": round(t[0], 2),
+        "cam_ty": round(t[1], 2),
+        "cam_tz": round(t[2], 2),
+        "cam_rad": round(1.0 * L, 2),
+    }
+
+
 def frontal_area(m: trimesh.Trimesh) -> float:
     """Projected area on the y-z plane in cells^2, from a 1-cell voxelization."""
     vox = m.voxelized(pitch=1.0).fill()
@@ -65,7 +91,8 @@ def probes(m: trimesh.Trimesh, lat: dict, n_surface: int, n_volume: int, seed: i
     box_hi = np.minimum(hi + 0.5 * size.max(), [lat["Nx"] - 2, lat["Ny"] - 2, lat["Nz"] - 2])
     box_hi[0] = lat["Nx"] - 2  # keep the whole wake
     vol = rng.uniform(box_lo, box_hi, size=(n_volume, 3))
-    inside = m.contains(vol) if m.is_watertight else np.zeros(len(vol), bool)
+    # 1-cell voxels: m.contains() is ray-based and takes many minutes on a 1M-face mesh
+    inside = m.voxelized(pitch=1.0).fill().is_filled(vol)
     vol = vol[~inside]
     return pts, surf.astype(np.float32), vol.astype(np.float32)
 
@@ -155,17 +182,21 @@ class FluidX3D:
         bin_dir: Path = BIN,
         n_surface: int = 50_000,
         n_volume: int = 200_000,
-        q_star: float = 50.0,
+        q_star: float | None = None,
     ):
         self.bin_dir = Path(bin_dir)
-        self.q_star = q_star  # Q-criterion isosurface level in units of (U/L)^2
+        self.q_star = q_star  # Q isosurface level in (U/L)^2; None picks it from Re
         self.n_surface = n_surface
         self.n_volume = n_volume
 
-    def run(self, mesh: Path, cfg: SimConfig, out: Path, gpu: int) -> SimResult:
+    def run(self, mesh: Path, cfg: SimConfig, out: Path, gpu: int, progress=None) -> SimResult:
+        """`progress`, if given, is called every PROGRESS_EVERY s with frames done, the frame
+        total and the newest frame image."""
         out = Path(out)
-        (out / "probes").mkdir(parents=True, exist_ok=True)
-        (out / "render").mkdir(exist_ok=True)
+        for d in ("probes", "render"):  # a retry must not mix in the last run's frames
+            shutil.rmtree(out / d, ignore_errors=True)
+        (out / "probes").mkdir(parents=True)
+        (out / "render").mkdir()
         lat = lattice(cfg)
         m = place(trimesh.load(mesh, force="mesh"), cfg, lat)
         m.export(out / "body.stl")
@@ -187,10 +218,7 @@ class FluidX3D:
             "stl": out / "body.stl",
             "probes": out / "probes.f32",
             "out": out,
-            "cam_rx": -50.0,
-            "cam_ry": 25.0,
-            "cam_fov": 50.0,
-            "cam_zoom": 2.0,
+            **camera(m, lat, cfg.cells_per_length),
         }
         (out / "fluidx3d.cfg").write_text("".join(f"{k} {v}\n" for k, v in keys.items()))
         exe = self.bin_dir / ("fluidx3d-les" if cfg.les else "fluidx3d-dns")
@@ -198,12 +226,24 @@ class FluidX3D:
             raise FileNotFoundError(
                 f"{exe} missing: run flowarc/sim/fluidx3d/build.sh or set FLOWARC_FLUIDX3D_BIN"
             )
-        q = self.q_star * (cfg.lattice_velocity / cfg.cells_per_length) ** 2
+        q = (self.q_star or q_level(cfg.reynolds)) * (
+            cfg.lattice_velocity / cfg.cells_per_length
+        ) ** 2
         env = {**os.environ, "FLOWARC_CFG": str(out / "fluidx3d.cfg"), "FLOWARC_Q": f"{q:.6g}"}
         with open(out / "fluidx3d.log", "w") as log:
-            proc = subprocess.run(
-                [str(exe), str(gpu)], check=False, env=env, stdout=log, stderr=subprocess.STDOUT
+            proc = subprocess.Popen(
+                [str(exe), str(gpu)], env=env, stdout=log, stderr=subprocess.STDOUT
             )
+            total = lat["record_steps"] // lat["frame_every"] + 1 if cfg.render else 0
+            while proc.poll() is None:
+                try:
+                    proc.wait(timeout=PROGRESS_EVERY)
+                except subprocess.TimeoutExpired:
+                    if progress:
+                        pngs = sorted((out / "render").glob("*.png"))
+                        progress(
+                            {"frames": len(pngs), "of": total, "latest": pngs[-1] if pngs else None}
+                        )
         status = (
             dict(line.split() for line in (out / "status.txt").read_text().splitlines())
             if (out / "status.txt").exists()

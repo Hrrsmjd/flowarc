@@ -17,9 +17,10 @@ class Phase:
 
 
 PHASES = {
-    "pilot": Phase("pilot", (48, 64), 100),
+    "pilot": Phase("pilot", (64, 96), 100),
     "first": Phase("first", (80, 120), 100),
     "reference": Phase("reference", (170, 256), 20),
+    "real": Phase("real", (128, 256), 100),
 }
 
 DATA = Path(os.environ.get("FLOWARC_DATA", "data")).resolve()
@@ -34,6 +35,7 @@ EMBED_MODEL = os.environ.get("FLOWARC_EMBED_MODEL", "gemini-embedding-2")
 # MongoDB Atlas registry; empty URI = JSON files under DATA (see store.py).
 MONGODB_URI = os.environ.get("MONGODB_URI", "")
 MONGODB_DB = os.environ.get("MONGODB_DB", "flowarc")
+HF_REPO = os.environ.get("FLOWARC_HF_REPO", "")  # private dataset for sample files
 # Voyage AI model Atlas uses for Automated Embedding (search side; novelty uses EMBED_MODEL).
 AUTO_EMBED_MODEL = os.environ.get("FLOWARC_AUTO_EMBED_MODEL", "voyage-4")
 
@@ -42,4 +44,6 @@ STARTUP_TIME = 10.0
 RECORD_TIME = 30.0
 FRAME_INTERVAL = 0.1
 
+# Runs stop here until Harris approves more (--budget).
+PHASE_GPU_HOURS = float(os.environ.get("FLOWARC_GPU_HOURS", "5"))
 MAX_ATTEMPTS = {"concept": 3, "images": 3, "mesh": 4, "sim": 3, "render": 2}

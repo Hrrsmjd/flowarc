@@ -74,8 +74,9 @@ def iou(a: np.ndarray, b: np.ndarray, flips: bool = True) -> float:
     return max(float((a & m).sum() / max((a | m).sum(), 1)) for m in cands)
 
 
-def silhouette_iou(mesh: trimesh.Trimesh, views: dict[str, bytes], threshold: float = 0.5) -> dict:
-    """Low-bar check for a wrong object or orientation; the views don't match each other exactly."""
+def silhouette_iou(mesh: trimesh.Trimesh, views: dict[str, bytes], threshold: float = 0.2) -> dict:
+    """Low bar that only catches a wrong object or orientation. The views don't match each other
+    exactly, and thin views (a flat body seen from the front) score low, so Flash is the main check."""
     per = {v: iou(projection(mesh, v), image_mask(views[v])) for v in VIEW_AXES if v in views}
     return {"iou": per, "min_iou": min(per.values()), "passed": min(per.values()) >= threshold}
 
@@ -108,13 +109,19 @@ def best_orientation(
     return r, score
 
 
+def _chamfer(a: np.ndarray, b: np.ndarray) -> float:
+    return (cKDTree(b).query(a)[0].mean() + cKDTree(a).query(b)[0].mean()) / 2
+
+
 def symmetry(mesh: trimesh.Trimesh, axis: int = 1, n: int = 5000) -> dict:
-    """Chamfer distance between the mesh and its mirror image, relative to body length."""
+    """Chamfer distance between the mesh and its mirror image, relative to body length.
+    The distance between two random samples of the same surface is taken off, so large
+    flat bodies (sparser samples) aren't marked asymmetric."""
     pts = trimesh.sample.sample_surface(mesh, n, seed=0)[0]
-    mirror = pts.copy()
+    other = trimesh.sample.sample_surface(mesh, n, seed=1)[0]
+    mirror = other.copy()
     c = (pts[:, axis].max() + pts[:, axis].min()) / 2
     mirror[:, axis] = 2 * c - mirror[:, axis]
-    d1 = cKDTree(mirror).query(pts)[0].mean()
-    d2 = cKDTree(pts).query(mirror)[0].mean()
-    chamfer = float((d1 + d2) / 2 / mesh.extents.max())
+    floor = _chamfer(pts, other)
+    chamfer = float(max(_chamfer(pts, mirror) - floor, 0) / mesh.extents.max())
     return {"chamfer": chamfer, "passed": chamfer < 0.01}

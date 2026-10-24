@@ -7,6 +7,7 @@ outputs over 65,536 tokens.
 import base64
 import json
 import time
+from contextvars import ContextVar
 from functools import cache
 
 from flowarc import config
@@ -26,6 +27,28 @@ def tool(fn, description: str, parameters: dict) -> dict:
     """A Python function the model may call: {"spec": declaration, "fn": fn}."""
     spec = {"type": "function", "name": fn.__name__, "description": description}
     return {"spec": spec | {"parameters": parameters}, "fn": fn}
+
+
+# Set to a list (pipeline.run_sample does) to collect every prompt and reply for the log.
+CALLS: ContextVar[list | None] = ContextVar("gemini_calls", default=None)
+
+
+def _text(prompt) -> str:
+    if isinstance(prompt, str):
+        return prompt
+    return "\n".join(p.get("text", f"[{p.get('type')}]") for p in prompt)
+
+
+def _record(model: str, prompt, reply: str, t0: float) -> None:
+    if (calls := CALLS.get()) is not None:
+        calls.append(
+            {
+                "model": model,
+                "prompt": _text(prompt),
+                "reply": reply,
+                "seconds": round(time.time() - t0, 1),
+            }
+        )
 
 
 def _run(kwargs):
@@ -52,6 +75,7 @@ def ask(
     `tools` (from `tool()`) are offered to the model; its calls are run here and the results
     sent back in a follow-up interaction, until it answers or MAX_TOOL_ROUNDS is reached.
     """
+    t0 = time.time()
     kwargs = {"model": model or config.FAST_MODEL, "input": prompt}
     gen = {}
     if thinking:
@@ -85,6 +109,7 @@ def ask(
     text = "".join(
         c.text for s in it.steps if s.type == "model_output" for c in s.content if c.type == "text"
     )
+    _record(kwargs["model"], prompt, text, t0)
     return json.loads(text) if schema else text
 
 
@@ -106,6 +131,7 @@ def image_part(img: bytes, mime="image/jpeg") -> dict:
 
 def generate_image(prompt, refs: list[bytes] = (), aspect="1:1") -> bytes:
     """Returns JPEG bytes; refs are JPEGs the image should match."""
+    t0 = time.time()
     parts = [{"type": "text", "text": prompt}] + [image_part(r) for r in refs]
     it = client().interactions.create(
         model=config.IMAGE_MODEL,
@@ -114,9 +140,17 @@ def generate_image(prompt, refs: list[bytes] = (), aspect="1:1") -> bytes:
     )
     if it.output_image is None:
         raise RuntimeError(f"no image returned ({it.id})")
+    _record(config.IMAGE_MODEL, parts, "[image]", t0)
     return base64.b64decode(it.output_image.data)
 
 
 def embed(texts: list[str]) -> list[list[float]]:
-    res = client().models.embed_content(model=config.EMBED_MODEL, contents=texts)
-    return [e.values for e in res.embeddings]
+    """One vector per text. A plain list of strings is embedded as a single text."""
+    from google.genai import types
+
+    contents = [types.Content(parts=[types.Part(text=t)]) for t in texts]
+    res = client().models.embed_content(model=config.EMBED_MODEL, contents=contents)
+    out = [e.values for e in res.embeddings]
+    if len(out) != len(texts):
+        raise RuntimeError(f"asked for {len(texts)} embeddings, got {len(out)}")
+    return out

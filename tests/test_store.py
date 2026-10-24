@@ -27,7 +27,7 @@ def test_registry_roundtrip_in_atlas(atlas, tmp_path, monkeypatch):
     assert loaded.stage == "images" and loaded.checks["concept"][0]["passed"]
     assert [x.id for x in all_samples()] == ["s0001"]
     assert atlas.logs.count_documents({"sample": "s0001"}) == 2  # the check + "advanced"
-    assert not (tmp_path / "samples").exists()  # nothing written locally
+    assert (tmp_path / "samples" / "s0001" / "sample.json").exists()  # RDS copy kept too
     with pytest.raises(KeyError):
         Sample.load("missing")
 
