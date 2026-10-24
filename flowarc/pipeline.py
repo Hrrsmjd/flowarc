@@ -79,12 +79,18 @@ def run_mesh(s: Sample, gpu: int) -> bool:
 
 
 DNS_MAX_RE = 1e3  # resolved at 64 cells/L without a subgrid model
+SMALL_BOX_RE = 1e4  # drag within ~1% of the 8x4x4 box on the manta; walls matter more at low Re
 
 
 def sim_config(s: Sample) -> SimConfig:
     return SimConfig(
         reynolds=s.concept["reynolds"],
         cells_per_length=config.PHASE.cells_per_length[-1],
+        **(
+            {"domain": (5.0, 2.5, 2.5), "body_offset": 1.25}
+            if s.concept["reynolds"] >= SMALL_BOX_RE
+            else {}
+        ),
         ground=s.concept.get("ground", False),
         les=s.concept["reynolds"] > DNS_MAX_RE,
         justification=f"DNS up to Re {DNS_MAX_RE:g}, LES (Smagorinsky) above; Re above 1e5 nominal",
@@ -108,6 +114,7 @@ def run_sim(s: Sample, gpu: int) -> bool:
         **asdict(r),
         "forces": str(r.forces),
         "frames": str(r.frames) if r.frames else None,
+        "cells_thinnest": float(cfg.cells_per_length * m.extents.min()),
     }
     s.meta.setdefault("gpu_seconds", 0)
     s.meta["gpu_seconds"] += r.cost.get("seconds", 0) or 0

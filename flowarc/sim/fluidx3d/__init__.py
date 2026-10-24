@@ -1,6 +1,6 @@
 """FluidX3D backend: voxelized body in a D3Q19 LBM box, inflow along +x.
 
-The mesh must already be normalized: length 1 along x, flow along +x.
+The mesh must already be normalized: longest side 1, flow along +x.
 With `ground`, z=0 is the ground plane. Everything is converted to lattice units here.
 """
 

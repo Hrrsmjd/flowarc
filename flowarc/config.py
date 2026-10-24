@@ -17,7 +17,7 @@ class Phase:
 
 
 PHASES = {
-    "pilot": Phase("pilot", (48, 64), 100),
+    "pilot": Phase("pilot", (64, 96), 100),
     "first": Phase("first", (80, 120), 100),
     "reference": Phase("reference", (170, 256), 20),
 }
