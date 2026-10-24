@@ -30,3 +30,35 @@ def aircraft() -> trimesh.Trimesh:
     m.apply_scale(1.0 / (hi - lo)[0])
     m.apply_translation([0, -m.bounds[:, 1].mean(), -m.bounds[:, 2].mean()])
     return m
+
+
+def ahmed(slant_deg: float = 25.0) -> trimesh.Trimesh:
+    """Ahmed body (Ahmed et al. 1984) in body lengths, on four stilts that touch z = 0."""
+    import numpy as np
+    from manifold3d import CrossSection, Manifold
+
+    W, H, r, slant, gap = 389 / 1044, 288 / 1044, 100 / 1044, 222 / 1044, 50 / 1044
+
+    def rounded_front(
+        h: float,
+    ) -> CrossSection:  # [0,1] x [0,h], front corners rounded with radius r
+        c = CrossSection.circle(r, 64)
+        return (
+            CrossSection.square((1 - r, h)).translate((r, 0))
+            + CrossSection.square((1, h - 2 * r)).translate((0, r))
+            + c.translate((r, r))
+            + c.translate((r, h - r))
+        )
+
+    drop = slant * np.tan(np.radians(slant_deg))
+    cut = CrossSection([[(1 - slant, H), (1, H - drop), (1.01, H - drop), (1.01, H + 0.01)]])
+    side = (
+        (rounded_front(H) - cut).extrude(W).rotate((90, 0, 0)).translate((0, W / 2, gap))
+    )  # x-z profile
+    plan = rounded_front(W).extrude(H).translate((0, -W / 2, gap))  # x-y profile
+    m = side ^ plan
+    for x in (0.2, 0.67):
+        for y in (-0.16, 0.16):
+            m += Manifold.cylinder(gap + 0.02, 0.02, -1, 24).translate((x, y, 0))
+    mesh = m.to_mesh()
+    return trimesh.Trimesh(mesh.vert_properties[:, :3], mesh.tri_verts)

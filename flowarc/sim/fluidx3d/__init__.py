@@ -70,10 +70,12 @@ def probes(m: trimesh.Trimesh, lat: dict, n_surface: int, n_volume: int, seed: i
     return pts, surf.astype(np.float32), vol.astype(np.float32)
 
 
-def strouhal(signals: np.ndarray, dt: float, L: float, u: float, st_min: float = 0.05) -> float:
+def strouhal(
+    signals: np.ndarray, dt: float, L: float, u: float, st_min: float = 0.05, st_max: float = 5.0
+) -> float:
     """Dominant shedding frequency of one or more force signals (columns), as St = f L / U.
 
-    Signals are detrended; the summed power spectrum is searched above st_min to skip slow drift.
+    Signals are detrended; the summed power spectrum is searched between st_min (slow drift) and st_max (lattice ringing).
     """
     s = np.atleast_2d(np.asarray(signals, float).T).T
     if len(s) < 16:
@@ -82,7 +84,7 @@ def strouhal(signals: np.ndarray, dt: float, L: float, u: float, st_min: float =
     s = s - np.polyval(np.polyfit(t, s, 1), t[:, None])
     power = (np.abs(np.fft.rfft(s * np.hanning(len(s))[:, None], axis=0)) ** 2).sum(axis=1)
     st = np.fft.rfftfreq(len(s), dt) * L / u
-    band = st >= st_min
+    band = (st >= st_min) & (st <= st_max)
     if not band.any() or not power[band].any():
         return 0.0
     i = power[band].argmax()
@@ -108,17 +110,32 @@ def _table(path: Path, cols: int) -> np.ndarray:
     return np.array(rows, float).reshape(-1, cols)
 
 
+ST_MAX = 5.0  # fastest physical force content, as St = f L / U
+
+
+def _smooth(x: np.ndarray, w: int) -> np.ndarray:
+    """Moving average over w samples along time (axis 0)."""
+    if w <= 1 or len(x) < w:
+        return x
+    k = np.ones(w) / w
+    return np.stack([np.convolve(c, k, mode="valid") for c in x.T], axis=1)
+
+
 def stats(forces: np.ndarray, cfg: SimConfig, lat: dict, area: float) -> dict:
     """Force coefficients over the recorded window, plus a half-vs-half convergence check."""
     t, F = forces[:, 0], forces[:, 1:]
     rec = t > lat["startup_steps"]
     q = 0.5 * lat["u"] ** 2 * area
     C = F[rec] / q
+    # Force ringing faster than St_max is a lattice artefact (fixed in steps, not in L/U), so RMS is low-passed.
+    w = max(1, round(cfg.cells_per_length / (lat["u"] * ST_MAX) / lat["force_every"]))
+    Cs = _smooth(C, w)
     out = {"area_cells": area, "samples": int(rec.sum())}
     for i, name in enumerate(["cd", "cs", "cl"]):
         c = C[:, i]
         out[f"{name}_mean"] = float(c.mean()) if len(c) else float("nan")
-        out[f"{name}_rms"] = float(c.std()) if len(c) else float("nan")
+        out[f"{name}_rms"] = float(Cs[:, i].std()) if len(Cs) else float("nan")
+        out[f"{name}_rms_raw"] = float(c.std()) if len(c) else float("nan")
     if len(C) >= 4:
         h = len(C) // 2
         a, b = C[:h, 0].mean(), C[h:, 0].mean()
@@ -165,6 +182,7 @@ class FluidX3D:
         keys = {
             **lat,
             "ground": int(cfg.ground),
+            "periodic_y": int(cfg.periodic_span),
             "render": int(cfg.render),
             "stl": out / "body.stl",
             "probes": out / "probes.f32",
