@@ -36,9 +36,27 @@ async function load() {
     return liveTick();
   }
   for (const a of state.approvals) Object.assign(a, localApprovals[a.id] || {});
+  scopeRun(state);
   if (selected && !state.samples.find((s) => s.id === selected)) selected = null;
   render();
 }
+
+// Old test samples stay in the registry; by default the page counts only the current run.
+let everything = false;
+function scopeRun(st) {
+  const btn = $("scope");
+  btn.hidden = !st.run.scope;
+  if (!st.run.scope) return;
+  const outside = st.samples.filter((s) => !s.in_run).length;
+  btn.textContent = everything ? `All samples · show ${st.run.scope} only` : `${st.run.scope} · ${outside} older hidden`;
+  btn.title = everything ? "Count only this run's samples" : "Show older samples too";
+  if (everything) return void (st.run.gpu_hours = st.run.gpu_hours_all);
+  st.samples = st.samples.filter((s) => s.in_run);
+  const g = { calls: 0, tokens: 0, by_model: {} };
+  for (const s of st.samples) { g.calls += s.gemini?.calls || 0; g.tokens += s.gemini?.tokens || 0; }
+  st.run.gemini = g;
+}
+$("scope").addEventListener("click", () => { everything = !everything; sampleSig = ""; load(); });
 
 async function loadMap() {
   try {
@@ -443,6 +461,27 @@ function renderSample() {
   bindHover($("sample-body"));
   renderMedia(s);
   loadPrompts(s);
+  loadSimilar(s);
+}
+
+// The nearest concepts in the registry (Atlas Vector Search on the Gemini embeddings).
+const similarCache = new Map();
+async function loadSimilar(s) {
+  const id = s.id;
+  if (!similarCache.has(id)) {
+    similarCache.set(id, fetch(`api/similar?id=${encodeURIComponent(id)}&start=${start}`).then((r) => r.json()).catch(() => ({ results: [] })));
+  }
+  const r = await similarCache.get(id);
+  if (selectedSample()?.id !== id) return;
+  const rows = r.results || [];
+  const engines = { "vector-search": "Atlas Vector Search", mock: "mock" };
+  $("similar-note").textContent = rows.length ? `nearest concepts · ${engines[r.engine] || ""}` : "";
+  const byId = new Map(state.samples.map((x) => [x.id, x]));
+  $("similar").innerHTML = rows.map((x) => {
+    const img = byId.get(x.id) && viewUrl(byId.get(x.id));
+    return `<button type="button" class="sim-card" data-id="${esc(x.id)}">${img ? `<img src="${esc(img)}" alt="" loading="lazy">` : `<span class="sim-noimg"></span>`}<span class="cap">${esc(x.name || x.id)}<small>${x.similarity != null ? `${(100 * x.similarity).toFixed(0)}% alike · ` : ""}${esc(x.bucket || "")}</small></span></button>`;
+  }).join("") || "<p class='muted small'>No embedding for this sample yet.</p>";
+  $("similar").querySelectorAll("[data-id]").forEach((b) => b.addEventListener("click", () => select(b.dataset.id)));
 }
 
 function usage(g) {
@@ -760,7 +799,7 @@ $("q").addEventListener("input", (e) => {
   if (!q) return ($("results").hidden = true);
   searchTimer = setTimeout(async () => {
     const r = await fetch(`api/search?q=${encodeURIComponent(q)}&start=${start}`).then((r) => r.json()).catch(() => ({ results: [] }));
-    const engines = { "atlas-search": "Atlas Search", regex: "Atlas (no search index)", mock: "mock" };
+    const engines = { hybrid: "Atlas hybrid search · Voyage AI meaning + keywords", "atlas-search": "Atlas Search", regex: "Atlas (no search index)", mock: "mock" };
     $("results").innerHTML = (r.results.map((x) => `<button type="button" data-id="${esc(x.id)}"><span>${esc(x.name)}</span><span class="muted small">${esc(x.status)}</span></button>`).join("") || "<div class='engine'>No matches</div>") +
       `<div class="engine">${engines[r.engine] || ""}</div>`;
     $("results").hidden = false;

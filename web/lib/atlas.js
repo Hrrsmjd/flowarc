@@ -47,11 +47,32 @@ export async function atlasDecide(id, status, by) {
   return r.modifiedCount === 1;
 }
 
-// Atlas Search over sample names and descriptions (index `samples_text`, made by
-// scripts/setup_atlas.py), with a plain regex match if the index isn't there.
+// Search by meaning and by words: hybrid search ($rankFusion of Voyage Automated Embedding on
+// descriptions, index `concept_voyage`, and Atlas Search, index `samples_text`), the same query
+// as flowarc.store.hybrid. Falls back to Atlas Search alone, then to a regex.
 export async function atlasSearch(q) {
   const d = await db();
   const project = { $project: { name: "$concept.name", bucket: "$concept.bucket", status: 1 } };
+  const text = { query: q, path: ["concept.name", "concept.description"] };
+  try {
+    const rows = await d.collection("samples").aggregate([
+      {
+        $rankFusion: {
+          input: {
+            pipelines: {
+              semantic: [{ $vectorSearch: { index: "concept_voyage", path: "concept.description", query: q, numCandidates: 100, limit: 16 } }],
+              keyword: [{ $search: { index: "samples_text", text: { ...text, fuzzy: { maxEdits: 1 } } } }, { $limit: 16 }],
+            },
+          },
+        },
+      },
+      { $limit: 8 },
+      project,
+    ]).toArray();
+    return { engine: "hybrid", results: rows.map(({ _id, ...r }) => ({ id: _id, ...r })) };
+  } catch (e) {
+    console.warn("hybrid search failed, using Atlas Search:", e.message);
+  }
   try {
     const rows = await d.collection("samples").aggregate([
       { $search: { index: "samples_text", text: { query: q, path: ["concept.name", "concept.description"], fuzzy: { maxEdits: 1 } } } },
@@ -68,6 +89,22 @@ export async function atlasSearch(q) {
     ]).toArray();
     return { engine: "regex", results: rows.map(({ _id, ...r }) => ({ id: _id, ...r })) };
   }
+}
+
+// The samples whose concept is closest to this one's: Atlas Vector Search over the Gemini
+// concept embeddings (index `concept_vectors`, the one novelty checks use).
+export async function atlasSimilar(id, k = 6) {
+  const d = await db();
+  const s = await d.collection("samples").findOne({ _id: id }, { projection: { embedding: 1 } });
+  if (!s?.embedding?.length) return { engine: "vector-search", results: [] };
+  const rows = await d.collection("samples").aggregate([
+    { $vectorSearch: { index: "concept_vectors", path: "embedding", queryVector: s.embedding, numCandidates: 200, limit: k + 1, filter: { status: { $ne: "failed" } } } },
+    { $match: { _id: { $ne: id } } },
+    { $limit: k },
+    { $project: { name: "$concept.name", bucket: "$concept.bucket", status: 1, score: { $meta: "vectorSearchScore" } } },
+  ]).toArray();
+  // Atlas reports cosine as (1 + cos) / 2.
+  return { engine: "vector-search", results: rows.map(({ _id, score, ...r }) => ({ id: _id, ...r, similarity: 2 * score - 1 })) };
 }
 
 // One GridFS file from the `media` bucket, or null; open([start, end)) streams it, or a byte range.

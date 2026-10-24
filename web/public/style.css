@@ -404,3 +404,11 @@ body.present #card-now { display: none; }
 .filters { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
 .stages-wrap { max-height: 420px; overflow-y: auto; }
 .more { margin-top: 10px; }
+
+/* similar shapes */
+.similar { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+.sim-card { padding: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #fff; cursor: pointer; font: inherit; text-align: left; color: var(--ink); }
+.sim-card:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sim-card img, .sim-noimg { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: var(--wash); }
+.sim-card .cap { display: block; padding: 4px 6px; background: var(--surface); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sim-card .cap small { display: block; color: var(--muted); font-size: 11px; }

@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   try {
     const atlas = hasAtlas();
     const reg = atlas ? await atlasRegistry() : mockRegistry(startParam(req));
-    const st = buildState({ ...reg, mode: atlas ? "atlas" : "mock", hfRepo: process.env.FLOWARC_HF_REPO || "" });
+    const st = buildState({ ...reg, mode: atlas ? "atlas" : "mock", hfRepo: process.env.FLOWARC_HF_REPO || "", runFrom: process.env.FLOWARC_RUN_FROM || "" });
     if (atlas) st.db = process.env.MONGODB_DB || "flowarc";
     send(res, 200, st);
   } catch (e) {

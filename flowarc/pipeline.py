@@ -38,6 +38,7 @@ def new_samples(n: int, seed: int | None = None) -> list[Sample]:
     out = []
     for i, c in enumerate(concepts.select(n, seed)):
         s = Sample(id=f"s{start + i:05d}", embedding=c.pop("embedding"), concept=c)
+        s.meta["phase"] = config.PHASE.name  # the dashboard counts this run's samples by it
         s.record_check("novel", True)
         advance(s)
         out.append(s)
@@ -268,6 +269,7 @@ def upload(s: Sample, stage: str, attempt: int | None = None) -> None:
 
 def run_sample(s: Sample, gpu: int, budget_hours: float = math.inf) -> Sample:
     """Run the remaining stages. Ends done, flagged (a soft check failed) or failed."""
+    s.meta.setdefault("phase", config.PHASE.name)
     while s.stage != "done":
         if s.stage == "sim" and gpu_hours() >= budget_hours:
             s.status = "pending"

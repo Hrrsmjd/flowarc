@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mockRegistry } from "../lib/mock.js";
+import { mockRegistry, mockSimilar } from "../lib/mock.js";
 import { buildState, diversityMap, shortBucket } from "../lib/state.js";
 
 const T0 = 1_800_000_000;
@@ -66,4 +66,27 @@ test("a mock approval stays with the viewer who made it", async () => {
   mockRegistry(bob, now + 2); // another viewer polls
   assert.equal(pub(alice, now + 4).status, "approved");
   assert.equal(pub(bob, now + 62)?.status ?? "pending", "pending");
+});
+
+test("only the current run counts: samples tagged with the latest phase, or from FLOWARC_RUN_FROM", () => {
+  const sample = (id, phase, status, t) => ({ _id: id, stage: "done", status, concept: { name: id }, meta: phase ? { phase, gpu_seconds: 3600 } : { gpu_seconds: 3600 } });
+  const samples = [sample("s00001", null, "failed"), sample("s00002", "pilot", "done"), sample("s00003", "real", "done"), sample("s00004", "real", "done")];
+  const logs = samples.map((s, i) => ({ sample: s._id, t: T0 + i, msg: "x", stage: "concept" }));
+  const st = buildState({ samples, logs, mode: "atlas", now: T0 + 10 });
+  assert.deepEqual(st.samples.filter((s) => s.in_run).map((s) => s.id), ["s00003", "s00004"]);
+  assert.equal(st.run.phase, "real");
+  assert.equal(st.run.gpu_hours, 2);
+  assert.equal(st.run.gpu_hours_all, 3);
+  const from = buildState({ samples, logs, mode: "atlas", runFrom: "s00002", now: T0 + 10 });
+  assert.deepEqual(from.samples.filter((s) => s.in_run).map((s) => s.id), ["s00002", "s00003", "s00004"]);
+  const untagged = buildState({ samples: [sample("s00001", null, "done")], logs, mode: "atlas", now: T0 + 10 });
+  assert.equal(untagged.run.scope, null);
+  assert.ok(untagged.samples.every((s) => s.in_run));
+});
+
+test("similar shapes are the nearest embeddings, most alike first, never the sample itself", () => {
+  const near = mockSimilar("s0001", T0 + 240);
+  assert.ok(near.length > 0 && near.length <= 6);
+  assert.ok(!near.some((s) => s.id === "s0001"));
+  assert.ok(near.every((s, i) => i === 0 || near[i - 1].similarity >= s.similarity));
 });

@@ -19,13 +19,14 @@
       </div>
     </div>
     <div class="search" role="search">
-      <input id="q" type="search" placeholder="Search samples" autocomplete="off" aria-label="Search samples">
+      <input id="q" type="search" placeholder="Search by meaning: something that flies" autocomplete="off" aria-label="Search samples">
       <div class="results" id="results" hidden></div>
     </div>
     <div class="top-right">
       <span class="live" id="live"><span class="dot"></span><span id="live-text">connecting…</span></span>
       <span class="badge" id="mode-badge" hidden>Mock replay</span>
       <button class="ghost small" id="restart" type="button" hidden>↺ Restart</button>
+      <button class="ghost small" id="scope" type="button" hidden></button>
       <button class="ghost small" id="present" type="button" title="Presenter mode (P)">▶ Present</button>
       <button class="ghost small" id="finale-open" type="button" title="Finale: everything made so far (F)">★ Finale</button>
       <button class="ghost" id="theme" type="button" aria-label="Toggle theme">◐</button>
@@ -90,6 +91,8 @@
           <p class="muted small" id="flow-note"></p>
         </div>
       </div>
+      <h3>Similar shapes <span class="muted small" id="similar-note"></span></h3>
+      <div class="similar" id="similar"></div>
       <h3>Prompts <span class="muted small">every Gemini call · click to open</span> <span class="muted small" id="prompts-note"></span></h3>
       <div class="prompts" id="prompts"></div>
     </section>
