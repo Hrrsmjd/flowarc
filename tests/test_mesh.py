@@ -74,3 +74,13 @@ def test_thicken_fixes_a_thin_plate():
     thick = repair.normalize(repair.thicken(plate, 0.005))
     g = checks.geometry(thick, min_thickness=0.01)
     assert g["thin_ok"] and g["watertight"] and g["bodies"] == 1
+
+
+def test_heading_lines_up_a_turned_body():
+    box = trimesh.creation.box(extents=[1.0, 0.3, 0.2])
+    box.apply_transform(trimesh.transformations.rotation_matrix(np.radians(40), [0, 0, 1]))
+    pts = box.vertices @ checks.heading(box.vertices).T
+    ext = pts.max(0) - pts.min(0)
+    assert np.allclose(ext, [1.0, 0.3, 0.2], atol=1e-6)
+    cube = trimesh.creation.box(extents=[1.0, 1.0, 0.2])
+    assert np.allclose(checks.heading(cube.vertices), np.eye(3))
