@@ -173,3 +173,15 @@ def test_calls_record_token_usage(fake):
     calls = gemini.CALLS.get()
     gemini.CALLS.reset(token)
     assert calls[0]["input_tokens"] == 120 and calls[0]["tokens"] == 150
+
+
+def test_embed_splits_into_batches(monkeypatch):
+    sizes = []
+
+    def embed_content(model, contents):
+        sizes.append(len(contents))
+        return NS(embeddings=[NS(values=[1.0]) for _ in contents])
+
+    monkeypatch.setattr(gemini, "client", lambda: NS(models=NS(embed_content=embed_content)))
+    assert len(gemini.embed(["x"] * 250)) == 250
+    assert sizes == [100, 100, 50]
