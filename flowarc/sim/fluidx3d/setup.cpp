@@ -53,7 +53,14 @@ void main_setup() {
 	const ulong P = probes.size()/3u;
 #ifdef GRAPHICS
 	lbm.graphics.visualization_modes = VIS_FLAG_SURFACE|VIS_Q_CRITERION;
-	lbm.graphics.set_camera_centered((float)num("cam_rx"), (float)num("cam_ry"), (float)num("cam_fov"), (float)num("cam_zoom"));
+	{ // look at (cam_tx, cam_ty, cam_tz) from the box centre, fitting a sphere of radius cam_rad on screen
+		const float rx=0.5f*pif+(float)num("cam_rx")*pif/180.0f, ry=pif-(float)num("cam_ry")*pif/180.0f, fov=(float)num("cam_fov");
+		const float3 Rz(-sin(rx)*cos(ry), cos(rx)*cos(ry), sin(ry));
+		const float dis = 0.5f*(float)GRAPHICS_FRAME_WIDTH/tan(fov*pif/360.0f);
+		const float zoom = 0.5f*(float)min(GRAPHICS_FRAME_WIDTH, GRAPHICS_FRAME_HEIGHT)/(float)num("cam_rad");
+		const float3 target((float)num("cam_tx"), (float)num("cam_ty"), (float)num("cam_tz"));
+		lbm.graphics.set_camera_free(target+Rz*(dis/zoom), (float)num("cam_rx"), (float)num("cam_ry"), fov);
+	}
 #endif
 	std::ofstream forces(out+"forces.csv");
 	forces<<"t,fx,fy,fz\n";

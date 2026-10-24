@@ -48,6 +48,22 @@ def place(mesh: trimesh.Trimesh, cfg: SimConfig, lat: dict) -> trimesh.Trimesh:
     return m
 
 
+def camera(m: trimesh.Trimesh, lat: dict, L: float) -> dict:
+    """Three-quarter view of the body and its near wake (target is relative to the box centre)."""
+    lo, hi = m.bounds
+    c = (lo + hi) / 2
+    t = [lo[0] + 1.3 * L - lat["Nx"] / 2, c[1] - lat["Ny"] / 2, c[2] - lat["Nz"] / 2]
+    return {
+        "cam_rx": -50.0,
+        "cam_ry": 25.0,
+        "cam_fov": 50.0,
+        "cam_tx": round(t[0], 2),
+        "cam_ty": round(t[1], 2),
+        "cam_tz": round(t[2], 2),
+        "cam_rad": round(1.4 * L, 2),
+    }
+
+
 def frontal_area(m: trimesh.Trimesh) -> float:
     """Projected area on the y-z plane in cells^2, from a 1-cell voxelization."""
     vox = m.voxelized(pitch=1.0).fill()
@@ -187,10 +203,7 @@ class FluidX3D:
             "stl": out / "body.stl",
             "probes": out / "probes.f32",
             "out": out,
-            "cam_rx": -50.0,
-            "cam_ry": 25.0,
-            "cam_fov": 50.0,
-            "cam_zoom": 2.0,
+            **camera(m, lat, cfg.cells_per_length),
         }
         (out / "fluidx3d.cfg").write_text("".join(f"{k} {v}\n" for k, v in keys.items()))
         exe = self.bin_dir / ("fluidx3d-les" if cfg.les else "fluidx3d-dns")

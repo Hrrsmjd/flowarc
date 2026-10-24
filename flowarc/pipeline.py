@@ -121,8 +121,17 @@ def run_sim(s: Sample, gpu: int) -> bool:
 
 
 def run_render(s: Sample, gpu: int) -> bool:
+    from flowarc import render
+
     video = s.dir / "sim" / "video.mp4"
-    return s.record_check("video", video.exists() and video.stat().st_size > 0)
+    if not s.record_check("video", video.exists() and video.stat().st_size > 0):
+        return False
+    rev = render.review(video, s.concept)
+    s.meta["video_review"] = rev
+    s.record_check(
+        "video_review", rev["passed"], failed=rev["failed"], summary=rev["summary"], hard=False
+    )
+    return True
 
 
 def run_package(s: Sample, gpu: int) -> bool:
