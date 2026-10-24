@@ -38,9 +38,16 @@ TEXT_FIELDS = {
 }
 LOG_FIELDS = {
     "msg": {"type": "string"},
+    "diagnosis": {"type": "string"},
     "stage": {"type": "token"},
     "sample": {"type": "token"},
     "passed": {"type": "boolean"},
+}
+REPAIR_FIELDS = {
+    "diagnosis": {"type": "string"},
+    "action": {"type": "string"},
+    "stage": {"type": "token"},
+    "fixed": {"type": "boolean"},
 }
 RE_BANDS = [1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8]
 
@@ -99,6 +106,20 @@ def ensure_indexes(dims: int) -> None:
     _search_index(
         d.logs, LOG_INDEX, "search", {"mappings": {"dynamic": False, "fields": LOG_FIELDS}}
     )
+    auto = {"type": "autoEmbed", "modality": "text", "model": AUTO_EMBED_MODEL}
+    semantic = [{**auto, "path": "concept.description"}]
+    semantic += [{"type": "filter", "path": p} for p in ("status", "concept.bucket")]
+    _search_index(d.samples, SEMANTIC_INDEX, "vectorSearch", {"fields": semantic})
+    repair = [{**auto, "path": "diagnosis"}]
+    repair += [{"type": "filter", "path": p} for p in ("stage", "fixed")]
+    _search_index(d.repairs, REPAIR_SEMANTIC_INDEX, "vectorSearch", {"fields": repair})
+    _search_index(
+        d.repairs,
+        REPAIR_TEXT_INDEX,
+        "search",
+        {"mappings": {"dynamic": False, "fields": REPAIR_FIELDS}},
+    )
+    d.repairs.create_index([("sample", 1), ("stage", 1)])
 
 
 def nearest(vector: list[float], k: int = 5, bucket: str | None = None) -> list[dict]:
@@ -191,7 +212,7 @@ def autocomplete(prefix: str, k: int = 8) -> list[str]:
 
 def search_log(text: str, k: int = 20, failed_only: bool = False) -> list[dict]:
     """Full-text search over the agent log (check results, diagnoses, decisions)."""
-    op = {"text": {"query": text, "path": "msg"}}
+    op = {"text": {"query": text, "path": ["msg", "diagnosis"]}}
     if failed_only:
         op = {
             "compound": {"must": [op], "filter": [{"equals": {"path": "passed", "value": False}}]}
@@ -308,15 +329,23 @@ def metrics(minutes: int = 60) -> list[dict]:
 
     since = dt.datetime.now(dt.UTC) - dt.timedelta(minutes=minutes)
     rows = list(db().metrics.find({"window": {"$gte": since}}, {"_id": 0}).sort("window", -1))
-    return rows or stage_stats(minutes)
+    if not rows:
+        return stage_stats(minutes)
+    # The stream job only writes a window once it closes, so count the open one from the log.
+    end = max(r["window"] for r in rows) + dt.timedelta(minutes=1)
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=dt.UTC)
+    live = stage_stats(minutes, since=end.timestamp())
+    return [{**r, "window": end} for r in live] + rows
 
 
-def stage_stats(minutes: int = 60) -> list[dict]:
-    """Checks, passes, failures and samples moved on per stage over the last `minutes`."""
+def stage_stats(minutes: int = 60, since: float | None = None) -> list[dict]:
+    """Checks, passes, failures and samples moved on per stage over the last `minutes`
+    (or since the unix time `since`)."""
     import time
 
     pipeline = [
-        {"$match": {"t": {"$gte": time.time() - 60 * minutes}}},
+        {"$match": {"t": {"$gte": since if since is not None else time.time() - 60 * minutes}}},
         {
             "$group": {
                 "_id": "$stage",

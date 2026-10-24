@@ -200,6 +200,36 @@ def test_metrics_prefers_stream_processor_output(atlas):
     assert store.metrics()[0]["passed"] == 4
 
 
+def test_metrics_adds_the_open_minute_from_the_log(atlas):
+    import datetime as dt
+
+    closed = dt.datetime.now(dt.UTC).replace(second=0, microsecond=0) - dt.timedelta(minutes=2)
+    atlas.metrics.insert_one({"_id": "mesh@then", "stage": "mesh", "window": closed, "passed": 4})
+    Sample(id="s1", stage="mesh").record_check("watertight", True)
+    rows = store.metrics()
+    assert rows[0]["window"] == closed + dt.timedelta(minutes=1)
+    assert (rows[0]["stage"], rows[0]["passed"]) == ("mesh", 1)
+    assert rows[1]["passed"] == 4
+
+
+def test_ensure_indexes_creates_every_search_index(monkeypatch):
+    made = []
+    monkeypatch.setattr(store, "_search_index", lambda coll, name, kind, d: made.append(name))
+    d = mongomock.MongoClient()["flowarc"]
+    monkeypatch.setattr(mongomock.Collection, "list_search_indexes", lambda self: [], raising=False)
+    monkeypatch.setattr(store, "db", lambda: d)
+    store.ensure_indexes(3072)
+    want = {
+        store.VECTOR_INDEX,
+        store.TEXT_INDEX,
+        store.LOG_INDEX,
+        store.SEMANTIC_INDEX,
+        store.REPAIR_SEMANTIC_INDEX,
+        store.REPAIR_TEXT_INDEX,
+    }
+    assert want <= set(made)
+
+
 def test_ensure_index_redefines_when_fields_are_missing():
     calls = []
 

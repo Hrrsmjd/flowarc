@@ -141,3 +141,12 @@ def test_endless_tool_calls_raise(fake, monkeypatch):
     fake(*[NS(id="i", status="requires_action", steps=[call])] * 3)
     with pytest.raises(RuntimeError, match="still calling tools"):
         gemini.ask("go", tools=[gemini.tool(lambda: 1, "", {})])
+
+
+def test_answer_after_the_last_allowed_round_is_returned(fake, monkeypatch):
+    monkeypatch.setattr(gemini, "MAX_TOOL_ROUNDS", 2)
+    call = NS(type="function_call", id="c", name="f", arguments={})
+    busy = NS(id="i", status="requires_action", steps=[call])
+    inter = fake(busy, busy, text_reply("done"))
+    assert gemini.ask("go", tools=[gemini.tool(lambda: 1, "", {})]) == "done"
+    assert len(inter.calls) == 3

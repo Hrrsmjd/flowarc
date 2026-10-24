@@ -72,16 +72,16 @@ def ask(
     if tools:
         kwargs["tools"] = [t["spec"] for t in tools]
     it = _run(kwargs)
-    for _ in range(MAX_TOOL_ROUNDS):
+    for rounds in range(MAX_TOOL_ROUNDS + 1):
         calls = [s for s in it.steps if s.type == "function_call"]
         if not calls:
             break
+        if rounds == MAX_TOOL_ROUNDS:
+            raise RuntimeError(
+                f"Gemini interaction {it.id} still calling tools after {MAX_TOOL_ROUNDS}"
+            )
         results = [_call(fns, c) for c in calls]
         it = _run({**kwargs, "input": results, "previous_interaction_id": it.id})
-    else:
-        raise RuntimeError(
-            f"Gemini interaction {it.id} still calling tools after {MAX_TOOL_ROUNDS}"
-        )
     text = "".join(
         c.text for s in it.steps if s.type == "model_output" for c in s.content if c.type == "text"
     )
