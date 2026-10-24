@@ -11,30 +11,56 @@ export const shortBucket = (b) => (b || "unknown").split(/ \(| and | or | of |,/
 
 const ACTORS = [
   [/^repair:|^Argon/i, "argon"],
-  [/Nano Banana/i, "nano-banana"],
+  [/Nano Banana|^images error/i, "nano-banana"],
   [/Hunyuan|TRELLIS/i, "hunyuan3d"],
-  [/FluidX3D/i, "fluidx3d"],
+  [/FluidX3D|^sim error/i, "fluidx3d"],
 ];
+// Which model or tool runs each pipeline check (flowarc/pipeline.py).
+const CHECK_ACTORS = {
+  novel: "embedding",
+  novelty: "embedding",
+  views_consistent: "flash",
+  view_consistency: "flash",
+  mesh: "flash",
+  flash_review: "flash",
+  video_review: "flash",
+  stable: "fluidx3d",
+  mass: "fluidx3d",
+  converged: "fluidx3d",
+  stability: "fluidx3d",
+};
 
 function event(e) {
-  const actor = e.actor || (ACTORS.find(([re]) => re.test(e.msg)) || [, "system"])[1];
+  // Older log lines carry the check only in the message: "check mesh: FAIL".
+  const m = /^check (\w+): (pass|FAIL)/.exec(e.msg);
+  const check = e.check || m?.[1];
+  const passed = e.passed ?? (m ? m[2] === "pass" : undefined);
+  const actor = e.actor || CHECK_ACTORS[check] || (ACTORS.find(([re]) => re.test(e.msg)) || [, "system"])[1];
+  const error = / error: /.test(e.msg);
   return {
     t: e.t,
     stage: e.stage,
-    msg: e.msg,
+    msg: error ? e.msg.slice(0, 160) : e.msg,
     actor,
-    failed: e.passed === false,
+    failed: passed === false || error || /out of attempts/.test(e.msg),
+    soft: e.hard === false,
     fix: /^repair:/.test(e.msg),
-    check: e.check,
+    check,
     diagnosis: e.diagnosis,
-    reason: e.reason,
-    iou: e.iou,
+    reason: e.reason || e.summary,
+    iou: e.iou || (typeof e.silhouette === "number" ? { "min view": e.silhouette } : undefined),
     d_cd: e.d_cd,
     tol: e.tol,
     mach_max: e.mach_max,
+    cd: e.cd,
+    change: e.change,
+    gb: e.gb,
     notes: e.notes,
   };
 }
+
+const STAT_KEYS = ["cd_mean", "cl_rms", "cs_rms", "st", "cd_half_change", "mach_max", "mass_drift"];
+const pick = (o, keys) => (o ? Object.fromEntries(keys.filter((k) => o[k] != null).map((k) => [k, o[k]])) : null);
 
 export function buildState({ run = {}, samples, logs, approvals = [], mode, now = Date.now() / 1000 }) {
   const bySample = new Map();
@@ -60,6 +86,8 @@ export function buildState({ run = {}, samples, logs, approvals = [], mode, now 
         gpu: s.meta?.gpu ?? null,
         gpu_seconds: s.status === "running" || s.status === "pending" ? 0 : s.meta?.gpu_seconds || 0,
         convergence: past ? s.meta?.convergence || null : null,
+        sim: pick(s.meta?.sim?.stats, STAT_KEYS),
+        zarr_gb: s.meta?.zarr_gb ?? null,
         log,
         last_t: log.length ? log[log.length - 1].t : 0,
       };
@@ -83,9 +111,9 @@ export function buildState({ run = {}, samples, logs, approvals = [], mode, now 
     generated_at: now,
     run: {
       phase: run.phase || "pilot",
-      cells_per_length: run.cells_per_length || [48, 64],
+      cells_per_length: run.cells_per_length || null, // from the `runs` document, when written
       target_samples: run.target_samples || 20,
-      gpus: run.gpus || 7,
+      gpus: run.gpus || null,
       started_at: started,
       samples_per_hour: done / hours,
       gpu_hours: allSeconds / 3600,

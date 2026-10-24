@@ -77,7 +77,12 @@ function render() {
   $("restart").hidden = state.mode !== "mock";
   liveTick();
   const elapsed = Date.now() / 1000 - run.started_at;
-  $("run-sub").textContent = `Phase 1 ${run.phase} · ${run.cells_per_length.join(" → ")} cells/L · ${run.gpus} GPUs · running ${fmtDur(elapsed)}`;
+  $("run-sub").textContent = [
+    `${run.phase} phase`,
+    run.cells_per_length && `${run.cells_per_length.join(" → ")} cells/L`,
+    run.gpus && `${run.gpus} GPUs`,
+    `running ${fmtDur(elapsed)}`,
+  ].filter(Boolean).join(" · ");
   renderKpis(run, samples);
   renderStages(samples);
   renderPicker(samples);
@@ -177,10 +182,13 @@ function eventHtml(e, t0, fresh) {
   const extra = [];
   if (e.reason) extra.push(esc(e.reason));
   if (e.iou) extra.push(Object.entries(e.iou).map(([v, x]) => `${v} <span class="${x < 0.85 ? "bad" : "ok"}">${x.toFixed(2)}</span>`).join(" · ") + " silhouette IoU");
+  if (e.cd != null) extra.push(`Cd ${e.cd.toFixed(3)}`);
+  if (e.change != null) extra.push(`drag changes ${(e.change * 100).toFixed(1)}% between halves of the record`);
+  if (e.gb != null) extra.push(`${e.gb.toFixed(2)} GB`);
   if (e.d_cd != null) extra.push(`ΔCd ${(e.d_cd * 100).toFixed(1)}% (tol ${(e.tol * 100).toFixed(0)}%)`);
   if (e.mach_max != null) extra.push(`max Mach ${e.mach_max}`);
   if (e.notes) extra.push(esc(e.notes));
-  const cls = [e.failed ? "fail" : e.fix ? "fix" : "", fresh ? "new" : ""].join(" ");
+  const cls = [e.failed ? (e.soft ? "soft" : "fail") : e.fix ? "fix" : "", fresh ? "new" : ""].join(" ");
   return `<li class="${cls}"><span class="t">+${fmtDur(e.t - t0)}</span><span class="actor ${esc(e.actor)}">${esc(e.actor)}</span><div class="msg"><span class="stage-tag">${esc(e.stage)}</span>${esc(e.msg)}${extra.length ? `<div class="extra">${extra.join("<br>")}</div>` : ""}${e.diagnosis ? `<div class="diag">${esc(e.diagnosis)}</div>` : ""}</div></li>`;
 }
 
@@ -220,13 +228,13 @@ function renderSample() {
         <dt>Yaw</dt><dd>${c.yaw_deg ?? 0}°</dd>
         <dt>Facing</dt><dd>${esc(c.facing || "–")}</dd>
         <dt>Setup</dt><dd>${c.ground ? "ground plane" : "free stream"}</dd>
-        <dt>Status</dt><dd>${esc(s.status)}${s.status === "running" ? ` (${esc(s.stage)}, GPU ${s.gpu})` : ""}</dd>
+        <dt>Status</dt><dd>${esc(s.status)}${s.status === "running" ? ` (${esc(s.stage)}${s.gpu != null ? `, GPU ${s.gpu}` : ""})` : ""}</dd>
         <dt>GPU time</dt><dd>${s.gpu_seconds ? fmtDur(s.gpu_seconds) : "–"}</dd>
       </dl>
-      <ul class="checks">${checks.map((e) => `<li><span>${esc(e.stage)} · ${esc(e.check)}</span><span class="${e.failed ? "bad" : "ok"}">${e.failed ? "✕ fail" : "✓ pass"}</span></li>`).join("") || "<li class='muted'>no checks yet</li>"}</ul>
+      <ul class="checks">${checks.map((e) => `<li><span>${esc(e.stage)} · ${esc(e.check)}</span><span class="${e.failed ? (e.soft ? "warn" : "bad") : "ok"}">${e.failed ? (e.soft ? "⚠ soft fail" : "✕ fail") : "✓ pass"}</span></li>`).join("") || "<li class='muted'>no checks yet</li>"}</ul>
     </div>`;
-  const iou = `<div><h3 style="margin-top:0">Silhouette IoU vs reference views</h3>${ious.length ? iouChart(ious) : "<p class='muted small'>Mesh not reviewed yet.</p>"}</div>`;
-  const conv = `<div><h3 style="margin-top:0">Convergence: running mean drag vs t (L/U)</h3>${s.convergence ? convChart(s.convergence) : "<p class='muted small'>Simulation not finished.</p>"}</div>`;
+  const iou = `<div><h3 style="margin-top:0">Silhouette IoU per mesh attempt</h3>${ious.length ? iouChart(ious) : "<p class='muted small'>Mesh not reviewed yet.</p>"}</div>`;
+  const conv = `<div><h3 style="margin-top:0">${s.convergence ? "Convergence: running mean drag vs t (L/U)" : "Simulation results"}</h3>${s.convergence ? convChart(s.convergence) : s.sim ? statsTable(s) : "<p class='muted small'>Simulation not finished.</p>"}</div>`;
   $("sample-body").innerHTML = facts + iou + conv;
   bindHover($("sample-body"));
 }
@@ -234,26 +242,27 @@ function renderSample() {
 // Grouped bars: one group per view, one bar per attempt. Two series max.
 function iouChart(events) {
   const views = Object.keys(events[0].iou);
+  const perView = views.length > 1;
   const thr = 0.85;
   const W = 300, H = 170, L = 30, B = 22, T = 8;
   const y = (v) => T + (1 - (v - 0.5) / 0.5) * (H - T - B);
   const gw = (W - L) / views.length, bw = Math.min(22, (gw - 16) / events.length);
-  const colors = events.length > 1 ? ["var(--series-2)", "var(--series-1)"] : ["var(--series-1)"];
+  const colors = events.map((_, k) => (k === events.length - 1 ? "var(--series-1)" : "var(--series-2)"));
   let g = "";
   for (const v of [0.5, 0.75, 1]) g += `<line class="gridline" x1="${L}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
   views.forEach((view, i) => {
     const x0 = L + i * gw + (gw - bw * events.length - 2 * (events.length - 1)) / 2;
     events.forEach((e, k) => {
-      const val = e.iou[view];
+      const val = e.iou[view] ?? 0;
       const x = x0 + k * (bw + 2), top = y(Math.max(val, 0.5));
-      g += `<path d="${barPath(x, top, bw, y(0.5) - top)}" fill="${colors[k % colors.length]}" data-tip="<b>${view}</b>, attempt ${k + 1}<br>IoU ${val.toFixed(2)} ${val < thr ? "✕ below" : "✓ above"} ${thr}"/>`;
+      g += `<path d="${barPath(x, top, bw, y(0.5) - top)}" fill="${colors[k % colors.length]}" data-tip="<b>${view}</b>, attempt ${k + 1}<br>IoU ${val.toFixed(2)}${perView ? ` ${val < thr ? "✕ below" : "✓ above"} ${thr}` : ""}${e.failed ? "<br>mesh check failed" : ""}"/>`;
     });
     g += `<text x="${L + i * gw + gw / 2}" y="${H - 6}" text-anchor="middle">${view}</text>`;
   });
-  g += `<line x1="${L}" x2="${W}" y1="${y(thr)}" y2="${y(thr)}" stroke="var(--critical)" stroke-dasharray="4 3" stroke-width="1.5"/><text x="${L + 2}" y="${y(thr) - 4}">min ${thr}</text>`;
+  if (perView) g += `<line x1="${L}" x2="${W}" y1="${y(thr)}" y2="${y(thr)}" stroke="var(--critical)" stroke-dasharray="4 3" stroke-width="1.5"/><text x="${L + 2}" y="${y(thr) - 4}">min ${thr}</text>`;
   g += `<line class="axis" x1="${L}" x2="${W}" y1="${y(0.5)}" y2="${y(0.5)}"/>`;
   const legend = events.length > 1
-    ? `<div class="legend-row"><span><span class="swatch" style="background:var(--series-2)"></span>attempt 1${events[0].failed ? " (failed)" : ""}</span><span><span class="swatch" style="background:var(--series-1)"></span>attempt ${events.length}${events[0].failed ? " (after Argon's fix)" : ""}</span></div>`
+    ? `<div class="legend-row"><span><span class="swatch" style="background:var(--series-2)"></span>earlier attempt${events.length > 2 ? "s" : ""}</span><span><span class="swatch" style="background:var(--series-1)"></span>attempt ${events.length}${events[events.length - 1].failed ? " (failed)" : ""}</span></div>`
     : "";
   return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Silhouette IoU per view">${g}</svg></div>${legend}`;
 }
@@ -301,6 +310,27 @@ function convChart(conv) {
   const id = `conv-${Math.random().toString(36).slice(2)}`;
   setTimeout(() => bindCrosshair(id, conv, x, L, W - R), 0);
   return `<div class="chart" id="${id}"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Running mean drag coefficient per grid level">${g}</svg></div>${legend}${table}`;
+}
+
+// One grid level: the solver's own statistics and the runner's limits (flowarc/pipeline.py).
+function statsTable(s) {
+  const st = s.sim;
+  const rows = [
+    ["Mean Cd", st.cd_mean, null],
+    ["RMS Cl", st.cl_rms, null],
+    ["RMS Cs", st.cs_rms, null],
+    ["Strouhal", st.st, null],
+    ["Drag change, 1st vs 2nd half", st.cd_half_change, 0.05, true],
+    ["Max Mach", st.mach_max, 0.5],
+    ["Mass drift", st.mass_drift, 0.01, true],
+  ].filter(([, v]) => v != null);
+  const fmt = (v, pct) => (pct ? `${(v * 100).toFixed(2)}%` : v.toFixed(3));
+  const body = rows.map(([name, v, lim, pct]) => {
+    const ok = lim == null || v < lim;
+    return `<tr><td>${name}</td><td>${fmt(v, pct)}</td><td class="${lim == null ? "" : ok ? "ok" : "bad"}">${lim == null ? "" : `${ok ? "✓" : "✕"} &lt; ${fmt(lim, pct)}`}</td></tr>`;
+  }).join("");
+  const gb = s.zarr_gb != null ? `<p class="muted small">Packed: ${s.zarr_gb.toFixed(2)} GB Zarr</p>` : "";
+  return `<table class="qoi"><thead><tr><th>Quantity</th><th>Value</th><th>Limit</th></tr></thead><tbody>${body}</tbody></table>${gb}`;
 }
 
 function bindCrosshair(id, conv, x, x0, x1) {

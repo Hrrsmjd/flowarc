@@ -236,3 +236,6 @@ table.qoi { width: 100%; border-collapse: collapse; font-size: 12px; margin-top:
   .top { flex-wrap: wrap; gap: 8px; }
   .search { order: 3; max-width: none; margin: 0; flex-basis: 100%; }
 }
+.warn { color: var(--ink-2); }
+.timeline li.soft { background: color-mix(in srgb, var(--warning) 12%, transparent); }
+.timeline li.soft .msg::before { content: "⚠ "; color: var(--ink-2); }
