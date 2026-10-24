@@ -50,14 +50,16 @@ def wait_for_indexes(d, minutes: int = 15) -> None:
             for i in d[coll].list_search_indexes()
             if (name := i["name"]) in INDEXES[coll]
         }
-        missing = [n for names in INDEXES.values() for n in names if n not in state]
-        if missing:
-            raise SystemExit(f"missing indexes {missing}: run scripts/setup_atlas.py first")
+        for n in (n for names in INDEXES.values() for n in names if n not in state):
+            state[n] = "not listed"  # the listing lags; run setup_atlas.py if this persists
         if all(v == "READY" for v in state.values()):
             return
         print("waiting for indexes:", ", ".join(f"{k} {v}" for k, v in state.items()))
         time.sleep(15)
-    raise SystemExit(f"indexes not READY after {minutes} min; check Atlas Search in the UI")
+    raise SystemExit(
+        f"indexes not READY after {minutes} min: {state}. Re-run scripts/setup_atlas.py and"
+        " check Atlas Search in the UI"
+    )
 
 
 def offline_embed(d):

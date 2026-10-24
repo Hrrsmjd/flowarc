@@ -55,15 +55,26 @@ def db():
 
 
 def _search_index(coll, name: str, kind: str, definition: dict) -> None:
+    """Create a search index unless it exists. The listing can lag behind creation, so an
+    "already exists" error also counts as done."""
+    from pymongo.errors import OperationFailure
     from pymongo.operations import SearchIndexModel
 
-    if name not in {i["name"] for i in coll.list_search_indexes()}:
+    if name in {i["name"] for i in coll.list_search_indexes()}:
+        return
+    try:
         coll.create_search_index(SearchIndexModel(name=name, type=kind, definition=definition))
+    except OperationFailure as e:
+        if "already exists" not in str(e) and e.code != 68:  # 68: IndexAlreadyExists
+            raise
 
 
 def ensure_indexes(dims: int) -> None:
     """Create the query indexes and the Atlas Search / Vector Search indexes (idempotent)."""
     d = db()
+    for coll in ("samples", "logs", "repairs", "metrics"):  # search indexes need the collection
+        if coll not in d.list_collection_names():
+            d.create_collection(coll)
     d.samples.create_index([("stage", 1), ("status", 1)])
     d.samples.create_index("concept.bucket")
     d.logs.create_index([("sample", 1), ("t", 1)])
