@@ -64,4 +64,8 @@ def make_mesh(
         and (report["symmetry"]["passed"] or not (concept or {}).get("symmetric"))
     )
     mesh.export(out / "mesh.stl")
+    if concept:  # the grey views Flash saw, for the dashboard
+        (out / "renders").mkdir(exist_ok=True)
+        for v in review.CAMERAS:
+            review.render(mesh, v).convert("RGB").save(out / "renders" / f"{v}.jpg", quality=90)
     return report

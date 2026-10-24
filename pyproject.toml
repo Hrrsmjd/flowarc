@@ -16,6 +16,7 @@ dependencies = [
     "zarr>=3",
     "python-dotenv",
     "pymongo>=4.8",
+    "huggingface_hub>=1",
 ]
 
 [project.optional-dependencies]

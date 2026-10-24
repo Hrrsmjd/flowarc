@@ -177,6 +177,17 @@ def gpu_hours() -> float:
     return sum(s.meta.get("gpu_seconds", 0) for s in all_samples()) / 3600
 
 
+def upload(s: Sample, stage: str) -> None:
+    """Stage files to the private HF dataset for the dashboard. A failed upload doesn't fail the sample."""
+    from flowarc import publish
+
+    try:
+        publish.upload_stage(s, stage)
+    except Exception as e:  # noqa: BLE001
+        s.log(f"{stage} upload error: {e!r}")
+    s.save()
+
+
 def run_sample(s: Sample, gpu: int, budget_hours: float = math.inf) -> Sample:
     """Run the remaining stages. Ends done, flagged (a soft check failed) or failed."""
     while s.stage != "done":
@@ -200,6 +211,7 @@ def run_sample(s: Sample, gpu: int, budget_hours: float = math.inf) -> Sample:
             passed = False
         if passed:
             advance(s)
+            upload(s, stage)
         else:
             s.save()
     soft = [c for cs in s.checks.values() for c in cs if not c["passed"] and c.get("hard") is False]
