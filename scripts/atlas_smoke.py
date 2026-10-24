@@ -32,6 +32,9 @@ def main():
     d = store.db()
     if d is None:
         raise SystemExit("set MONGODB_URI in .env")
+    have = {i["name"] for i in d.samples.list_search_indexes()}
+    if store.VECTOR_INDEX not in have:
+        raise SystemExit("no search indexes yet: run scripts/setup_atlas.py first")
     for i, (name, bucket, desc) in enumerate(SAMPLES):
         s = Sample(id=f"smoke-{i}", concept={"name": name, "bucket": bucket, "description": desc})
         concepts.check_novelty(s)

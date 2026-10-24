@@ -1,6 +1,7 @@
 """Create every Atlas index the registry uses (idempotent).
 
-Usage: python scripts/setup_atlas.py   (needs MONGODB_URI and GEMINI_API_KEY in .env)
+Usage: python scripts/setup_atlas.py [dims]   (needs MONGODB_URI, and GEMINI_API_KEY unless
+dims is given)
 
 - concept_vectors   Vector Search on Gemini embeddings (novelty)
 - concept_semantic  Automated Embedding of descriptions with Voyage AI (hybrid search)
@@ -9,9 +10,12 @@ Usage: python scripts/setup_atlas.py   (needs MONGODB_URI and GEMINI_API_KEY in 
 - repairs_semantic  Automated Embedding of failure diagnoses (failure memory)
 - repairs_text      Atlas Search over diagnoses and fixes
 
-The Gemini vector size is read from one probe embedding, so it follows FLOWARC_EMBED_MODEL.
+The Gemini vector size is read from one probe embedding, so it follows FLOWARC_EMBED_MODEL;
+pass `dims` to skip the probe (it must match what the model returns).
 Search indexes build in the background; check with scripts/atlas_smoke.py after a minute.
 """
+
+import sys
 
 from flowarc import config, gemini, store
 
@@ -19,7 +23,7 @@ from flowarc import config, gemini, store
 def main():
     if store.db() is None:
         raise SystemExit("set MONGODB_URI in .env")
-    dims = len(gemini.embed(["a probe concept"])[0])
+    dims = int(sys.argv[1]) if len(sys.argv) > 1 else len(gemini.embed(["a probe concept"])[0])
     store.ensure_indexes(dims)
     for coll in ("samples", "repairs", "logs"):
         for i in store.db()[coll].list_search_indexes():
