@@ -51,7 +51,10 @@
           <h2 id="h-progress">Run progress</h2>
           <span class="muted small" id="progress-note"></span>
         </div>
-        <div class="table-wrap"><table class="stages" id="stages"></table></div>
+        <div class="funnel" id="funnel"></div>
+        <div class="dots" id="dots" aria-label="Every sample, coloured by status"></div>
+        <div class="filters" id="stage-filter" role="tablist"></div>
+        <div class="table-wrap stages-wrap"><table class="stages" id="stages"></table></div>
         <p class="legend small" id="stage-legend"></p>
       </section>
 
@@ -97,6 +100,7 @@
         <span class="muted small" id="gallery-note"></span>
       </div>
       <div class="gallery" id="gallery"></div>
+      <button class="ghost small more" id="gallery-more" type="button" hidden></button>
     </section>
 
     <div class="grid two">

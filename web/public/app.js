@@ -218,10 +218,16 @@ function renderHero() {
 }
 
 // ---------- gallery ----------
+const GALLERY_MAX = 24; // newest first; the rest behind "Show all"
+let galleryAll = false;
+$("gallery-more").addEventListener("click", () => { galleryAll = !galleryAll; renderGallery(state.samples); });
 function renderGallery(samples) {
   const shown = samples.filter((s) => viewUrl(s)).sort((a, b) => (b.status === "running") - (a.status === "running") || b.last_t - a.last_t);
   $("gallery-note").textContent = shown.length ? `${shown.length} shapes · hover to turn, click to open` : "";
-  const html = shown.map((s) => {
+  const more = $("gallery-more");
+  more.hidden = shown.length <= GALLERY_MAX;
+  more.textContent = galleryAll ? "Show fewer" : `Show all ${shown.length}`;
+  const html = shown.slice(0, galleryAll ? Infinity : GALLERY_MAX).map((s) => {
     const fixed = s.log.some((e) => e.fix);
     const badge = s.status === "running" ? `<span class="tag live">running</span>` : s.status === "flagged" ? `<span class="tag bad">⚑</span>` : s.status === "failed" ? `<span class="tag bad">✕</span>` : fixed ? `<span class="tag argon">fixed by Argon</span>` : "";
     const views = VIEWS.map((v) => s.media.views[v]?.url).filter(Boolean);
@@ -306,9 +312,47 @@ function stageState(s, stage) {
   return { cls: "pending", txt: "·" };
 }
 
+// A run can have 100+ samples: the funnel and the dots show all of them at a glance, the table
+// only the ones that need a look unless you ask for all.
+const FILTERS = {
+  active: ["Needs a look", (s) => ["running", "flagged", "failed"].includes(s.status)],
+  waiting: ["Waiting", (s) => s.status === "pending"],
+  done: ["Done", (s) => s.status === "done"],
+  all: ["All", () => true],
+};
+let stageFilter = null; // null: "active" once the run is big, else "all"
+
+function renderFunnel(samples) {
+  const at = (st) => samples.filter((s) => s.stage === st && s.status !== "done" && s.status !== "failed");
+  const n = (st) => samples.filter((s) => s.status === st).length;
+  const cells = STAGES.map((st) => {
+    const here = at(st), run = here.filter((s) => s.status === "running").length;
+    return `<div class="f-stage"><span class="f-n">${here.length}</span><span class="f-l">${st}</span>${run ? `<span class="f-run">${run} running</span>` : ""}</div>`;
+  }).join("");
+  const ends = [["done", n("done"), "ok"], ["flagged", n("flagged"), "warn"], ["failed", n("failed"), "bad"]]
+    .map(([l, v, c]) => `<div class="f-stage end ${v ? c : ""}"><span class="f-n">${v}</span><span class="f-l">${l}</span></div>`).join("");
+  const html = cells + ends;
+  if ($("funnel").dataset.html !== html) $("funnel").innerHTML = $("funnel").dataset.html = html;
+  const sel = selectedSample()?.id;
+  const dots = samples.map((s) => `<button type="button" class="sdot ${s.status}${s.id === sel ? " sel" : ""}" data-id="${esc(s.id)}" data-tip="${esc(`<b>${esc(s.id)} · ${esc(s.title)}</b><br>${esc(s.status)}${s.status === "running" || s.status === "pending" ? ` · ${esc(s.stage)}` : ""}`)}" aria-label="${esc(s.title)}"></button>`).join("");
+  const el = $("dots");
+  if (el.dataset.html === dots) return;
+  el.innerHTML = el.dataset.html = dots;
+  bindHover(el);
+  el.querySelectorAll(".sdot").forEach((d) => d.addEventListener("click", () => select(d.dataset.id)));
+}
+
 function renderStages(samples) {
+  renderFunnel(samples);
+  const key = stageFilter || (samples.length > 20 ? "active" : "all");
+  const fhtml = Object.entries(FILTERS).map(([k, [label, f]]) => `<button type="button" role="tab" class="tab${k === key ? " on" : ""}" data-k="${k}">${label} <span class="muted">${samples.filter(f).length}</span></button>`).join("");
+  if ($("stage-filter").dataset.html !== fhtml) {
+    $("stage-filter").innerHTML = $("stage-filter").dataset.html = fhtml;
+    $("stage-filter").querySelectorAll("[data-k]").forEach((b) => b.addEventListener("click", () => { stageFilter = b.dataset.k; renderStages(state.samples); }));
+  }
+  const shown = samples.filter(FILTERS[key][1]);
   const head = `<thead><tr><th>Sample</th>${STAGES.map((s) => `<th>${s}</th>`).join("")}</tr></thead>`;
-  const rows = samples.map((s) => {
+  const rows = shown.map((s) => {
     const cells = STAGES.map((st) => {
       const c = stageState(s, st);
       const tries = s.attempts?.[st];
@@ -317,7 +361,7 @@ function renderStages(samples) {
     }).join("");
     return `<tr data-id="${s.id}" class="${s.id === selectedSample()?.id ? "sel" : ""}"><td class="name"><span class="id">${s.id}</span>${esc(s.title)}</td>${cells}</tr>`;
   }).join("");
-  $("stages").innerHTML = head + `<tbody>${rows}</tbody>`;
+  $("stages").innerHTML = head + `<tbody>${rows || `<tr><td class="muted" colspan="${STAGES.length + 1}">Nothing here.</td></tr>`}</tbody>`;
   $("stages").querySelectorAll("tbody tr").forEach((tr) => tr.addEventListener("click", () => select(tr.dataset.id)));
   const running = samples.filter((s) => s.status === "running").length;
   $("progress-note").textContent = `${samples.length} samples · ${running} on GPUs`;
