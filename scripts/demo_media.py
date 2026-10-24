@@ -33,13 +33,25 @@ SLOTS += [f"s{i:04d}" for i in range(1, 19) if f"s{i:04d}" not in SLOTS + ["s001
 CONCEPT_KEYS = ("name", "bucket", "description", "facing", "reynolds", "yaw_deg", "ground")
 
 
-def candidates(db, n: int) -> list[dict]:
-    """Samples with all their views and a mesh uploaded, finished ones first."""
-    out = []
-    for s in db.samples.find({"meta.files": {"$exists": True}}, {"embedding": 0}).sort("_id", 1):
-        paths = {f["path"] for f in s["meta"].get("files", [])}
-        if "mesh/mesh.stl" in paths and all(f"views/{v}.jpg" in paths for v in mock.VIEWS):
+NEEDED = ["mesh/mesh.stl"] + [f"views/{v}.jpg" for v in mock.VIEWS]
+
+
+def candidates(db, n: int, local: str | None = None) -> list[dict]:
+    """Samples with all their views and a mesh (on HF, or in the local folder), finished first."""
+    out, seen = [], {"samples": 0, "with views": 0, "with views and mesh": 0}
+    for s in db.samples.find({"concept.name": {"$exists": True}}, {"embedding": 0}).sort("_id", 1):
+        if local:
+            d = Path(local) / "samples" / s["_id"]
+            paths = {p for p in NEEDED if (d / p).exists()}
+        else:
+            paths = {f["path"] for f in (s.get("meta") or {}).get("files", [])}
+        seen["samples"] += 1
+        seen["with views"] += all(p in paths for p in NEEDED[1:])
+        if all(p in paths for p in NEEDED):
+            seen["with views and mesh"] += 1
             out.append(s)
+    where = f"under {local}" if local else "on the HF dataset (meta.files)"
+    print(f"Atlas {db.name}: " + ", ".join(f"{v} {k}" for k, v in seen.items()) + f" {where}")
     out.sort(key=lambda s: s.get("status") != "done")
     return out[:n]
 
@@ -137,9 +149,12 @@ def main() -> None:
     db = store.db()
     if db is None:
         raise SystemExit("set MONGODB_URI (see .env.example)")
-    found = candidates(db, min(args.max, len(SLOTS)))
+    found = candidates(db, min(args.max, len(SLOTS)), args.local)
     if not found:
-        raise SystemExit("no samples with uploaded views and mesh (meta.files) yet")
+        raise SystemExit(
+            "no sample has all 4 views and a mesh there yet. Run it where the pipeline's data "
+            "is, with --local <FLOWARC_DATA folder>, or wait for the runner to upload to HF."
+        )
     mock.REAL.write_text(json.dumps(build(found, fetcher(args.local)), indent=1))
     mock.write(str(ROOT / "web" / "lib" / "mock.json"), str(WEB))
     print(

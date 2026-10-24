@@ -45,6 +45,11 @@ def _registry(tmp_path, n):
 def test_real_samples_replace_the_stand_ins(tmp_path, monkeypatch):
     db = _registry(tmp_path, 3)
     found = demo_media.candidates(db, 12)
+    assert [s["_id"] for s in demo_media.candidates(db, 12, str(tmp_path / "data"))] == [
+        "s00001",
+        "s00002",
+        "s00000",
+    ]
     assert [s["_id"] for s in found] == ["s00001", "s00002", "s00000"]  # finished first, no partial
 
     web = tmp_path / "web"
