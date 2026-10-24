@@ -110,23 +110,28 @@ def sync(db) -> int:
             src = f"{path.relative_to(root)}:{st.st_size}:{st.st_mtime_ns}"
             if src in _too_big or files.find_one({"metadata.src": src}, {"_id": 1}):
                 continue
-            if kind == "view":
-                data, ctype, attempt = (
-                    view_jpeg(path.read_bytes()),
-                    "image/jpeg",
-                    tries.get("images", 1),
-                )
-            elif kind == "mesh":
-                k = path.stem.removeprefix("mesh_")
-                attempt = int(k) if k.isdigit() else tries.get("mesh", 1)
-                data, ctype = mesh_glb(path), "model/gltf-binary"
-            else:
-                data, ctype, attempt = video_mp4(path), "video/mp4", tries.get("sim", 1)
-                if data is None:
-                    _too_big.add(src)
-                    print(f"{d.name}: flow video too big to serve even re-encoded; skipped")
-                    continue
-            publish(db, d.name, kind, name, attempt, data, ctype, src)
+            try:
+                if kind == "view":
+                    data, ctype, attempt = (
+                        view_jpeg(path.read_bytes()),
+                        "image/jpeg",
+                        tries.get("images", 1),
+                    )
+                elif kind == "mesh":
+                    k = path.stem.removeprefix("mesh_")
+                    attempt = int(k) if k.isdigit() else tries.get("mesh", 1)
+                    data, ctype = mesh_glb(path), "model/gltf-binary"
+                else:
+                    data, ctype, attempt = video_mp4(path), "video/mp4", tries.get("sim", 1)
+                    if data is None:
+                        _too_big.add(src)
+                        print(f"{d.name}: flow video too big to serve even re-encoded; skipped")
+                        continue
+                publish(db, d.name, kind, name, attempt, data, ctype, src)
+            except (subprocess.CalledProcessError, OSError, ValueError) as e:
+                # e.g. a video still being written; retried once the file changes
+                print(f"{d.name}: {path.name} skipped: {e}")
+                continue
             n += 1
     return n
 
