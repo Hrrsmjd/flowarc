@@ -4,6 +4,7 @@ Meshes are in flow axes: x along the flow (nose at min x), y across, z up.
 """
 
 import io
+import itertools
 
 import numpy as np
 import trimesh
@@ -107,13 +108,14 @@ def heading(pts: np.ndarray) -> np.ndarray:
 def best_orientation(
     mesh: trimesh.Trimesh, views: dict[str, bytes], up: np.ndarray = Y_UP
 ) -> tuple[np.ndarray, float]:
-    """Keep the generator's up axis, line up the long axis, and try the 4 headings. Silhouettes can't tell nose from tail,
+    """Keep the generator's up axis and try the 4 headings, both as generated and with the long
+    axis lined up (heading); best silhouette wins. Silhouettes can't tell nose from tail,
     so the unflipped side view (nose on the left) breaks ties; the mesh review checks the result."""
     masks = {v: image_mask(views[v]) for v in VIEW_AXES if v in views}
-    up = heading(mesh.vertices @ up.T) @ up
+    turned = heading(mesh.vertices @ up.T) @ up
     cands = []
-    for k in range(4):
-        r = yaw(k) @ up
+    for k, start in itertools.product(range(4), (up, turned)):
+        r = yaw(k) @ start
         m = mesh.copy()
         m.vertices = m.vertices @ r.T
         score = float(np.mean([iou(projection(m, v), masks[v]) for v in masks]))
