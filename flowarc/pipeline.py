@@ -97,12 +97,18 @@ DNS_MAX_RE = 1e3  # resolved at 64 cells/L without a subgrid model
 SMALL_BOX_RE = 1e4  # drag within ~1% of the 8x4x4 box on the manta; walls matter more at low Re
 
 
+def failed_runs(s: Sample) -> list[dict]:
+    return [c for c in s.checks.get("sim", []) if c["name"] == "stable" and not c["passed"]]
+
+
 def lattice_velocity(s: Sample) -> float:
-    """After a run that went too fast (Mach >= 0.5), slow the inflow so its peak lands near 0.4.
-    Without this a retry reruns the same sim and fails the same way. Costs more steps."""
+    """After an LES run that went too fast (Mach >= 0.5), slow the inflow so its peak lands near
+    0.4. Without this a retry reruns the same sim and fails the same way. Costs more steps.
+    A failed DNS run is retried with LES instead (see sim_config): slowing DNS also lowers its
+    viscosity, which makes it less stable."""
     u = SimConfig.lattice_velocity
-    for c in s.checks.get("sim", []):
-        if c["name"] == "stable" and not c["passed"] and c.get("mach_max"):
+    for c in failed_runs(s):
+        if c.get("mach_max") and c.get("les", True):
             u = c.get("u", u) * min(1.0, 0.4 / c["mach_max"])
     return u
 
@@ -118,7 +124,7 @@ def sim_config(s: Sample) -> SimConfig:
             else {}
         ),
         ground=s.concept.get("ground", False),
-        les=s.concept["reynolds"] > DNS_MAX_RE,
+        les=s.concept["reynolds"] > DNS_MAX_RE or bool(failed_runs(s)),
         justification=f"DNS up to Re {DNS_MAX_RE:g}, LES (Smagorinsky) above; Re above 1e5 nominal",
     )
 
@@ -176,7 +182,12 @@ def run_sim(s: Sample, gpu: int) -> bool:
     s.meta["gpu_seconds"] += r.cost.get("seconds", 0) or 0
     stable = r.ok and math.isfinite(st.get("cd_mean", math.nan)) and st.get("mach_max", 0) < 0.5
     s.record_check(
-        "stable", stable, mach_max=st.get("mach_max"), cd=st.get("cd_mean"), u=cfg.lattice_velocity
+        "stable",
+        stable,
+        mach_max=st.get("mach_max"),
+        cd=st.get("cd_mean"),
+        u=cfg.lattice_velocity,
+        les=cfg.les,
     )
     s.record_check("mass", st.get("mass_drift", 1) < 1e-2, drift=st.get("mass_drift"), hard=False)
     s.record_check(
