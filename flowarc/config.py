@@ -39,6 +39,9 @@ HF_REPO = os.environ.get("FLOWARC_HF_REPO", "")  # private dataset for sample fi
 # Voyage AI model Atlas uses for Automated Embedding (search side; novelty uses EMBED_MODEL).
 AUTO_EMBED_MODEL = os.environ.get("FLOWARC_AUTO_EMBED_MODEL", "voyage-4")
 
+# "fluidx3d" runs on the local GPU; "modal" on a Modal H100 (flowarc/sim/modal_app.py).
+SOLVER = os.environ.get("FLOWARC_SOLVER", "fluidx3d")
+
 # Time in convective units (body length / free-stream speed).
 STARTUP_TIME = 10.0
 RECORD_TIME = 30.0

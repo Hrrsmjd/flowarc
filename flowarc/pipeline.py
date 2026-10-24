@@ -203,9 +203,17 @@ def sim_progress(s: Sample, p: dict) -> None:
     s.save()
 
 
-def run_sim(s: Sample, gpu: int) -> bool:
+def solver():
+    if config.SOLVER == "modal":
+        from flowarc.sim.modal_solver import ModalFluidX3D
+
+        return ModalFluidX3D()
     from flowarc.sim.fluidx3d import FluidX3D
 
+    return FluidX3D()
+
+
+def run_sim(s: Sample, gpu: int) -> bool:
     m = trimesh.load(s.dir / "mesh" / "mesh.stl")
     m.apply_transform(
         trimesh.transformations.rotation_matrix(
@@ -215,7 +223,7 @@ def run_sim(s: Sample, gpu: int) -> bool:
     m.export(s.dir / "mesh" / "sim_body.stl")
     cfg = sim_config(s)
     s.meta.pop("sim_progress", None)  # from an earlier try
-    r = FluidX3D().run(
+    r = solver().run(
         s.dir / "mesh" / "sim_body.stl", cfg, s.dir / "sim", gpu, lambda p: sim_progress(s, p)
     )
     st = r.stats
