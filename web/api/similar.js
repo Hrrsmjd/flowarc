@@ -7,7 +7,8 @@ export default async function handler(req, res) {
   const id = new URL(req.url, "http://x").searchParams.get("id")?.slice(0, 40) || "";
   if (!id) return send(res, 200, { results: [] });
   try {
-    send(res, 200, hasAtlas() ? await atlasSimilar(id) : { engine: "mock", results: mockSimilar(id, startParam(req)) });
+    const k = Math.min(12, Math.max(1, Number(new URL(req.url, "http://x").searchParams.get("k")) || 6));
+    send(res, 200, hasAtlas() ? await atlasSimilar(id, k) : { engine: "mock", results: mockSimilar(id, startParam(req), k) });
   } catch (e) {
     console.error(e);
     send(res, 500, { error: String(e.message || e) });
