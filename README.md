@@ -75,7 +75,7 @@ flowarc/         Python package
   pipeline.py    runs samples through the stages
 scripts/         one-off runs and benchmarks
 tests/
-web/             dashboard (later)
+web/             demo dashboard (python -m flowarc.dashboard)
 docs/GOAL.md     the full brief
 ```
 

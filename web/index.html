@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FlowArc dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">≋</span>
+      <div>
+        <h1>FlowArc</h1>
+        <p class="sub" id="run-sub">loading…</p>
+      </div>
+    </div>
+    <div class="top-right">
+      <span class="badge" id="mode-badge" hidden>Mock data</span>
+      <button class="ghost" id="theme" type="button" aria-label="Toggle theme">◐</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="kpis" id="kpis" aria-label="Run summary"></section>
+
+    <div class="grid two">
+      <section class="card" aria-labelledby="h-progress">
+        <div class="card-head">
+          <h2 id="h-progress">Run progress</h2>
+          <span class="muted small" id="progress-note"></span>
+        </div>
+        <div class="table-wrap"><table class="stages" id="stages"></table></div>
+        <p class="legend small" id="stage-legend"></p>
+      </section>
+
+      <section class="card" aria-labelledby="h-activity">
+        <div class="card-head">
+          <h2 id="h-activity">Agent activity</h2>
+          <button class="ghost small" id="replay" type="button">▶ Replay</button>
+        </div>
+        <p class="muted small" id="activity-sample"></p>
+        <ol class="timeline" id="timeline"></ol>
+      </section>
+    </div>
+
+    <section class="card" aria-labelledby="h-sample">
+      <div class="card-head">
+        <h2 id="h-sample">Sample</h2>
+        <select id="sample-pick" aria-label="Choose sample"></select>
+      </div>
+      <div class="grid three" id="sample-body"></div>
+    </section>
+
+    <div class="grid two">
+      <section class="card" aria-labelledby="h-div">
+        <div class="card-head">
+          <h2 id="h-div">Diversity map</h2>
+          <span class="muted small">2D projection of shape embeddings</span>
+        </div>
+        <div class="chart" id="divmap"></div>
+        <div class="legend-row" id="div-legend"></div>
+        <h3 class="small">Coverage by shape bucket</h3>
+        <div id="coverage"></div>
+      </section>
+
+      <section class="card" aria-labelledby="h-approve">
+        <div class="card-head">
+          <h2 id="h-approve">Needs your approval</h2>
+          <span class="muted small" id="approve-count"></span>
+        </div>
+        <div id="approvals"></div>
+      </section>
+    </div>
+  </main>
+
+  <div class="tooltip" id="tip" role="tooltip" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>
