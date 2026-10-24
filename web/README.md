@@ -17,6 +17,7 @@ deployment is live from the first minute; **Restart** starts the story again.
 |---|---|
 | `GET /api/state` | run summary, samples with their logs, approvals |
 | `GET /api/map` | 2D PCA of concept embeddings (ours + `baseline`) |
+| `GET /api/sample?id=` | one sample's Gemini calls: model, prompt, reply, tokens |
 | `GET /api/search?q=` | sample search: Atlas Search index `samples_text`, regex if it's missing |
 | `GET /api/media?id=` | a view (JPEG) or mesh (GLB) from the GridFS bucket `media`; `?hf=` a view from the HF dataset |
 | `POST /api/approve` | `{id, decision: "approved" \| "rejected"}` sets the approval in Atlas |

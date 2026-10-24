@@ -19,7 +19,7 @@ export async function atlasRegistry({ withEmbeddings = false } = {}) {
   const d = await db();
   const [samples, logs, approvals, run, baseline, files] = await Promise.all([
     d.collection("samples").find({}, withEmbeddings ? { projection: { embedding: 1, status: 1, concept: 1 } } : NO_EMBEDDING).sort({ _id: 1 }).toArray(),
-    withEmbeddings ? [] : d.collection("logs").find({}, { projection: { _id: 0 } }).sort({ t: -1 }).limit(LOG_LIMIT).toArray(),
+    withEmbeddings ? [] : d.collection("logs").find({}, { projection: { _id: 0, prompt: 0, reply: 0, trace: 0 } }).sort({ t: -1 }).limit(LOG_LIMIT).toArray(),
     withEmbeddings ? [] : d.collection("approvals").find({}).toArray(),
     d.collection("runs").findOne({ _id: "current" }),
     withEmbeddings ? d.collection("baseline").find({}).toArray() : [],
@@ -30,6 +30,12 @@ export async function atlasRegistry({ withEmbeddings = false } = {}) {
     .filter((f) => f.metadata?.sample)
     .map(({ _id, metadata: m }) => ({ sample: m.sample, kind: m.kind, name: m.name, attempt: m.attempt, t: m.t, url: `api/media?id=${_id}` }));
   return { run: run || {}, samples, logs: logs.reverse(), approvals, baseline, media };
+}
+
+// One sample's Gemini calls with their prompts and replies, oldest first.
+export async function atlasCalls(sample) {
+  const d = await db();
+  return d.collection("logs").find({ sample, actor: "gemini" }, { projection: { _id: 0, trace: 0 } }).sort({ t: 1 }).limit(300).toArray();
 }
 
 export async function atlasDecide(id, status, by) {

@@ -26,15 +26,18 @@
       <span class="live" id="live"><span class="dot"></span><span id="live-text">connecting…</span></span>
       <span class="badge" id="mode-badge" hidden>Mock replay</span>
       <button class="ghost small" id="restart" type="button" hidden>↺ Restart</button>
-      <button class="ghost small" id="present" type="button" title="Presenter mode (P)">▶ Present</button>
       <button class="ghost" id="theme" type="button" aria-label="Toggle theme">◐</button>
     </div>
   </header>
 
   <main>
-    <section class="hero" id="hero" aria-live="polite" hidden></section>
-
-    <section class="kpis" id="kpis" aria-label="Run summary"></section>
+    <section class="card" aria-labelledby="h-now">
+      <div class="card-head">
+        <h2 id="h-now">Now running</h2>
+        <span class="small" id="now-note"></span>
+      </div>
+      <div class="table-wrap"><table class="now" id="now"></table></div>
+    </section>
 
     <div class="grid two">
       <section class="card" id="card-progress" aria-labelledby="h-progress">
@@ -48,7 +51,7 @@
 
       <section class="card" aria-labelledby="h-activity">
         <div class="card-head">
-          <h2 id="h-activity">Agent activity</h2>
+          <h2 id="h-activity">Activity</h2>
           <span class="muted small" id="activity-note"></span>
         </div>
         <p class="muted small" id="activity-sample"></p>
@@ -78,14 +81,8 @@
           <p class="muted small" id="flow-note"></p>
         </div>
       </div>
-    </section>
-
-    <section class="card" aria-labelledby="h-gallery">
-      <div class="card-head">
-        <h2 id="h-gallery">Gallery</h2>
-        <span class="muted small" id="gallery-note"></span>
-      </div>
-      <div class="gallery" id="gallery"></div>
+      <h3>Prompts <span class="muted small">every Gemini call · click to open</span> <span class="muted small" id="prompts-note"></span></h3>
+      <div class="prompts" id="prompts"></div>
     </section>
 
     <div class="grid two">

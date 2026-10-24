@@ -59,6 +59,15 @@ function event(e) {
   };
 }
 
+// Gemini calls (pipeline.run_sample logs one line per call): counts and tokens per model.
+function addCall(u, e) {
+  const m = (u.by_model[e.model] ??= { calls: 0, tokens: 0 });
+  m.calls += 1;
+  m.tokens += e.tokens || 0;
+  u.calls += 1;
+  u.tokens += e.tokens || 0;
+}
+
 const STAT_KEYS = ["cd_mean", "cl_rms", "cs_rms", "st", "cd_half_change", "mach_max", "mass_drift"];
 const pick = (o, keys) => (o ? Object.fromEntries(keys.filter((k) => o[k] != null).map((k) => [k, o[k]])) : null);
 
@@ -97,11 +106,23 @@ function hfViews(s) {
   return views;
 }
 
-export function buildState({ run = {}, samples, logs, approvals = [], media = [], mode, now = Date.now() / 1000 }) {
+const noCalls = () => ({ calls: 0, tokens: 0, by_model: {} });
+
+export function buildState({ run = {}, samples, logs, approvals = [], media = [], mode, hfRepo = "", now = Date.now() / 1000 }) {
   const files = mediaBySample(media);
   const bySample = new Map();
+  const calls = new Map();
+  const stageStart = new Map(); // when each sample's current stage began
+  const total = noCalls();
   for (const e of logs) {
+    if (!stageStart.has(e.sample) || e.msg === "advanced") stageStart.set(e.sample, e.t);
     if (e.msg === "advanced") continue; // stage moves show in the progress table
+    if (e.actor === "gemini") {
+      if (!calls.has(e.sample)) calls.set(e.sample, noCalls());
+      addCall(calls.get(e.sample), e);
+      addCall(total, e);
+      continue; // shown under Prompts, not in the activity feed
+    }
     if (!bySample.has(e.sample)) bySample.set(e.sample, []);
     bySample.get(e.sample).push(event(e));
   }
@@ -124,6 +145,11 @@ export function buildState({ run = {}, samples, logs, approvals = [], media = []
         convergence: past ? s.meta?.convergence || null : null,
         sim: pick(s.meta?.sim?.stats, STAT_KEYS),
         zarr_gb: s.meta?.zarr_gb ?? null,
+        stage_since: s.status === "running" ? stageStart.get(s._id) ?? null : null,
+        progress: s.status === "running" && s.stage === "sim" ? pick(s.meta?.sim_progress, ["frames", "of"]) : null,
+        gemini: calls.get(s._id) || noCalls(),
+        hf: hfRepo && s.meta?.files?.length ? `https://huggingface.co/datasets/${hfRepo}/tree/main/samples/${s._id}` : null,
+        published: Boolean(s.meta?.published),
         media: withHf(files.get(s._id), hfViews(s)),
         log,
         last_t: log.length ? log[log.length - 1].t : 0,
@@ -154,6 +180,7 @@ export function buildState({ run = {}, samples, logs, approvals = [], media = []
       started_at: started,
       samples_per_hour: done / hours,
       gpu_hours: allSeconds / 3600,
+      gemini: total,
       featured,
     },
     samples: rows,

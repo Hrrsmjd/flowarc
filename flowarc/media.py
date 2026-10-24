@@ -83,6 +83,12 @@ def publish(
     _bucket(db).upload_from_stream(f"{sample}/{kind}/{attempt}/{name}", data, metadata=meta)
 
 
+def mesh_files(d: Path) -> list[Path]:
+    """mesh_N.stl per try (the runner keeps one each), else mesh.stl from older runs."""
+    tries = sorted((d / "mesh").glob("mesh_[0-9]*.stl"), key=lambda p: int(p.stem[5:]))
+    return tries or [f for f in [d / "mesh" / "mesh.stl"] if f.exists()]
+
+
 def sync(db) -> int:
     """Upload new or changed views and meshes for every sample folder under FLOWARC_DATA.
 
@@ -97,7 +103,7 @@ def sync(db) -> int:
     for d in sorted(p for p in root.iterdir() if p.is_dir()):
         tries = (db.samples.find_one({"_id": d.name}, {"attempts": 1}) or {}).get("attempts", {})
         todo = [(f, "view", f.stem) for f in sorted((d / "views").glob("*.jpg"))]
-        todo += [(f, "mesh", "mesh") for f in [d / "mesh" / "mesh.stl"] if f.exists()]
+        todo += [(f, "mesh", "mesh") for f in mesh_files(d)]
         todo += [(f, "video", "flow") for f in [d / "sim" / "video.mp4"] if f.exists()]
         for path, kind, name in todo:
             st = path.stat()
@@ -111,7 +117,9 @@ def sync(db) -> int:
                     tries.get("images", 1),
                 )
             elif kind == "mesh":
-                data, ctype, attempt = mesh_glb(path), "model/gltf-binary", tries.get("mesh", 1)
+                k = path.stem.removeprefix("mesh_")
+                attempt = int(k) if k.isdigit() else tries.get("mesh", 1)
+                data, ctype = mesh_glb(path), "model/gltf-binary"
             else:
                 data, ctype, attempt = video_mp4(path), "video/mp4", tries.get("sim", 1)
                 if data is None:

@@ -273,6 +273,67 @@ def _unit(rng: random.Random, centre: list[float] | None, spread: float) -> list
     return [round(x / n, 4) for x in v]
 
 
+def _call(model: str, prompt: str, reply: str, tokens: int) -> dict:
+    """A Gemini call line, shaped like the ones pipeline.run_sample logs."""
+    return {
+        "msg": f"gemini {model}",
+        "actor": "gemini",
+        "model": model,
+        "prompt": prompt,
+        "reply": reply,
+        "seconds": round(tokens / 900, 1),
+        "input_tokens": int(tokens * 0.8),
+        "output_tokens": tokens - int(tokens * 0.8),
+        "tokens": tokens,
+    }
+
+
+def _calls(msg: str, concept: dict) -> list[dict]:
+    """The Gemini calls behind a scripted event, so the dashboard has prompts to show."""
+    name, desc = concept["name"], concept["description"]
+    if msg.startswith("Argon proposed"):
+        return [
+            _call(
+                "gemini-4-argon",
+                f"Propose one new shape for the bucket '{concept['bucket']}'. "
+                "Return name, description, facing, Reynolds number, yaw and ground.",
+                json.dumps({k: concept[k] for k in ("name", "description", "reynolds")}),
+                2400,
+            )
+        ]
+    if msg.startswith("Nano Banana drew"):
+        return [
+            _call(
+                "gemini-nano-banana-2.1",
+                f"A clean studio render of {desc}, {v} view, plain white background.",
+                "[image]",
+                1300,
+            )
+            for v in VIEWS
+        ]
+    if msg.startswith("Nano Banana redrew"):
+        return [_call("gemini-nano-banana-2.1", f"Redraw: {desc}. {msg}.", "[image]", 1300)]
+    if msg.startswith("check view_consistency"):
+        return [
+            _call(
+                "gemini-3.8-flash",
+                f"Do these four views show the same {name}? Answer pass or fail with a reason.",
+                '{"passed": true}',
+                3100,
+            )
+        ]
+    if msg.startswith("check flash_review"):
+        return [
+            _call(
+                "gemini-3.8-flash",
+                f"Compare the mesh renders with the reference views of {name}. List defects.",
+                msg,
+                3600,
+            )
+        ]
+    return []
+
+
 def _real() -> dict[str, dict]:
     """Slot (mock sample id) -> real sample from demo_real.json, or {} without it."""
     if not REAL.exists():
@@ -321,6 +382,8 @@ def batch() -> dict:
         t = start
         for dt, stage, msg, extra in script:
             t += dt * PACE
+            for c in _calls(msg, concept):
+                logs.append({"sample": sid, "t": round(t - 0.1, 1), "stage": stage, **c})
             logs.append({"sample": sid, "t": round(t, 1), "stage": stage, "msg": msg, **extra})
         final = "failed" if p.get("give_up") else "flagged" if p.get("flag_sim") else "done"
         final_stage = "mesh" if p.get("give_up") else "sim" if p.get("flag_sim") else "done"
