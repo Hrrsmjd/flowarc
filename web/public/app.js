@@ -123,6 +123,7 @@ function render() {
     renderDiversity();
   }
   renderTimeline();
+  window.renderStage?.();
 }
 
 // Connected, but nothing in the registry yet: say so instead of showing blank panels.
@@ -846,6 +847,7 @@ const IDLE_MS = 60000, CYCLE_MS = 15000;
 let lastTouch = 0, cycleTimer = null;
 function present(on) {
   document.body.classList.toggle("present", on);
+  window.stageShow?.(on);
   $("present").textContent = on ? "■ Exit" : "▶ Present";
   clearInterval(cycleTimer);
   if (on) cycleTimer = setInterval(cycle, CYCLE_MS);

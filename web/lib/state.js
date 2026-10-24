@@ -48,6 +48,7 @@ function event(e) {
     check,
     diagnosis: e.diagnosis,
     reason: e.reason || e.summary,
+    similarity: e.similarity,
     iou: e.iou || (typeof e.silhouette === "number" ? { "min view": e.silhouette } : undefined),
     d_cd: e.d_cd,
     tol: e.tol,

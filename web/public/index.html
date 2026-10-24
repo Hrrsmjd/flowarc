@@ -148,6 +148,43 @@
     </div>
     <div class="finale-grid" id="finale-grid"></div>
   </section>
+  <section class="stage" id="stage" aria-label="Stage view" hidden>
+    <header class="stage-top">
+      <div class="stage-brand"><span class="stage-mark" aria-hidden="true"></span><b>FlowArc</b><span>Text in · checked flow simulation out</span></div>
+      <dl class="stage-kpis" id="stage-kpis"></dl>
+      <button class="stage-exit" id="stage-exit" type="button" aria-label="Leave the stage view (P)">✕</button>
+    </header>
+    <div class="stage-main">
+      <article class="stage-shape">
+        <div class="sh-head">
+          <div class="sh-kicker" id="sh-kicker"></div>
+          <h2 id="sh-title"></h2>
+        </div>
+        <div class="sh-sheet">
+          <div class="sh-3d" id="sh-3d"><div class="sh-mesh" id="sh-mesh"></div><video id="sh-video" muted loop playsinline></video><img id="sh-img" alt=""><div class="sh-wait" id="sh-wait"></div><span class="sh-label" id="sh-3dlabel"></span><span class="sh-dim" aria-hidden="true">← L = 1.00 →</span></div>
+          <div class="sh-views" id="sh-views"></div>
+          <table class="sh-block" id="sh-block"></table>
+        </div>
+        <ol class="track" id="sh-track"></ol>
+      </article>
+      <div class="stage-side">
+        <section class="stage-chat" aria-live="polite">
+          <h3>Agent log <span id="chat-sample"></span></h3>
+          <ol id="stage-chat"></ol>
+        </section>
+        <section class="atlas" id="atlas">
+          <h3>MongoDB Atlas <span>agent memory · live</span></h3>
+          <div class="atlas-stats" id="atlas-stats"></div>
+          <div class="atlas-ask">
+            <input id="atlas-q" type="search" placeholder="Ask Atlas: something that flies" autocomplete="off" aria-label="Search every shape in Atlas">
+            <div class="atlas-results" id="atlas-results" hidden></div>
+          </div>
+          <p class="atlas-chips">Vector Search · Hybrid search ($rankFusion) · Voyage AI · GridFS</p>
+        </section>
+      </div>
+    </div>
+  </section>
   <script src="app.js"></script>
+  <script src="stage.js"></script>
 </body>
 </html>
