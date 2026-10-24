@@ -204,8 +204,8 @@ function renderHero() {
   // (big while there's no picture of this one yet).
   const prev = !v && lastFlow(s);
   const shot = !pic && !prev && state.samples.filter((x) => x !== s && x.status === "done" && viewUrl(x)).sort((a, b) => b.last_t - a.last_t)[0];
-  const inset = prev ? `<figure class="hero-flow${pic ? "" : " big"}"><video src="${esc(prev.media.video.url)}" muted loop playsinline autoplay></video><figcaption>Last flow · ${esc(prev.title)}</figcaption></figure>`
-    : shot ? `<figure class="hero-flow big"><img src="${esc(viewUrl(shot))}" alt=""><figcaption>Last finished · ${esc(shot.title)}</figcaption></figure>`
+  const inset = prev ? `<figure class="hero-flow${pic ? "" : " big"}" data-open="${esc(prev.id)}" title="Open ${esc(prev.title)}"><video src="${esc(prev.media.video.url)}" muted loop playsinline autoplay></video><figcaption>Flow from the last finished shape · ${esc(prev.title)} ↗</figcaption></figure>`
+    : shot ? `<figure class="hero-flow big" data-open="${esc(shot.id)}" title="Open ${esc(shot.title)}"><img src="${esc(viewUrl(shot))}" alt=""><figcaption>Last finished · ${esc(shot.title)} ↗</figcaption></figure>`
     : pic ? "" : `<div class="hero-empty">${live ? "drawing…" : ""}</div>`;
   const c = s.concept || {};
   const html = `<div class="hero-pic">${pic}${inset}</div>
@@ -220,6 +220,10 @@ function renderHero() {
     el.dataset.html = html;
     el.innerHTML = html;
     el.querySelectorAll("video").forEach((x) => x.play().catch(() => {}));
+    el.querySelector("[data-open]")?.addEventListener("click", (e) => {
+      select(e.currentTarget.dataset.open);
+      $("h-sample").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 }
 

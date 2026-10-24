@@ -372,3 +372,5 @@ body.finale-on { overflow: hidden; }
   .spot { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 520px) { #finale-open { display: none; } }
+.hero-flow[data-open] { cursor: pointer; }
+.hero-flow[data-open]:hover { outline: 2px solid var(--accent); }
