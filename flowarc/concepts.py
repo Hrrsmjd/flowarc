@@ -20,6 +20,7 @@ TAXONOMY = [
 ]
 
 RE_RANGE = (1e2, 1e5)  # where the solver checks pass; above this Re is nominal (no wall model)
+RE_TURBULENT, TURBULENT_SHARE = 1e4, 0.8
 NOVELTY = 0.88  # max cosine similarity to any existing description
 
 SCHEMA = {
@@ -89,7 +90,10 @@ def propose(samples, n: int) -> list[dict]:
 
 
 def flow_conditions(rng: random.Random) -> dict:
-    lo, hi = (math.log10(v) for v in RE_RANGE)
+    """Most samples are turbulent (Re 1e4 and up, more to see in the wake); a fifth are laminar."""
+    lo, mid, hi = math.log10(RE_RANGE[0]), math.log10(RE_TURBULENT), math.log10(RE_RANGE[1])
+    lo = mid if rng.random() < TURBULENT_SHARE else lo
+    hi = hi if lo == mid else mid
     return {
         "reynolds": round(10 ** rng.uniform(lo, hi), -1),
         "yaw_deg": rng.choice([0, 0, 0, 10, 20]),

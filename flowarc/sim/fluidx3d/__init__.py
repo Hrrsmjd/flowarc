@@ -48,12 +48,18 @@ def place(mesh: trimesh.Trimesh, cfg: SimConfig, lat: dict) -> trimesh.Trimesh:
     return m
 
 
+def q_level(re: float) -> float:
+    """Q isosurface level in (U/L)^2. Vorticity grows with Re, so a fixed level coats the body
+    at high Re. Tuned by eye on a manta: 50 at Re 250, ~600 at Re 3e4."""
+    return 50.0 * math.sqrt(max(re, 250.0) / 250.0)
+
+
 def camera(m: trimesh.Trimesh, lat: dict, L: float) -> dict:
     """View from upstream and above, nose lower left, wake to the upper right like the F-35 reference.
     The target is relative to the box centre."""
     lo, hi = m.bounds
     c = (lo + hi) / 2
-    t = [c[0] + 0.3 * L - lat["Nx"] / 2, c[1] - lat["Ny"] / 2, c[2] - lat["Nz"] / 2]
+    t = [c[0] + 0.4 * L - lat["Nx"] / 2, c[1] - lat["Ny"] / 2, c[2] - lat["Nz"] / 2]
     return {
         "cam_rx": -130.0,
         "cam_ry": 30.0,
@@ -61,7 +67,7 @@ def camera(m: trimesh.Trimesh, lat: dict, L: float) -> dict:
         "cam_tx": round(t[0], 2),
         "cam_ty": round(t[1], 2),
         "cam_tz": round(t[2], 2),
-        "cam_rad": round(0.6 * L, 2),
+        "cam_rad": round(1.0 * L, 2),
     }
 
 
@@ -172,10 +178,10 @@ class FluidX3D:
         bin_dir: Path = BIN,
         n_surface: int = 50_000,
         n_volume: int = 200_000,
-        q_star: float = 50.0,
+        q_star: float | None = None,
     ):
         self.bin_dir = Path(bin_dir)
-        self.q_star = q_star  # Q-criterion isosurface level in units of (U/L)^2
+        self.q_star = q_star  # Q isosurface level in (U/L)^2; None picks it from Re
         self.n_surface = n_surface
         self.n_volume = n_volume
 
@@ -212,7 +218,9 @@ class FluidX3D:
             raise FileNotFoundError(
                 f"{exe} missing: run flowarc/sim/fluidx3d/build.sh or set FLOWARC_FLUIDX3D_BIN"
             )
-        q = self.q_star * (cfg.lattice_velocity / cfg.cells_per_length) ** 2
+        q = (self.q_star or q_level(cfg.reynolds)) * (
+            cfg.lattice_velocity / cfg.cells_per_length
+        ) ** 2
         env = {**os.environ, "FLOWARC_CFG": str(out / "fluidx3d.cfg"), "FLOWARC_Q": f"{q:.6g}"}
         with open(out / "fluidx3d.log", "w") as log:
             proc = subprocess.run(

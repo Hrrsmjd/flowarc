@@ -1,6 +1,6 @@
 """Run one body through FluidX3D and make the video.
 
-Usage: python scripts/run_body.py MESH OUT_DIR [--re 1e6] [--cells 64] [--gpu 0] [--dns] [--quick]
+Usage: python scripts/run_body.py MESH OUT_DIR [--re 1e6] [--cells 64] [--gpu 0] [--dns] [--quick] [--q Q]
 Use MESH=aircraft for the built-in test aircraft.
 """
 
@@ -26,6 +26,7 @@ def main():
     p.add_argument("--offset", type=float, help="nose distance from the inlet in L")
     p.add_argument("--no-render", action="store_true")
     p.add_argument("--quick", action="store_true")
+    p.add_argument("--q", type=float, help="Q isosurface level in (U/L)^2 (default from Re)")
     a = p.parse_args()
     a.out.mkdir(parents=True, exist_ok=True)
     mesh = Path(a.mesh)
@@ -39,7 +40,7 @@ def main():
         cfg.body_offset = a.offset
     if a.quick:
         cfg.startup_time, cfg.record_time = 1.0, 1.0
-    r = FluidX3D().run(mesh, cfg, a.out / "sim", a.gpu)
+    r = FluidX3D(q_star=a.q).run(mesh, cfg, a.out / "sim", a.gpu)
     gb = size_bytes(pack(r, cfg, a.out / "sample.zarr", {"mesh": a.mesh})) / 1e9 if r.ok else None
     print(json.dumps({"ok": r.ok, **r.stats, **r.cost, "zarr_gb": gb}))
 
