@@ -8,6 +8,7 @@ learn from it. If Argon can't be reached, the fixed policy from before is used.
 """
 
 import json
+from pathlib import Path
 
 from flowarc import config, gemini
 from flowarc.sample import Sample, repair_context
@@ -84,6 +85,69 @@ def decide(s: Sample, stage: str, checks: list[dict], error: str | None) -> dict
         actions="\n".join(f"- {a}: {ACTIONS[a]}" for a in actions),
     )
     return gemini.argon(prompt, schema=schema(actions))
+
+
+MESH_CALLS = {
+    "accept": "keep this mesh as it is",
+    "thicken": "thicken the thin parts by about one grid cell, on this same mesh",
+    "new_mesh": "make a new mesh",
+}
+
+JUDGE_PROMPT = """A mesh for a flow simulation passed its other checks. Decide about these:
+{issues}
+Concept "{name}": {description}
+The grey renders of the mesh follow (flow comes from the front).
+
+Say whether this shape is meant to be left-right mirror symmetric, judging from the concept and
+the renders (a walrus lying on an ice floe, a twisted pretzel or a spiral are not). Then choose:
+{actions}
+Thin parts are below {cells:.0f} grid cells: the simulation can't resolve them, so they may leak or
+vanish. Thickening them is right when the shape still reads the same (fins, blades, wires);
+accept when losing them doesn't matter; ask for a new mesh only if the mesh is wrong."""
+
+JUDGE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "symmetric": {"type": "boolean"},
+        "decision": {"type": "string", "enum": list(MESH_CALLS)},
+        "reason": {"type": "string"},
+    },
+    "required": ["symmetric", "decision", "reason"],
+}
+
+
+def judge_mesh(s: Sample, rep: dict, renders: Path, cells_thin: float) -> dict | None:
+    """Argon's call on the symmetry and thin-parts checks. None if Argon is off or unreachable."""
+    if not config.ARGON_REPAIR:
+        return None
+    issues = []
+    if "symmetry" in rep["judgement"]:
+        issues.append(
+            f"- symmetry: the concept says symmetric, but the mesh differs from its mirror image by "
+            f"{rep['symmetry']['chamfer']:.3f} of its length (the check allows 0.01)"
+        )
+    if "thin" in rep["judgement"]:
+        issues.append(
+            f"- thin parts: {rep['geometry']['thin_fraction']:.0%} of the surface is thinner than "
+            f"{cells_thin:.0f} grid cells (the check allows 1%)"
+        )
+    text = JUDGE_PROMPT.format(
+        issues="\n".join(issues),
+        name=s.concept.get("name"),
+        description=s.concept.get("description"),
+        actions="\n".join(f"- {a}: {d}" for a, d in MESH_CALLS.items()),
+        cells=cells_thin,
+    )
+    parts = [{"type": "text", "text": text}]
+    for f in sorted(renders.glob("*.jpg")):
+        parts += [{"type": "text", "text": f"render {f.stem}:"}, gemini.image_part(f.read_bytes())]
+    try:
+        d = gemini.argon(parts, schema=JUDGE_SCHEMA)
+    except Exception as e:  # noqa: BLE001 - Gemini down: the checks stand as they are
+        s.log(f"Argon mesh call unavailable: {e!r}", actor="argon")
+        return None
+    s.log(f"mesh {', '.join(rep['judgement'])}: {d['decision']} ({d['reason']})", actor="argon")
+    return d
 
 
 def fixed_policy(s: Sample, stage: str) -> dict:

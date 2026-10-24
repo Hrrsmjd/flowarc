@@ -81,3 +81,15 @@ def test_laminar_samples_stay_at_128_cells(monkeypatch):
     monkeypatch.setattr(pipeline.config, "PHASE", pipeline.config.PHASES["real"])
     assert pipeline.sim_config(Sample(id="s1", concept={"reynolds": 3e4})).cells_per_length == 256
     assert pipeline.sim_config(Sample(id="s2", concept={"reynolds": 500})).cells_per_length == 128
+
+
+def test_view_mismatch_does_not_flag(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "DATA", tmp_path)
+
+    def images(s, g):
+        s.record_check("views_consistent", False, hard=False)
+        return True
+
+    fns = {n: (lambda s, g: True) for n in ["mesh", "sim", "render", "package"]}
+    monkeypatch.setattr(pipeline, "STAGE_FNS", fns | {"images": images})
+    assert pipeline.run_sample(Sample(id="s00005", stage="images"), 0).status == "done"
