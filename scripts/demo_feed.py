@@ -134,8 +134,10 @@ def main() -> None:
     p.add_argument("--speed", type=float, default=1.0)
     p.add_argument("--loop", action="store_true")
     args = p.parse_args()
-    if args.db == os.environ.get("MONGODB_DB", "flowarc"):
-        raise SystemExit("refusing to overwrite the real registry; pick another --db")
+    if "demo" not in args.db:  # it wipes the database first, so never a real registry
+        raise SystemExit(
+            f"refusing to wipe {args.db!r}: the demo feed only writes to a *demo* database"
+        )
     db = connect(args.db)
     while True:
         play(db, mock.batch(), args.speed)
