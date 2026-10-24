@@ -16,6 +16,7 @@ let state = null;
 let map = { points: [] };
 let selected = null; // null: follow the live sample
 let lastOk = 0;
+let lastError = "";
 let sampleSig = "";
 const seen = new Set(); // timeline events already shown, so only new ones flash
 const localApprovals = {};
@@ -24,10 +25,12 @@ const localApprovals = {};
 async function load() {
   try {
     const r = await fetch(`api/state?start=${start}`, { cache: "no-store" });
-    if (!r.ok) throw new Error(r.status);
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
     state = await r.json();
     lastOk = Date.now();
-  } catch {
+    lastError = "";
+  } catch (e) {
+    lastError = e.message;
     return liveTick();
   }
   for (const a of state.approvals) Object.assign(a, localApprovals[a.id] || {});
@@ -46,8 +49,10 @@ async function loadMap() {
 function liveTick() {
   const age = (Date.now() - lastOk) / 1000;
   const el = $("live");
-  el.classList.toggle("stale", !lastOk || age > 10);
-  const src = state?.mode === "atlas" ? "MongoDB Atlas" : "mock replay";
+  el.classList.toggle("stale", Boolean(lastError) || !lastOk || age > 10);
+  el.title = lastError;
+  if (lastError) return ($("live-text").textContent = `API error: ${lastError.slice(0, 60)}`);
+  const src = state?.mode === "atlas" ? `MongoDB Atlas · ${state.db}` : "mock replay";
   $("live-text").textContent = !lastOk ? "connecting…" : age > 10 ? `offline ${fmtDur(age)}` : `Live · ${src}`;
 }
 
@@ -76,6 +81,8 @@ function render() {
   renderKpis(run, samples);
   renderStages(samples);
   renderPicker(samples);
+  renderApprovals();
+  if (!samples.length) return renderEmpty();
   const s = selectedSample();
   const sig = `${s.id}|${s.status}|${s.stage}|${s.log.length}`;
   if (sig !== sampleSig) {
@@ -84,7 +91,21 @@ function render() {
     renderDiversity();
   }
   renderTimeline();
-  renderApprovals();
+}
+
+// Connected, but nothing in the registry yet: say so instead of showing blank panels.
+function renderEmpty() {
+  const where = state.mode === "atlas" ? `Atlas database <b>${esc(state.db)}</b>` : "the registry";
+  const msg = `<p class="muted">No samples in ${where} yet. Start the pipeline, or run <code>python scripts/demo_feed.py</code> with <code>MONGODB_DB=flowarc_demo</code>.</p>`;
+  $("stages").innerHTML = "";
+  $("progress-note").textContent = "0 samples";
+  $("activity-sample").innerHTML = msg;
+  $("activity-note").textContent = "";
+  $("timeline").innerHTML = "";
+  $("timeline").dataset.html = "";
+  $("sample-body").innerHTML = "<p class='muted'>Nothing to show yet.</p>";
+  sampleSig = "";
+  renderDiversity();
 }
 
 const featured = () => state.samples.find((s) => s.id === state.run.featured) || state.samples[0];
@@ -131,7 +152,7 @@ function renderStages(samples) {
       const label = `${st}: ${c.cls}${c.retried ? ", failed a check then fixed" : ""}${tries ? `, ${tries} attempts` : ""}`;
       return `<td><div class="cell ${c.cls}${c.retried ? " retried" : ""}" title="${esc(label)}">${c.txt}${tries > 1 ? `<sup>${tries}</sup>` : ""}</div></td>`;
     }).join("");
-    return `<tr data-id="${s.id}" class="${s.id === selectedSample().id ? "sel" : ""}"><td class="name"><span class="id">${s.id}</span>${esc(s.title)}</td>${cells}</tr>`;
+    return `<tr data-id="${s.id}" class="${s.id === selectedSample()?.id ? "sel" : ""}"><td class="name"><span class="id">${s.id}</span>${esc(s.title)}</td>${cells}</tr>`;
   }).join("");
   $("stages").innerHTML = head + `<tbody>${rows}</tbody>`;
   $("stages").querySelectorAll("tbody tr").forEach((tr) => tr.addEventListener("click", () => select(tr.dataset.id)));
@@ -146,7 +167,7 @@ function renderPicker(samples) {
   const pick = $("sample-pick");
   if (document.activeElement === pick) return;
   const f = featured();
-  pick.innerHTML = `<option value="">Follow live sample (${f.id})</option>` +
+  pick.innerHTML = `<option value="">Follow live sample${f ? ` (${f.id})` : ""}</option>` +
     samples.map((s) => `<option value="${s.id}" ${s.id === selected ? "selected" : ""}>${s.id} · ${esc(s.title)}</option>`).join("");
 }
 $("sample-pick").addEventListener("change", (e) => select(e.target.value || null));
@@ -328,7 +349,7 @@ function renderDiversity() {
   for (const p of order) {
     const mine = ids.has(p.id), r = mine ? 5.5 : 4;
     g += `<circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="${r}" fill="${color[p.source] || "var(--muted)"}" stroke="var(--surface)" stroke-width="1.5" opacity="${p.source === "car_baseline" ? 0.85 : 1}" data-tip="<b>${esc(p.label)}</b><br>${esc(p.bucket)} · ${p.source === "car_baseline" ? "car baseline" : "FlowArc"}" ${mine ? `data-id="${p.id}" style="cursor:pointer"` : ""}/>`;
-    if (p.id === selectedSample().id) g += `<circle cx="${sx(p.x)}" cy="${sy(p.y)}" r="10" fill="none" stroke="var(--ink)" stroke-width="1.5"/>`;
+    if (p.id === selectedSample()?.id) g += `<circle cx="${sx(p.x)}" cy="${sy(p.y)}" r="10" fill="none" stroke="var(--ink)" stroke-width="1.5"/>`;
   }
   $("divmap").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Shape embedding map, FlowArc samples versus a car-only baseline">${g}</svg>`;
   bindHover($("divmap"));
