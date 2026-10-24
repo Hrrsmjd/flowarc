@@ -4,7 +4,7 @@ Usage: python scripts/setup_atlas.py [dims]   (needs MONGODB_URI, and GEMINI_API
 dims is given)
 
 - concept_vectors   Vector Search on Gemini embeddings (novelty)
-- concept_semantic  Automated Embedding of descriptions with Voyage AI (hybrid search)
+- concept_voyage  Automated Embedding of descriptions with Voyage AI (hybrid search)
 - samples_text      Atlas Search: text, autocomplete, facets
 - logs_text         Atlas Search over the agent log
 - repairs_semantic  Automated Embedding of failure diagnoses (failure memory)

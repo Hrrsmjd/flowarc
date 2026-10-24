@@ -14,7 +14,8 @@ from flowarc import config
 VECTOR_INDEX = "concept_vectors"
 TEXT_INDEX = "samples_text"  # Atlas Search: names, descriptions, facets
 LOG_INDEX = "logs_text"  # Atlas Search: the agent's log
-SEMANTIC_INDEX = "concept_semantic"  # Automated Embedding (Voyage AI) of descriptions
+SEMANTIC_INDEX = "concept_voyage"  # Automated Embedding (Voyage AI) of descriptions
+OLD_INDEXES = {"samples": ["concept_semantic"]}  # replaced; dropped by ensure_indexes
 REPAIR_TEXT_INDEX = "repairs_text"  # Atlas Search over Argon's diagnoses and fixes
 REPAIR_SEMANTIC_INDEX = "repairs_semantic"  # Automated Embedding of diagnoses
 AUTO_EMBED_MODEL = config.AUTO_EMBED_MODEL
@@ -80,6 +81,10 @@ def ensure_indexes(dims: int) -> None:
     for coll in ("samples", "logs", "repairs", "metrics"):  # search indexes need the collection
         if coll not in d.list_collection_names():
             d.create_collection(coll)
+    for coll, names in OLD_INDEXES.items():
+        for i in d[coll].list_search_indexes():
+            if i["name"] in names:
+                d[coll].drop_search_index(i["name"])
     d.samples.create_index([("stage", 1), ("status", 1)])
     d.samples.create_index("concept.bucket")
     d.logs.create_index([("sample", 1), ("t", 1)])
