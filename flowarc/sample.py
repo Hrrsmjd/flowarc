@@ -107,3 +107,21 @@ def coverage() -> dict[str, int]:
             b = s.concept.get("bucket")
             counts[b] = counts.get(b, 0) + 1
     return counts
+
+
+def find_similar(text: str, k: int = 8, bucket: str | None = None) -> list[dict]:
+    """Samples like `text`: Atlas hybrid search, or word overlap when offline."""
+    if store.db() is not None:
+        return store.hybrid(text, k, bucket)
+    words = set(text.lower().split())
+    rows = []
+    for s in all_samples():
+        c = s.concept
+        if s.status == "failed" or (bucket and c.get("bucket") != bucket):
+            continue
+        hits = len(words & set(f"{c.get('name', '')} {c.get('description', '')}".lower().split()))
+        if hits:
+            rows.append(
+                {"id": s.id, "name": c.get("name"), "bucket": c.get("bucket"), "score": hits}
+            )
+    return sorted(rows, key=lambda r: -r["score"])[:k]

@@ -35,8 +35,8 @@ def test_propose_prompts_with_coverage_and_existing_names(tmp_path, monkeypatch)
     Sample(id="s1", concept=_concept("cow", TAXONOMY[0])).save()
     seen = {}
 
-    def fake_argon(prompt, schema, thinking):
-        seen.update(prompt=prompt, schema=schema, thinking=thinking)
+    def fake_argon(prompt, schema, thinking, tools):
+        seen.update(prompt=prompt, schema=schema, thinking=thinking, tools=tools)
         return {"concepts": [_concept("heron")]}
 
     monkeypatch.setattr(gemini, "argon", fake_argon)
@@ -45,6 +45,17 @@ def test_propose_prompts_with_coverage_and_existing_names(tmp_path, monkeypatch)
     assert f"- {TAXONOMY[1]}: 0" in seen["prompt"]
     assert "cow" in seen["prompt"] and "Propose 1 new" in seen["prompt"]
     assert seen["schema"] is concepts.SCHEMA
+    assert seen["tools"] == [concepts.SEARCH_TOOL]
+
+
+def test_search_registry_tool_offline(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "DATA", tmp_path)
+    Sample(id="s1", concept=_concept("heron")).save()
+    Sample(id="s2", concept=_concept("teapot", TAXONOMY[3])).save()
+    Sample(id="s3", concept=_concept("egret"), status="failed").save()
+    hits = concepts.search_registry("heron with long legs")
+    assert [h["name"] for h in hits] == ["heron"]
+    assert concepts.search_registry("teapot", bucket=TAXONOMY[0]) == []
 
 
 def test_select_drops_registry_and_batch_duplicates(tmp_path, monkeypatch):

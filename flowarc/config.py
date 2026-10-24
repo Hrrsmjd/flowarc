@@ -34,6 +34,8 @@ EMBED_MODEL = os.environ.get("FLOWARC_EMBED_MODEL", "gemini-embedding-2")
 # MongoDB Atlas registry; empty URI = JSON files under DATA (see store.py).
 MONGODB_URI = os.environ.get("MONGODB_URI", "")
 MONGODB_DB = os.environ.get("MONGODB_DB", "flowarc")
+# Voyage AI model Atlas uses for Automated Embedding (search side; novelty uses EMBED_MODEL).
+AUTO_EMBED_MODEL = os.environ.get("FLOWARC_AUTO_EMBED_MODEL", "voyage-4")
 
 # Time in convective units (body length / free-stream speed).
 STARTUP_TIME = 10.0

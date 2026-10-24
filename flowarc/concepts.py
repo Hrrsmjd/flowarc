@@ -69,7 +69,28 @@ Propose {n} new objects, mostly from the least-covered buckets. For each give:
 - ground: true if it rests on the ground (car, building), false if it is in free flow (bird, ball)
 - facing: which side of the object faces into the wind, e.g. "nose first" or "broadside"
 - symmetric: true if it has a left-right mirror plane
-- holes: how many through-holes the solid has (a mug handle is 1, a ring is 1, a shark is 0)"""
+- holes: how many through-holes the solid has (a mug handle is 1, a ring is 1, a shark is 0)
+
+Before you settle on an object, call search_registry with a short description of it (and its bucket) to see the closest samples we already have. Drop or change ideas that are already covered."""
+
+
+def search_registry(query: str, bucket: str = "") -> list[dict]:
+    return sample.find_similar(query, k=5, bucket=bucket or None)
+
+
+SEARCH_TOOL = gemini.tool(
+    search_registry,
+    "Search the dataset for existing samples similar to an object idea (hybrid keyword and"
+    " semantic search). Returns up to 5 matches with name, bucket and description.",
+    {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "description": "the object idea, shape words only"},
+            "bucket": {"type": "string", "enum": TAXONOMY + [""]},
+        },
+        "required": ["query"],
+    },
+)
 
 
 def coverage() -> dict[str, int]:
@@ -86,7 +107,7 @@ def propose(n: int) -> list[dict]:
         existing=", ".join(names) or "none yet",
         n=n,
     )
-    return gemini.argon(prompt, schema=SCHEMA, thinking="medium")["concepts"]
+    return gemini.argon(prompt, schema=SCHEMA, thinking="medium", tools=[SEARCH_TOOL])["concepts"]
 
 
 def flow_conditions(rng: random.Random) -> dict:

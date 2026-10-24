@@ -97,3 +97,47 @@ def test_generate_image_without_output_raises(fake):
 def test_embed_returns_vectors(fake):
     fake(embeddings=[[1.0, 0.0], [0.0, 1.0]])
     assert gemini.embed(["a", "b"]) == [[1.0, 0.0], [0.0, 1.0]]
+
+
+def test_tool_calls_run_locally_and_return_results(fake):
+    call = NS(type="function_call", id="c1", name="lookup", arguments={"q": "heron"})
+    first = NS(id="it1", status="requires_action", steps=[call])
+    inter = fake(first, text_reply('{"ok": true}', id="it2"))
+
+    def lookup(q):
+        return [{"name": q.upper()}]
+
+    t = gemini.tool(lookup, "find things", {"type": "object", "properties": {}})
+    assert gemini.ask("go", schema={"type": "object"}, tools=[t]) == {"ok": True}
+    assert inter.calls[0]["tools"] == [t["spec"]]
+    follow = inter.calls[1]
+    assert follow["previous_interaction_id"] == "it1"
+    assert follow["tools"] == [t["spec"]] and "response_format" in follow
+    assert follow["input"] == [
+        {
+            "type": "function_result",
+            "call_id": "c1",
+            "name": "lookup",
+            "result": '[{"name": "HERON"}]',
+        }
+    ]
+
+
+def test_tool_errors_go_back_to_the_model(fake):
+    call = NS(type="function_call", id="c1", name="boom", arguments={})
+    inter = fake(NS(id="it1", status="requires_action", steps=[call]), text_reply("fine"))
+
+    def boom():
+        raise ValueError("no cluster")
+
+    assert gemini.ask("go", tools=[gemini.tool(boom, "", {})]) == "fine"
+    result = inter.calls[1]["input"][0]
+    assert result["is_error"] and "no cluster" in result["result"]
+
+
+def test_endless_tool_calls_raise(fake, monkeypatch):
+    monkeypatch.setattr(gemini, "MAX_TOOL_ROUNDS", 2)
+    call = NS(type="function_call", id="c", name="f", arguments={})
+    fake(*[NS(id="i", status="requires_action", steps=[call])] * 3)
+    with pytest.raises(RuntimeError, match="still calling tools"):
+        gemini.ask("go", tools=[gemini.tool(lambda: 1, "", {})])

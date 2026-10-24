@@ -123,3 +123,23 @@ def test_check_results_are_searchable_log_fields(atlas, monkeypatch):
     q = seen["pipeline"][0]["$search"]
     assert q["index"] == store.LOG_INDEX
     assert q["compound"]["filter"] == [{"equals": {"path": "passed", "value": False}}]
+
+
+def test_hybrid_fuses_semantic_and_keyword(atlas, monkeypatch):
+    seen = _capture(monkeypatch, atlas.samples, [{"_id": "s1", "name": "heron", "score": 0.03}])
+    rows = store.hybrid("long legged wading bird", k=3, bucket="animals and organic forms")
+    assert rows == [{"id": "s1", "name": "heron", "score": 0.03}]
+    fusion = seen["pipeline"][0]["$rankFusion"]["input"]["pipelines"]
+    vs = fusion["semantic"][0]["$vectorSearch"]
+    assert vs["index"] == store.SEMANTIC_INDEX and vs["query"] == "long legged wading bird"
+    assert vs["filter"]["concept.bucket"] == "animals and organic forms"
+    kw = fusion["keyword"][0]["$search"]
+    assert kw["index"] == store.TEXT_INDEX and kw["compound"]["filter"]
+    assert seen["pipeline"][1] == {"$limit": 3}
+
+
+def test_find_similar_uses_hybrid_in_atlas(atlas, monkeypatch):
+    from flowarc.sample import find_similar
+
+    monkeypatch.setattr(store, "hybrid", lambda text, k, bucket: [{"id": "s1", "q": text}])
+    assert find_similar("heron") == [{"id": "s1", "q": "heron"}]

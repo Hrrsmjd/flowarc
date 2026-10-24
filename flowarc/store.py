@@ -14,6 +14,8 @@ from flowarc import config
 VECTOR_INDEX = "concept_vectors"
 TEXT_INDEX = "samples_text"  # Atlas Search: names, descriptions, facets
 LOG_INDEX = "logs_text"  # Atlas Search: the agent's log
+SEMANTIC_INDEX = "concept_semantic"  # Automated Embedding (Voyage AI) of descriptions
+AUTO_EMBED_MODEL = config.AUTO_EMBED_MODEL
 
 # Atlas Search definitions. `token` fields can be faceted and matched exactly.
 TEXT_FIELDS = {
@@ -177,6 +179,59 @@ def search_log(text: str, k: int = 20, failed_only: bool = False) -> list[dict]:
         {"$project": {"_id": 0, "sample": 1, "stage": 1, "msg": 1, "t": 1}},
     ]
     return list(db().logs.aggregate(pipeline))
+
+
+def _semantic(text: str, k: int, flt: dict) -> dict:
+    """$vectorSearch on plain text: Atlas embeds the query with the index's Voyage model."""
+    return {
+        "$vectorSearch": {
+            "index": SEMANTIC_INDEX,
+            "path": "concept.description",
+            "query": text,
+            "numCandidates": max(100, 20 * k),
+            "limit": k,
+            "filter": flt,
+        }
+    }
+
+
+def semantic(text: str, k: int = 10) -> list[dict]:
+    """Samples whose description means something close to `text` (Automated Embedding)."""
+    pipeline = [
+        _semantic(text, k, {"status": {"$ne": "failed"}}),
+        {"$project": SUMMARY | {"score": {"$meta": "vectorSearchScore"}}},
+    ]
+    return [_row(r) for r in db().samples.aggregate(pipeline)]
+
+
+def hybrid(text: str, k: int = 10, bucket: str | None = None) -> list[dict]:
+    """Hybrid search: Voyage semantic matches fused with Atlas Search keyword matches.
+
+    `$rankFusion` (reciprocal rank fusion) merges the two ranked lists, so a query like
+    "streamlined animal with a hole through it" finds both close meanings and exact words.
+    """
+    flt = {"status": {"$ne": "failed"}}
+    must = [{"text": {"query": text, "path": ["concept.name", "concept.description"]}}]
+    filters = [{"equals": {"path": "status", "value": "failed"}}]
+    keyword = {"index": TEXT_INDEX, "compound": {"must": must, "mustNot": filters}}
+    if bucket:
+        flt["concept.bucket"] = bucket
+        keyword["compound"]["filter"] = [{"equals": {"path": "concept.bucket", "value": bucket}}]
+    fusion = {
+        "input": {
+            "pipelines": {
+                "semantic": [_semantic(text, 2 * k, flt)],
+                "keyword": [{"$search": keyword}, {"$limit": 2 * k}],
+            }
+        },
+        "combination": {"weights": {"semantic": 1, "keyword": 1}},
+    }
+    pipeline = [
+        {"$rankFusion": fusion},
+        {"$limit": k},
+        {"$project": SUMMARY | {"score": {"$meta": "score"}}},
+    ]
+    return [_row(r) for r in db().samples.aggregate(pipeline)]
 
 
 SUMMARY = {
