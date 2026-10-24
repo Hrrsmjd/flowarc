@@ -47,31 +47,42 @@ export async function atlasDecide(id, status, by) {
   return r.modifiedCount === 1;
 }
 
-// Search by meaning and by words: hybrid search ($rankFusion of Voyage Automated Embedding on
-// descriptions, index `concept_voyage`, and Atlas Search, index `samples_text`), the same query
-// as flowarc.store.hybrid. Falls back to Atlas Search alone, then to a regex.
+// Search by meaning and by words: hybrid search, the same query as flowarc.store.hybrid.
+// $rankFusion of Voyage Automated Embedding (index `concept_voyage`) on the name, weighted
+// most because it says what a shape is, and on the description (its geometry), plus Atlas
+// Search keywords on the name, filler words dropped. Falls back to the description alone (an
+// index from before the name was embedded), then to Atlas Search, then to a regex.
+const STOPWORDS = new Set("a an and any are as at be by for from has in is it its of on or something that the thing things to what which with".split(" "));
+export const contentWords = (q) => q.split(/\s+/).filter((w) => w && !STOPWORDS.has(w.toLowerCase().replace(/[?.,!]/g, ""))).join(" ");
+
+export function hybridPipeline(q, { withName = true, k = 6 } = {}) {
+  const meaning = (path) => [{ $vectorSearch: { index: "concept_voyage", path, query: q, numCandidates: 100, limit: 2 * k, filter: { status: { $ne: "failed" } } } }];
+  const pipelines = {
+    semantic: meaning("concept.description"),
+    keyword: [{ $search: { index: "samples_text", text: { query: contentWords(q) || q, path: "concept.name" } } }, { $limit: 2 * k }],
+  };
+  const weights = { semantic: 1, keyword: 1 };
+  if (withName) {
+    pipelines.name = meaning("concept.name");
+    weights.name = 2;
+  }
+  return [
+    { $rankFusion: { input: { pipelines }, combination: { weights } } },
+    { $limit: k },
+    { $project: { name: "$concept.name", bucket: "$concept.bucket", status: 1 } },
+  ];
+}
+
 export async function atlasSearch(q) {
   const d = await db();
   const project = { $project: { name: "$concept.name", bucket: "$concept.bucket", status: 1 } };
-  const text = { query: q, path: ["concept.name", "concept.description"] };
-  try {
-    const rows = await d.collection("samples").aggregate([
-      {
-        $rankFusion: {
-          input: {
-            pipelines: {
-              semantic: [{ $vectorSearch: { index: "concept_voyage", path: "concept.description", query: q, numCandidates: 100, limit: 16 } }],
-              keyword: [{ $search: { index: "samples_text", text: { ...text, fuzzy: { maxEdits: 1 } } } }, { $limit: 16 }],
-            },
-          },
-        },
-      },
-      { $limit: 8 },
-      project,
-    ]).toArray();
-    return { engine: "hybrid", results: rows.map(({ _id, ...r }) => ({ id: _id, ...r })) };
-  } catch (e) {
-    console.warn("hybrid search failed, using Atlas Search:", e.message);
+  for (const withName of [true, false]) {
+    try {
+      const rows = await d.collection("samples").aggregate(hybridPipeline(q, { withName })).toArray();
+      return { engine: withName ? "hybrid" : "hybrid-descriptions", results: rows.map(({ _id, ...r }) => ({ id: _id, ...r })) };
+    } catch (e) {
+      console.warn(`hybrid search${withName ? " with names" : ""} failed:`, e.message);
+    }
   }
   try {
     const rows = await d.collection("samples").aggregate([
