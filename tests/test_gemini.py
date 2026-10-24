@@ -162,3 +162,15 @@ def test_prompts_and_replies_are_recorded():
     c = gemini.CALLS.get()[0]
     gemini.CALLS.reset(token)
     assert c["model"] == "m" and c["prompt"] == "hi\n[image]" and c["reply"] == "ok"
+
+
+def test_embed_splits_into_batches(monkeypatch):
+    sizes = []
+
+    def embed_content(model, contents):
+        sizes.append(len(contents))
+        return NS(embeddings=[NS(values=[1.0]) for _ in contents])
+
+    monkeypatch.setattr(gemini, "client", lambda: NS(models=NS(embed_content=embed_content)))
+    assert len(gemini.embed(["x"] * 250)) == 250
+    assert sizes == [100, 100, 50]
