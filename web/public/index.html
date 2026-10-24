@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FlowArc dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three/three.module.min.js", "three/addons/": "./vendor/three/examples/jsm/" } }
+  </script>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">≋</span>
+      <div>
+        <h1>FlowArc</h1>
+        <p class="sub" id="run-sub">loading…</p>
+      </div>
+    </div>
+    <div class="search" role="search">
+      <input id="q" type="search" placeholder="Search samples" autocomplete="off" aria-label="Search samples">
+      <div class="results" id="results" hidden></div>
+    </div>
+    <div class="top-right">
+      <span class="live" id="live"><span class="dot"></span><span id="live-text">connecting…</span></span>
+      <span class="badge" id="mode-badge" hidden>Mock replay</span>
+      <button class="ghost small" id="restart" type="button" hidden>↺ Restart</button>
+      <button class="ghost small" id="present" type="button" title="Presenter mode (P)">▶ Present</button>
+      <button class="ghost" id="theme" type="button" aria-label="Toggle theme">◐</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" id="hero" aria-live="polite" hidden></section>
+
+    <section class="kpis" id="kpis" aria-label="Run summary"></section>
+
+    <div class="grid two">
+      <section class="card" id="card-progress" aria-labelledby="h-progress">
+        <div class="card-head">
+          <h2 id="h-progress">Run progress</h2>
+          <span class="muted small" id="progress-note"></span>
+        </div>
+        <div class="table-wrap"><table class="stages" id="stages"></table></div>
+        <p class="legend small" id="stage-legend"></p>
+      </section>
+
+      <section class="card" aria-labelledby="h-activity">
+        <div class="card-head">
+          <h2 id="h-activity">Agent activity</h2>
+          <span class="muted small" id="activity-note"></span>
+        </div>
+        <p class="muted small" id="activity-sample"></p>
+        <ol class="timeline" id="timeline"></ol>
+      </section>
+    </div>
+
+    <section class="card" aria-labelledby="h-sample">
+      <div class="card-head">
+        <h2 id="h-sample">Sample</h2>
+        <select id="sample-pick" aria-label="Choose sample"></select>
+      </div>
+      <div class="grid three" id="sample-body"></div>
+      <div class="grid media" id="sample-media">
+        <div>
+          <h3>Reference views <span class="muted small">Nano Banana · hover to enlarge</span></h3>
+          <div class="views" id="views"></div>
+        </div>
+        <div>
+          <h3 class="mesh-head">Mesh <span class="muted small">Hunyuan3D</span><span class="tabs" id="mesh-tabs"></span></h3>
+          <div class="mesh-view" id="mesh-view"><p class="muted small" id="mesh-empty">No mesh yet.</p></div>
+          <p class="muted small" id="mesh-note">Drag to rotate · scroll to zoom</p>
+        </div>
+        <div>
+          <h3>Flow <span class="muted small">FluidX3D · Q-criterion</span></h3>
+          <div class="flow-view" id="flow-view"><p class="muted small" id="flow-empty">Simulation not rendered yet.</p><video id="flow-video" muted loop playsinline autoplay hidden></video></div>
+          <p class="muted small" id="flow-note"></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="h-gallery">
+      <div class="card-head">
+        <h2 id="h-gallery">Gallery</h2>
+        <span class="muted small" id="gallery-note"></span>
+      </div>
+      <div class="gallery" id="gallery"></div>
+    </section>
+
+    <div class="grid two">
+      <section class="card" aria-labelledby="h-div">
+        <div class="card-head">
+          <h2 id="h-div">Diversity map</h2>
+          <span class="muted small">2D projection of shape embeddings</span>
+        </div>
+        <div class="chart" id="divmap"></div>
+        <div class="legend-row" id="div-legend"></div>
+        <h3 class="small">Coverage by shape bucket</h3>
+        <div id="coverage"></div>
+      </section>
+
+      <section class="card" aria-labelledby="h-approve">
+        <div class="card-head">
+          <h2 id="h-approve">Needs your approval</h2>
+          <span class="muted small" id="approve-count"></span>
+        </div>
+        <div id="approvals"></div>
+      </section>
+    </div>
+  </main>
+
+  <div class="tooltip" id="tip" role="tooltip" hidden></div>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,310 @@
+{
+ "run": {},
+ "samples": [
+  {
+   "_id": "s00001",
+   "stage": "done",
+   "status": "done",
+   "concept": {
+    "name": "Manta Ray",
+    "bucket": "animals and organic forms",
+    "reynolds": 250,
+    "facing": "head first",
+    "yaw_deg": 0,
+    "ground": false
+   },
+   "attempts": {
+    "mesh": 2,
+    "sim": 2
+   },
+   "meta": {
+    "gpu_seconds": 812.0,
+    "zarr_gb": 0.41,
+    "sim": {
+     "stats": {
+      "cd_mean": 0.512,
+      "cl_rms": 0.031,
+      "cs_rms": 0.012,
+      "st": 0.18,
+      "cd_half_change": 0.012,
+      "mach_max": 0.147,
+      "mass_drift": 0.0003
+     }
+    }
+   }
+  },
+  {
+   "_id": "s00002",
+   "stage": "render",
+   "status": "running",
+   "concept": {
+    "name": "Octagonal Moka Pot",
+    "bucket": "furniture and everyday objects",
+    "reynolds": 740,
+    "facing": "pouring spout forward",
+    "yaw_deg": 10,
+    "ground": true
+   },
+   "attempts": {
+    "images": 1,
+    "mesh": 2,
+    "sim": 1,
+    "render": 1
+   },
+   "meta": {
+    "gpu_seconds": 380.0,
+    "sim": {
+     "stats": {
+      "cd_mean": 0.83,
+      "cl_rms": 0.12,
+      "st": 0.21,
+      "cd_half_change": 0.071,
+      "mach_max": 0.147,
+      "mass_drift": 0.0004
+     }
+    }
+   }
+  },
+  {
+   "_id": "s00003",
+   "stage": "images",
+   "status": "pending",
+   "concept": {
+    "name": "Climbing Carabiner",
+    "bucket": "sports gear and tools",
+    "reynolds": 18700
+   },
+   "attempts": {},
+   "meta": {}
+  }
+ ],
+ "logs": [
+  {
+   "sample": "s00001",
+   "t": 1792839481.5,
+   "stage": "concept",
+   "msg": "check novel: pass"
+  },
+  {
+   "sample": "s00001",
+   "t": 1792839482.5,
+   "stage": "concept",
+   "msg": "advanced"
+  },
+  {
+   "sample": "s00001",
+   "t": 1792839651.5,
+   "stage": "images",
+   "msg": "check views_consistent: pass"
+  },
+  {
+   "sample": "s00001",
+   "t": 1792839652.5,
+   "stage": "images",
+   "msg": "advanced"
+  },
+  {
+   "sample": "s00001",
+   "t": 1792839811.5,
+   "stage": "mesh",
+   "msg": "check mesh: FAIL"
+  },
+  {
+   "sample": "s00001",
+   "t": 1792840141.5,
+   "stage": "mesh",
+   "msg": "check mesh: pass"
+  },
+  {
+   "sample": "s00001",
+   "t": 1792840142.5,
+   "stage": "mesh",
+   "msg": "advanced"
+  },
+  {
+   "sample": "s00001",
+   "t": 1792840151.5,
+   "stage": "sim",
+   "msg": "check stable: FAIL",
+   "mach_max": null
+  },
+  {
+   "sample": "s00001",
+   "t": 1792840171.5,
+   "stage": "sim",
+   "msg": "sim: out of attempts"
+  },
+  {
+   "sample": "s00001",
+   "t": 1792840571.5,
+   "stage": "sim",
+   "msg": "check stable: pass",
+   "mach_max": 0.147
+  },
+  {
+   "sample": "s00001",
+   "t": 1792840572.5,
+   "stage": "sim",
+   "msg": "check converged: pass"
+  },
+  {
+   "sample": "s00001",
+   "t": 1792840573.5,
+   "stage": "sim",
+   "msg": "advanced"
+  },
+  {
+   "sample": "s00001",
+   "t": 1792840581.5,
+   "stage": "render",
+   "msg": "check video: pass"
+  },
+  {
+   "sample": "s00001",
+   "t": 1792840681.5,
+   "stage": "render",
+   "msg": "check video_review: FAIL"
+  },
+  {
+   "sample": "s00001",
+   "t": 1792840682.5,
+   "stage": "render",
+   "msg": "advanced"
+  },
+  {
+   "sample": "s00001",
+   "t": 1792840781.5,
+   "stage": "package",
+   "msg": "check packed: pass"
+  },
+  {
+   "sample": "s00001",
+   "t": 1792840782.5,
+   "stage": "package",
+   "msg": "advanced"
+  },
+  {
+   "sample": "s00002",
+   "t": 1792854336.5,
+   "stage": "concept",
+   "msg": "check novel: pass",
+   "check": "novel",
+   "passed": true
+  },
+  {
+   "sample": "s00002",
+   "t": 1792854337.5,
+   "stage": "concept",
+   "msg": "advanced"
+  },
+  {
+   "sample": "s00002",
+   "t": 1792854481.5,
+   "stage": "images",
+   "msg": "images error: APIConnectionError('[SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:2570)')",
+   "trace": "Traceback..."
+  },
+  {
+   "sample": "s00002",
+   "t": 1792854731.5,
+   "stage": "images",
+   "msg": "check views_consistent: FAIL",
+   "check": "views_consistent",
+   "passed": false,
+   "hard": false,
+   "bad": [
+    "top"
+   ]
+  },
+  {
+   "sample": "s00002",
+   "t": 1792854732.5,
+   "stage": "images",
+   "msg": "advanced"
+  },
+  {
+   "sample": "s00002",
+   "t": 1792855281.5,
+   "stage": "mesh",
+   "msg": "check mesh: FAIL",
+   "check": "mesh",
+   "passed": false,
+   "geometry": true,
+   "silhouette": 0.62,
+   "holes": 1,
+   "flash_failed": [
+    "extra blob under the base"
+   ],
+   "summary": "A loose blob sits under the base; the handle hole is closed."
+  },
+  {
+   "sample": "s00002",
+   "t": 1792855581.5,
+   "stage": "mesh",
+   "msg": "check mesh: pass",
+   "check": "mesh",
+   "passed": true,
+   "geometry": true,
+   "silhouette": 0.71,
+   "holes": 1,
+   "summary": "Matches the views."
+  },
+  {
+   "sample": "s00002",
+   "t": 1792855582.5,
+   "stage": "mesh",
+   "msg": "advanced"
+  },
+  {
+   "sample": "s00002",
+   "t": 1792855981.5,
+   "stage": "sim",
+   "msg": "check stable: pass",
+   "check": "stable",
+   "passed": true,
+   "mach_max": 0.147,
+   "cd": 0.83
+  },
+  {
+   "sample": "s00002",
+   "t": 1792855982.5,
+   "stage": "sim",
+   "msg": "check mass: pass",
+   "check": "mass",
+   "passed": true,
+   "drift": 0.0004,
+   "hard": false
+  },
+  {
+   "sample": "s00002",
+   "t": 1792855983.5,
+   "stage": "sim",
+   "msg": "check converged: FAIL",
+   "check": "converged",
+   "passed": false,
+   "change": 0.071,
+   "hard": false
+  },
+  {
+   "sample": "s00002",
+   "t": 1792855984.5,
+   "stage": "sim",
+   "msg": "advanced"
+  },
+  {
+   "sample": "s00003",
+   "t": 1792856081.5,
+   "stage": "concept",
+   "msg": "check novel: pass",
+   "check": "novel",
+   "passed": true
+  },
+  {
+   "sample": "s00003",
+   "t": 1792856082.5,
+   "stage": "concept",
+   "msg": "advanced"
+  }
+ ],
+ "approvals": []
+}

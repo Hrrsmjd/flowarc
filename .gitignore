@@ -43,3 +43,4 @@ datasets/
 *.mp4
 *.stl
 *.glb
+!web/public/mock-media/**/*.glb
