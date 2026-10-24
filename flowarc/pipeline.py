@@ -34,8 +34,8 @@ def new_samples(n: int, seed: int | None = None) -> list[Sample]:
     existing = all_samples()
     start = 1 + max((int(s.id[1:]) for s in existing), default=0)
     out = []
-    for i, c in enumerate(concepts.select(existing, n, seed)):
-        s = Sample(id=f"s{start + i:05d}", meta={"embedding": c.pop("embedding")}, concept=c)
+    for i, c in enumerate(concepts.select(n, seed)):
+        s = Sample(id=f"s{start + i:05d}", embedding=c.pop("embedding"), concept=c)
         s.record_check("novel", True)
         advance(s)
         out.append(s)
