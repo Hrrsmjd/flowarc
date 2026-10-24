@@ -63,15 +63,40 @@ def make_mesh(
         "silhouette": checks.silhouette_iou(mesh, imgs),
         "symmetry": checks.symmetry(mesh),
     }
-    report["passed"] = (
-        report["geometry"]["passed"]
+    geo = report["geometry"]
+    report["base_ok"] = (
+        geo["watertight"]
+        and geo["winding"]
+        and geo["bodies"] == 1
         and report["silhouette"]["passed"]
         and report.get("review", {}).get("passed", True)
-        and (report["symmetry"]["passed"] or not (concept or {}).get("symmetric"))
     )
+    # failures Argon may judge (the shape may not be meant to be symmetric; thin parts may be fine)
+    report["judgement"] = [
+        n
+        for n, bad in (
+            ("symmetry", not report["symmetry"]["passed"] and (concept or {}).get("symmetric")),
+            ("thin", not geo["thin_ok"]),
+        )
+        if bad
+    ]
+    report["passed"] = report["base_ok"] and not report["judgement"]
     mesh.export(out / "mesh.stl")
     if concept:  # the grey views Flash saw, for the dashboard
-        (out / "renders").mkdir(exist_ok=True)
-        for v in review.CAMERAS:
-            review.render(mesh, v).convert("RGB").save(out / "renders" / f"{v}.jpg", quality=90)
+        save_renders(mesh, out)
     return report
+
+
+def save_renders(mesh: trimesh.Trimesh, out: Path) -> None:
+    (out / "renders").mkdir(exist_ok=True)
+    for v in review.CAMERAS:
+        review.render(mesh, v).convert("RGB").save(out / "renders" / f"{v}.jpg", quality=90)
+
+
+def thicken(out: Path, min_thickness: float, ground: bool = False) -> dict:
+    """Thicken out/mesh.stl in place so its thin parts reach min_thickness. Returns the new geometry check."""
+    mesh = trimesh.load(out / "mesh.stl", force="mesh")
+    mesh = repair.normalize(repair.thicken(mesh, min_thickness / 2), ground=ground)
+    mesh.export(out / "mesh.stl")
+    save_renders(mesh, out)
+    return checks.geometry(mesh, min_thickness)

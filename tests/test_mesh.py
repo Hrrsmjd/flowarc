@@ -66,3 +66,11 @@ def test_review_computed_checks():
     assert abs(review.proportions(box, {"front": front})["front"] - 1) < 0.05
     img = np.asarray(review.render(box, "three-quarter", px=64, points=20_000))
     assert (img < 250).any() and (img == 255).any()
+
+
+def test_thicken_fixes_a_thin_plate():
+    plate = trimesh.creation.box(extents=[1.0, 0.5, 0.006])
+    assert not checks.geometry(plate, min_thickness=0.01)["thin_ok"]
+    thick = repair.normalize(repair.thicken(plate, 0.005))
+    g = checks.geometry(thick, min_thickness=0.01)
+    assert g["thin_ok"] and g["watertight"] and g["bodies"] == 1

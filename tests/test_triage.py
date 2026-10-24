@@ -147,3 +147,58 @@ def test_fixed_policy_when_switched_off(tmp_path, monkeypatch):
     assert triage.handle(s, "mesh", []) and s.stage == "images"
     s = Sample(id="s00007", stage="mesh", attempts={"mesh": 1})
     assert triage.handle(s, "mesh", []) and s.stage == "mesh"
+
+
+def mesh_report(judgement):
+    return {
+        "passed": False,
+        "base_ok": True,
+        "judgement": judgement,
+        "geometry": {"passed": False, "thin_ok": "thin" not in judgement, "thin_fraction": 0.1},
+        "silhouette": {"min_iou": 0.8},
+        "symmetry": {"chamfer": 0.03, "passed": False},
+    }
+
+
+def run_mesh_with(tmp_path, monkeypatch, judgement, decision, thick_ok=True):
+    from flowarc.mesh import stage
+
+    monkeypatch.setattr(config, "DATA", tmp_path)
+    monkeypatch.setattr(stage, "make_mesh", lambda *a, **k: mesh_report(judgement))
+    thickened = []
+
+    def thicken(out, t, ground):
+        thickened.append(t)
+        return {"passed": thick_ok, "thin_ok": thick_ok, "watertight": True, "bodies": 1}
+
+    monkeypatch.setattr(stage, "thicken", thicken)
+    monkeypatch.setattr(gemini, "argon", lambda *a, **k: decision)
+    s = Sample(id="s00007", stage="mesh", concept={"name": "walrus", "reynolds": 3e4})
+    s.concept["symmetric"] = True
+    s.attempts["mesh"] = 1
+    (s.dir / "mesh").mkdir(parents=True)
+    return pipeline.run_mesh(s, 0), s, thickened
+
+
+def test_argon_says_not_symmetric_and_thickens(tmp_path, monkeypatch):
+    d = {"symmetric": False, "decision": "thicken", "reason": "lying on its side; thin flippers"}
+    ok, s, thickened = run_mesh_with(tmp_path, monkeypatch, ["symmetry", "thin"], d)
+    assert ok and not s.concept["symmetric"] and thickened
+    assert s.checks["mesh"][-1]["argon"]["decision"] == "thicken"
+
+
+def test_argon_asks_for_a_new_mesh(tmp_path, monkeypatch):
+    d = {"symmetric": True, "decision": "new_mesh", "reason": "one side is missing a fin"}
+    ok, s, _ = run_mesh_with(tmp_path, monkeypatch, ["symmetry"], d)
+    assert not ok and s.concept["symmetric"]
+
+
+def test_thickening_that_fails_still_fails(tmp_path, monkeypatch):
+    d = {"symmetric": True, "decision": "thicken", "reason": "thin wires"}
+    assert not run_mesh_with(tmp_path, monkeypatch, ["thin"], d, thick_ok=False)[0]
+
+
+def test_no_argon_keeps_the_checks(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "ARGON_REPAIR", False)
+    d = {"symmetric": False, "decision": "accept", "reason": ""}
+    assert not run_mesh_with(tmp_path, monkeypatch, ["symmetry"], d)[0]

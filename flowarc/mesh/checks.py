@@ -34,6 +34,7 @@ def geometry(
         "winding": bool(mesh.is_winding_consistent),
         "bodies": n_bodies,
         "thin_fraction": thin,
+        "thin_ok": thin < 0.01,
     }
     out["passed"] = out["watertight"] and out["winding"] and n_bodies == bodies and thin < 0.01
     return out

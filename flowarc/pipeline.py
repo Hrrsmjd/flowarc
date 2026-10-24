@@ -81,6 +81,8 @@ def run_mesh(s: Sample, gpu: int) -> bool:
         min_thickness=2 / cells,
         remesh=remesh,
     )
+    if not rep["passed"] and rep["base_ok"]:
+        argon_mesh_call(s, rep, cells)
     (s.dir / "mesh" / f"report_{tries}.json").write_text(json.dumps(rep, indent=1, default=float))
     if (s.dir / "mesh" / "mesh.stl").exists():  # each try's mesh, for the dashboard (flowarc.media)
         shutil.copyfile(s.dir / "mesh" / "mesh.stl", s.dir / "mesh" / f"mesh_{tries}.stl")
@@ -95,8 +97,38 @@ def run_mesh(s: Sample, gpu: int) -> bool:
         summary=rev.get("flash", {}).get("summary"),
         flash=rev.get("flash", {}).get("checks"),
         turns=rev.get("turns"),
+        argon=rep.get("argon"),
     )
     return rep["passed"]
+
+
+def argon_mesh_call(s: Sample, rep: dict, cells: int) -> None:
+    """Argon judges the symmetry and thin-parts failures of an otherwise good mesh (triage.judge_mesh)."""
+    from flowarc.mesh.stage import thicken
+
+    d = triage.judge_mesh(s, rep, s.dir / "mesh" / "renders", 2)
+    if not d:
+        return
+    rep["argon"] = d
+    if not d["symmetric"]:
+        s.concept["symmetric"] = False
+    left = {"symmetry"} - (
+        {"symmetry"} if d["decision"] == "accept" or not d["symmetric"] else set()
+    )
+    left &= set(rep["judgement"])
+    if "thin" in rep["judgement"]:
+        if d["decision"] == "thicken":
+            rep["geometry"] = geo = thicken(
+                s.dir / "mesh", 2 / cells, s.concept.get("ground", False)
+            )
+            rep["thickened"] = True
+            if not (geo["thin_ok"] and geo["watertight"] and geo["bodies"] == 1):
+                left.add("thin")
+        elif d["decision"] != "accept":
+            left.add("thin")
+    if d["decision"] == "new_mesh":
+        left.add("argon")
+    rep["passed"] = not left
 
 
 DNS_MAX_RE = 1e3  # resolved at 64 cells/L without a subgrid model
@@ -306,7 +338,15 @@ def run_sample(s: Sample, gpu: int, budget_hours: float = math.inf) -> Sample:
             s.status = "failed"
             s.save()
             return s
-    soft = [c for cs in s.checks.values() for c in cs if not c["passed"] and c.get("hard") is False]
+    soft = [
+        c
+        for cs in s.checks.values()
+        for c in cs
+        if not c["passed"]
+        and c.get("hard") is False
+        # the mesh passed Flash's review, and the mesh is what gets simulated
+        and c["name"] != "views_consistent"
+    ]
     s.status = "flagged" if soft else "done"
     s.save()
     return s
