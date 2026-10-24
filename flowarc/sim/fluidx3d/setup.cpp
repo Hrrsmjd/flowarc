@@ -48,6 +48,14 @@ void main_setup() {
 		if(lbm.flags[n]!=(TYPE_S|TYPE_X)) lbm.u.x[n] = u;
 		if(x==0u||x==Nx-1u||(!periodic_y&&(y==0u||y==Ny-1u))||z==Nz-1u||(!ground&&z==0u)) lbm.flags[n] = TYPE_E;
 	});
+	// Cells that are solid or touch a solid. The speed there is a boundary artefact (about 4u where the
+	// moving ground meets the body), not flow, so the stability check leaves them out.
+	vector<char> wall(lbm.get_N(), 0);
+	parallel_for(lbm.get_N(), [&](ulong n) { uint x=0u, y=0u, z=0u; lbm.coordinates(n, x, y, z);
+		if(lbm.flags[n]&TYPE_S) { wall[n] = 1; return; }
+		const uint xs[6] = {x>0u?x-1u:x, x<Nx-1u?x+1u:x, x, x, x, x}, ys[6] = {y, y, y>0u?y-1u:y, y<Ny-1u?y+1u:y, y, y}, zs[6] = {z, z, z, z, z>0u?z-1u:z, z<Nz-1u?z+1u:z};
+		for(uint i=0u; i<6u; i++) if(lbm.flags[lbm.index(xs[i], ys[i], zs[i])]&TYPE_S) { wall[n] = 1; return; }
+	});
 
 	const vector<float> probes = read_floats(c["probes"]); // x,y,z triples
 	const ulong P = probes.size()/3u;
@@ -65,7 +73,7 @@ void main_setup() {
 	std::ofstream forces(out+"forces.csv");
 	forces<<"t,fx,fy,fz\n";
 	std::ofstream frames(out+"frames.csv");
-	frames<<"frame,t,mass,max_u,nan\n";
+	frames<<"frame,t,mass,max_u,nan,max_x,max_y,max_z,max_u_wall\n"; // max_u is away from walls; max_u_wall includes cells touching a solid
 
 	lbm.run(0u);
 	Clock clock;
@@ -83,14 +91,17 @@ void main_setup() {
 		if(t>startup&&(t-startup)%frame_every==0u) {
 			lbm.rho.read_from_device();
 			lbm.u.read_from_device();
-			double mass = 0.0; float umax = 0.0f; ulong nans = 0u;
+			double mass = 0.0; float umax = 0.0f, umax_wall = 0.0f; ulong nans = 0u, nmax = 0u;
 			for(ulong n=0u; n<lbm.get_N(); n++) {
 				const float r = lbm.rho[n];
 				if(r!=r) { nans++; continue; }
 				mass += r;
-				umax = fmax(umax, sqrt(sq(lbm.u.x[n])+sq(lbm.u.y[n])+sq(lbm.u.z[n])));
+				const float un = sqrt(sq(lbm.u.x[n])+sq(lbm.u.y[n])+sq(lbm.u.z[n]));
+				umax_wall = fmax(umax_wall, un);
+				if(!wall[n]&&un>umax) { umax = un; nmax = n; }
 			}
-			frames<<frame<<","<<t<<","<<mass<<","<<umax<<","<<nans<<"\n";
+			uint mx=0u, my=0u, mz=0u; lbm.coordinates(nmax, mx, my, mz);
+			frames<<frame<<","<<t<<","<<mass<<","<<umax<<","<<nans<<","<<mx<<","<<my<<","<<mz<<","<<umax_wall<<"\n";
 			frames.flush(); forces.flush();
 			if(nans>0u) blown = true;
 			if(P>0u) {

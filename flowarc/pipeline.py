@@ -232,6 +232,7 @@ def run_sim(s: Sample, gpu: int) -> bool:
         "stable",
         stable,
         mach_max=st.get("mach_max"),
+        max_u_wall=st.get("max_u_wall"),
         cd=st.get("cd_mean"),
         u=cfg.lattice_velocity,
         les=cfg.les,
@@ -302,6 +303,9 @@ def upload(s: Sample, stage: str, attempt: int | None = None) -> None:
 def run_sample(s: Sample, gpu: int, budget_hours: float = math.inf) -> Sample:
     """Run the remaining stages. Ends done, flagged (a soft check failed) or failed."""
     s.meta.setdefault("phase", config.PHASE.name)
+    if s.status == "running":  # the worker was stopped mid-stage; that try doesn't count
+        s.attempts[s.stage] = max(0, s.attempts.get(s.stage, 0) - 1)
+        s.log(f"{s.stage}: resumed after a stop")
     while s.stage != "done":
         if s.stage == "sim" and gpu_hours() >= budget_hours:
             s.status = "pending"

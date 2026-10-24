@@ -26,9 +26,9 @@ from flowarc import config, store
 BUCKET = "media"
 VIEW_PX = 512
 MESH_FACES = 20_000  # ~350 KB GLB; Vercel functions return at most 4.5 MB
-VIDEO_MAX = 4_000_000  # bytes, under that same limit
+VIDEO_MAX = 8_000_000  # bytes; web/api/media.js serves it in ranges of at most 4 MB (the Vercel response limit)
+VIDEO_VERSION = 2  # bump to re-encode every video with new settings
 _too_big: set[str] = set()  # videos that wouldn't shrink enough, so --watch doesn't retry them
-VIDEO_VERSION = 2  # bump to re-encode every flow video already in GridFS
 
 
 def view_jpeg(raw: bytes, px: int = VIEW_PX) -> bytes:
@@ -48,7 +48,7 @@ def mesh_glb(path, faces: int = MESH_FACES) -> bytes:
     return m.export(file_type="glb")
 
 
-def video_mp4(path, width: int = 1280) -> bytes | None:
+def video_mp4(path, width: int = 1920) -> bytes | None:
     """The flow video re-encoded to serve (H.264, no audio, faststart), or None if it won't fit.
 
     Two passes at the bitrate that fills VIDEO_MAX for the clip's length, so the picture is as
