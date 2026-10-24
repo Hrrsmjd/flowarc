@@ -65,3 +65,21 @@ def test_publish_keeps_rds_copy_on_mismatch(tmp_path, monkeypatch):
     )
     r = publish.publish(s, delete=True)
     assert not r["verified"] and (s.dir / "sample.zarr").exists()
+
+
+def test_failed_try_goes_to_its_own_folder(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "DATA", tmp_path)
+    monkeypatch.setattr(config, "HF_REPO", "x/y")
+    seen = {}
+
+    class Api:
+        def create_commit(self, repo, ops, **kw):
+            seen["paths"] = [o.path_in_repo for o in ops]
+
+    monkeypatch.setattr(publish, "api", lambda: Api())
+    s = Sample(id="s00001")
+    (s.dir / "mesh").mkdir(parents=True)
+    (s.dir / "mesh" / "mesh.stl").write_text("x")
+    publish.upload_stage(s, "mesh", 2)
+    assert seen["paths"] == ["samples/s00001/tries/mesh-2/mesh/mesh.stl"]
+    assert s.meta["files"][0]["try"] == 2 and not s.meta["files"][0]["passed"]

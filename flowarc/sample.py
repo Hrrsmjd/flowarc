@@ -34,9 +34,9 @@ class Sample:
         return config.DATA / "samples" / self.id
 
     def save(self) -> None:
+        """Atlas when set, and always the RDS copy, so losing Atlas never loses the run."""
         if (d := store.db()) is not None:
             d.samples.replace_one({"_id": self.id}, {"_id": self.id, **asdict(self)}, upsert=True)
-            return
         self.dir.mkdir(parents=True, exist_ok=True)
         tmp = self.dir / "sample.json.tmp"
         tmp.write_text(json.dumps(asdict(self), indent=2))
@@ -46,7 +46,7 @@ class Sample:
         entry = {"t": time.time(), "stage": self.stage, "msg": msg, **data}
         if (d := store.db()) is not None:
             d.logs.insert_one({"sample": self.id, **entry})
-            return
+            entry.pop("_id", None)
         self.dir.mkdir(parents=True, exist_ok=True)
         with open(self.dir / "log.jsonl", "a") as f:
             f.write(json.dumps(entry) + "\n")

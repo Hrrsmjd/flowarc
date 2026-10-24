@@ -150,3 +150,15 @@ def test_answer_after_the_last_allowed_round_is_returned(fake, monkeypatch):
     inter = fake(busy, busy, text_reply("done"))
     assert gemini.ask("go", tools=[gemini.tool(lambda: 1, "", {})]) == "done"
     assert len(inter.calls) == 3
+
+
+def test_prompts_and_replies_are_recorded():
+    import time
+
+    token = gemini.CALLS.set([])
+    gemini._record(
+        "m", [{"type": "text", "text": "hi"}, {"type": "image", "data": "x"}], "ok", time.time()
+    )
+    c = gemini.CALLS.get()[0]
+    gemini.CALLS.reset(token)
+    assert c["model"] == "m" and c["prompt"] == "hi\n[image]" and c["reply"] == "ok"

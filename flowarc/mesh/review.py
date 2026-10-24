@@ -95,6 +95,7 @@ SCHEMA = {
 }
 PROMPT = """You are checking a 3D mesh made by an image-to-3D model, before it goes into a fluid simulation.
 Object: {description}
+Its front: {facing}.
 First come reference images of the object. They were generated separately and may not match each other exactly, so use them only to know what the object should be.
 Then come grey renders of the mesh from fixed cameras (flow comes from the front, along the length).
 Judge the mesh itself. For each check, say if it passes and why:
@@ -104,12 +105,20 @@ Judge the mesh itself. For each check, say if it passes and why:
 - no_fused_or_missing_parts: parts that should be separate are not fused or webbed together; nothing major missing.
 - no_wrong_holes: no holes or dents that should not exist; real holes are open.
 - clean_surface: no lumpy noise, stair steps, or collapsed thin parts.
-- upright_facing_flow: upright, front of the object facing the front camera.
+- upright_facing_flow: upright, with its front ({facing}) toward the front camera, i.e. pointing into the flow.
 Pass overall only if every check passes. Be strict but do not fail for small style differences from the references."""
 
 
 def flash_review(concept: dict, views: dict[str, bytes], renders: dict[str, Image.Image]) -> dict:
-    parts = [{"type": "text", "text": PROMPT.format(description=concept["description"])}]
+    parts = [
+        {
+            "type": "text",
+            "text": PROMPT.format(
+                description=concept["description"],
+                facing=concept.get("facing") or "the end that would lead in a flow",
+            ),
+        }
+    ]
     for v, img in views.items():
         parts += [{"type": "text", "text": f"reference {v}:"}, gemini.image_part(img, "image/jpeg")]
     for v, im in renders.items():

@@ -45,10 +45,12 @@ def make_mesh(
     if concept:
         rev = review.review(oriented, concept, imgs)
         if rev["flash"]["failed"] == ["upright_facing_flow"]:  # facing the wrong way: turn it
+            rev["turns"] = []
             for k in (2, 1, 3):  # nose and tail swapped is the usual case
                 r = checks.yaw(k) @ rot
                 o = repair.normalize(mesh, r, ground=ground)
                 rv = review.review(o, concept, imgs)
+                rev["turns"].append({"deg": 90 * k, "failed": rv["flash"]["failed"]})
                 if "upright_facing_flow" not in rv["flash"]["failed"]:
                     rot, oriented, rev = r, o, rv | {"turned_deg": 90 * k}
                     break
