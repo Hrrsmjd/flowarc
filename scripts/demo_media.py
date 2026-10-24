@@ -99,45 +99,66 @@ def _glb(m) -> bytes:
     return m.export(file_type="glb")
 
 
-def build(samples: list[dict], fetch, web: Path = WEB) -> dict:
-    """Save each sample's views and mesh under web/mock-media/real/<id>/; return demo_real.json."""
+def build(
+    samples: list[dict], fetch, web: Path = WEB, n: int = 12, max_mb: float = 60, save=None
+) -> dict:
+    """Save up to n samples' views and meshes under web/mock-media/real/<id>/.
+
+    Returns demo_real.json, and passes it to `save` after every sample, so a run that stops
+    part way still leaves a working demo. A sample that fails, or whose mesh is over max_mb
+    (decimating it can run a small machine out of memory), is skipped for the next one.
+    """
     out = web / "mock-media" / "real"
     shutil.rmtree(out, ignore_errors=True)
     rows = []
-    for slot, s in zip(SLOTS, samples):
-        sid, d = s["_id"], out / s["_id"]
-        d.mkdir(parents=True)
-
-        def rel(name: str, d: Path = d) -> str:
-            return (d / name).relative_to(web).as_posix()
-
-        views = {}
-        for v in mock.VIEWS:
-            jpg = media.view_jpeg(fetch(sid, f"views/{v}.jpg"))
-            (d / f"{v}.jpg").write_bytes(jpg)
-            views[v] = rel(f"{v}.jpg")
-        stl = fetch(sid, "mesh/mesh.stl")
-        (d / "mesh.stl").write_bytes(stl)
-        (d / "mesh.glb").write_bytes(media.mesh_glb(d / "mesh.stl"))
-        (d / "mesh.stl").unlink()
-        row = {
-            "slot": slot,
-            "source": sid,
-            "concept": {
-                k: s["concept"][k] for k in CONCEPT_KEYS if s["concept"].get(k) is not None
-            },
-            "views": views,
-            "mesh": rel("mesh.glb"),
-        }
-        if slot == mock.LIVE:  # the failed first attempt the story needs
-            side = mock.REAL_STORY["view"]
-            (d / f"{side}-1.jpg").write_bytes(cropped((d / f"{side}.jpg").read_bytes()))
-            (d / "mesh-broken.glb").write_bytes(broken(stl))
-            row["views"][f"{side}-1"] = rel(f"{side}-1.jpg")
-            row["broken_mesh"] = rel("mesh-broken.glb")
+    for s in samples:
+        if len(rows) == n:
+            break
+        slot, sid = SLOTS[len(rows)], s["_id"]
+        try:
+            row = _sample(slot, s, fetch, web, out / sid, max_mb)
+        except Exception as e:  # noqa: BLE001
+            shutil.rmtree(out / sid, ignore_errors=True)
+            print(f"skipped {sid}: {e}")
+            continue
         rows.append(row)
         print(f"{slot} <- {sid} {s['concept'].get('name', '')}")
+        if save:
+            save({"samples": rows})
     return {"samples": rows}
+
+
+def _sample(slot: str, s: dict, fetch, web: Path, d: Path, max_mb: float) -> dict:
+    sid = s["_id"]
+    d.mkdir(parents=True)
+
+    def rel(name: str) -> str:
+        return (d / name).relative_to(web).as_posix()
+
+    views = {}
+    for v in mock.VIEWS:
+        (d / f"{v}.jpg").write_bytes(media.view_jpeg(fetch(sid, f"views/{v}.jpg")))
+        views[v] = rel(f"{v}.jpg")
+    stl = fetch(sid, "mesh/mesh.stl")
+    if len(stl) > max_mb * 1e6:
+        raise ValueError(f"mesh is {len(stl) / 1e6:.0f} MB (over --max-mb {max_mb:g})")
+    (d / "mesh.stl").write_bytes(stl)
+    (d / "mesh.glb").write_bytes(media.mesh_glb(d / "mesh.stl"))
+    (d / "mesh.stl").unlink()
+    row = {
+        "slot": slot,
+        "source": sid,
+        "concept": {k: s["concept"][k] for k in CONCEPT_KEYS if s["concept"].get(k) is not None},
+        "views": views,
+        "mesh": rel("mesh.glb"),
+    }
+    if slot == mock.LIVE:  # the failed first attempt the story needs
+        side = mock.REAL_STORY["view"]
+        (d / f"{side}-1.jpg").write_bytes(cropped((d / f"{side}.jpg").read_bytes()))
+        (d / "mesh-broken.glb").write_bytes(broken(stl))
+        row["views"][f"{side}-1"] = rel(f"{side}-1.jpg")
+        row["broken_mesh"] = rel("mesh-broken.glb")
+    return row
 
 
 def main() -> None:
@@ -145,18 +166,26 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--max", type=int, default=12, help="how many real samples to use")
     p.add_argument("--local", help="FLOWARC_DATA folder to read files from instead of HF")
+    p.add_argument("--max-mb", type=float, default=60, help="skip meshes bigger than this")
     args = p.parse_args()
     db = store.db()
     if db is None:
         raise SystemExit("set MONGODB_URI (see .env.example)")
-    found = candidates(db, min(args.max, len(SLOTS)), args.local)
+    found = candidates(db, 10_000, args.local)
     if not found:
         raise SystemExit(
             "no sample has all 4 views and a mesh there yet. Run it where the pipeline's data "
             "is, with --local <FLOWARC_DATA folder>, or wait for the runner to upload to HF."
         )
-    mock.REAL.write_text(json.dumps(build(found, fetcher(args.local)), indent=1))
-    mock.write(str(ROOT / "web" / "lib" / "mock.json"), str(WEB))
+
+    def save(real: dict) -> None:
+        mock.REAL.write_text(json.dumps(real, indent=1))
+        mock.write(str(ROOT / "web" / "lib" / "mock.json"), str(WEB))
+
+    n = min(args.max, len(SLOTS))
+    real = build(found, fetcher(args.local), n=n, max_mb=args.max_mb, save=save)
+    if not real["samples"]:
+        raise SystemExit("every sample failed; see the messages above")
     print(
         "now: git add web/lib/demo_real.json web/lib/mock.json web/public/mock-media && git commit"
     )

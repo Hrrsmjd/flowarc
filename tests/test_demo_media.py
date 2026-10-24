@@ -53,7 +53,12 @@ def test_real_samples_replace_the_stand_ins(tmp_path, monkeypatch):
     assert [s["_id"] for s in found] == ["s00001", "s00002", "s00000"]  # finished first, no partial
 
     web = tmp_path / "web"
-    real = demo_media.build(found, demo_media.fetcher(str(tmp_path / "data")), web)
+    saved = []
+    found.insert(0, {"_id": "missing", "concept": {"name": "gone"}})  # a failing sample is skipped
+    real = demo_media.build(
+        found, demo_media.fetcher(str(tmp_path / "data")), web, save=saved.append
+    )
+    assert len(saved) == 3 and saved[-1] == real
     live = real["samples"][0]
     assert live["slot"] == mock.LIVE and live["source"] == "s00001"
     for url in [*live["views"].values(), live["mesh"], live["broken_mesh"]]:
