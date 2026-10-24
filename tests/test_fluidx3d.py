@@ -53,3 +53,20 @@ def test_strouhal_ignores_fast_ringing():
     t = np.arange(4000) * 0.01
     x = np.sin(2 * np.pi * 0.2 * t) + 3 * np.sin(2 * np.pi * 40 * t)
     assert abs(strouhal(x, 0.01, 1.0, 1.0) - 0.2) < 0.01
+
+
+def test_rms_ignores_lattice_ringing():
+    cfg = SimConfig(reynolds=1e6, cells_per_length=64, frame_interval=0)
+    lat = lattice(cfg)
+    t = np.arange(
+        lat["startup_steps"] + 1,
+        lat["startup_steps"] + lat["record_steps"],
+        lat["force_every"],
+        dtype=float,
+    )
+    q = 0.5 * lat["u"] ** 2
+    slow = 0.1 * np.sin(2 * np.pi * t * 0.2 * lat["u"] / 64)  # St 0.2
+    fx = q * (1 + slow + 0.25 * np.sin(2 * np.pi * t / 12))  # 12-step ringing
+    s = stats(np.stack([t, fx, q * slow, q * slow], axis=1), cfg, lat, 1.0)
+    assert abs(s["cd_rms"] - 0.1 / 2**0.5) < 0.01
+    assert s["cd_rms_raw"] > 0.15
