@@ -4,109 +4,89 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>FlowArc dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap">
   <link rel="stylesheet" href="style.css">
   <script type="importmap">
     { "imports": { "three": "./vendor/three/three.module.min.js", "three/addons/": "./vendor/three/examples/jsm/" } }
   </script>
 </head>
 <body>
+  <!-- Line art for every picture: ink where the drawing is dark, see-through where it is white.
+       An SVG filter, not a CSS blend, because Safari drops mix-blend-mode on filtered images. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <filter id="line-art" color-interpolation-filters="sRGB">
+      <feColorMatrix type="matrix" values="0 0 0 0 .914  0 0 0 0 .933  0 0 0 0 .969  -.34 -1.144 -.116 1.55 0"/>
+    </filter>
+  </svg>
   <header class="top">
-    <div class="brand">
+    <a class="brand" href="#home" aria-label="FlowArc home">
       <span class="logo" aria-hidden="true">≋</span>
       <div>
         <h1>FlowArc</h1>
-        <p class="sub" id="run-sub">loading…</p>
+        <p class="sub" id="run-sub" hidden>loading…</p>
       </div>
-    </div>
+    </a>
+    <nav class="tabs-nav" aria-label="Sections">
+      <a href="#live">Live</a><a href="#shapes">Dataset</a>
+    </nav>
     <div class="search" role="search">
-      <input id="q" type="search" placeholder="Search by meaning: something that flies" autocomplete="off" aria-label="Search samples">
+      <span class="search-icon" aria-hidden="true">⌕</span><input id="q" type="search" placeholder="Search shapes" autocomplete="off" aria-label="Search shapes by meaning or name"><kbd class="search-kbd" aria-hidden="true">/</kbd>
       <div class="results" id="results" hidden></div>
     </div>
     <div class="top-right">
-      <span class="live" id="live"><span class="dot"></span><span id="live-text">connecting…</span></span>
+      <span class="live" id="live-status"><span class="dot"></span><span id="live-text">connecting…</span></span>
       <span class="badge" id="mode-badge" hidden>Mock replay</span>
       <button class="ghost small" id="restart" type="button" hidden>↺ Restart</button>
-      <button class="ghost small" id="scope" type="button" hidden></button>
-      <button class="ghost small" id="present" type="button" title="Presenter mode (P)">▶ Present</button>
-      <button class="ghost small" id="finale-open" type="button" title="Finale: everything made so far (F)">★ Finale</button>
-      <button class="ghost" id="theme" type="button" aria-label="Toggle theme">◐</button>
+      <button class="ghost small" id="present" type="button" hidden title="Presenter mode (P)">▶ Present</button>
+      <button class="ghost small" id="finale-open" type="button" hidden title="Finale: everything made so far (F)">★ Finale</button>
     </div>
   </header>
 
   <main>
-    <section class="hero" id="hero" aria-live="polite" hidden></section>
-
-    <section class="kpis" id="kpis" aria-label="Run summary"></section>
-
-    <section class="card" id="card-now" aria-labelledby="h-now">
-      <div class="card-head">
-        <h2 id="h-now">Now running</h2>
-        <span class="small" id="now-note"></span>
+    <div class="page" id="page-home" data-page="home" hidden></div>
+    <div class="page" id="page-live" data-page="live">
+      <section class="overview" id="overview" aria-label="Run overview"></section>
+      <section class="hero" id="hero" aria-live="polite" hidden></section>
+      <section class="kpis" id="kpis" aria-label="Run summary"></section>
+      <section class="card" id="card-now" aria-labelledby="h-now">
+        <div class="card-head">
+          <h2 id="h-now">GPUs</h2>
+          <span class="small" id="now-note"></span>
+        </div>
+        <div class="table-wrap"><table class="now" id="now"></table></div>
+      </section>
+      <div class="grid two">
+        <section class="card" id="card-progress" aria-labelledby="h-progress">
+          <div class="card-head">
+            <h2 id="h-progress">Run progress</h2>
+            <span class="muted small" id="progress-note"></span>
+          </div>
+          <div class="funnel" id="funnel"></div>
+          <div class="dots" id="dots" aria-label="Every sample, coloured by status"></div>
+          <div class="filters" id="stage-filter" role="tablist"></div>
+          <div class="table-wrap stages-wrap"><table class="stages" id="stages"></table></div>
+          <p class="legend small" id="stage-legend"></p>
+        </section>
+        <section class="card" aria-labelledby="h-approve">
+          <div class="card-head">
+            <h2 id="h-approve">Needs your approval</h2>
+            <span class="muted small" id="approve-count"></span>
+          </div>
+          <div id="approvals"></div>
+        </section>
       </div>
-      <div class="table-wrap"><table class="now" id="now"></table></div>
-    </section>
-
-    <div class="grid two">
-      <section class="card" id="card-progress" aria-labelledby="h-progress">
-        <div class="card-head">
-          <h2 id="h-progress">Run progress</h2>
-          <span class="muted small" id="progress-note"></span>
-        </div>
-        <div class="funnel" id="funnel"></div>
-        <div class="dots" id="dots" aria-label="Every sample, coloured by status"></div>
-        <div class="filters" id="stage-filter" role="tablist"></div>
-        <div class="table-wrap stages-wrap"><table class="stages" id="stages"></table></div>
-        <p class="legend small" id="stage-legend"></p>
-      </section>
-
-      <section class="card" aria-labelledby="h-activity">
-        <div class="card-head">
-          <h2 id="h-activity">Agent activity</h2>
-          <span class="muted small" id="activity-note"></span>
-        </div>
-        <p class="muted small" id="activity-sample"></p>
-        <ol class="timeline" id="timeline"></ol>
-      </section>
     </div>
 
-    <section class="card" aria-labelledby="h-sample">
-      <div class="card-head">
-        <h2 id="h-sample">Sample</h2>
-        <select id="sample-pick" aria-label="Choose sample"></select>
-      </div>
-      <div class="grid three" id="sample-body"></div>
-      <div class="grid media" id="sample-media">
-        <div>
-          <h3>Reference views <span class="muted small">Nano Banana · hover to enlarge</span></h3>
-          <div class="views" id="views"></div>
+    <div class="page" id="page-shapes" data-page="shapes" hidden>
+      <section class="card" aria-labelledby="h-gallery">
+        <div class="card-head">
+          <h2 id="h-gallery">Gallery</h2>
+          <span class="muted small" id="gallery-note"></span>
         </div>
-        <div>
-          <h3 class="mesh-head">Mesh <span class="muted small">Hunyuan3D</span><span class="tabs" id="mesh-tabs"></span></h3>
-          <div class="mesh-view" id="mesh-view"><p class="muted small" id="mesh-empty">No mesh yet.</p></div>
-          <p class="muted small" id="mesh-note">Drag to rotate · scroll to zoom</p>
-        </div>
-        <div>
-          <h3>Flow <span class="muted small">FluidX3D · Q-criterion</span></h3>
-          <div class="flow-view" id="flow-view"><p class="muted small" id="flow-empty">Simulation not rendered yet.</p><video id="flow-video" muted loop playsinline autoplay hidden></video></div>
-          <p class="muted small" id="flow-note"></p>
-        </div>
-      </div>
-      <h3>Similar shapes <span class="muted small" id="similar-note"></span></h3>
-      <div class="similar" id="similar"></div>
-      <h3>Prompts <span class="muted small">every Gemini call · click to open</span> <span class="muted small" id="prompts-note"></span></h3>
-      <div class="prompts" id="prompts"></div>
-    </section>
-
-    <section class="card" aria-labelledby="h-gallery">
-      <div class="card-head">
-        <h2 id="h-gallery">Gallery</h2>
-        <span class="muted small" id="gallery-note"></span>
-      </div>
-      <div class="gallery" id="gallery"></div>
-      <button class="ghost small more" id="gallery-more" type="button" hidden></button>
-    </section>
-
-    <div class="grid two">
+        <div class="gallery" id="gallery"></div>
+        <button class="ghost small more" id="gallery-more" type="button" hidden></button>
+      </section>
       <section class="card" aria-labelledby="h-div">
         <div class="card-head">
           <h2 id="h-div">Diversity map</h2>
@@ -117,14 +97,49 @@
         <h3 class="small">Coverage by shape bucket</h3>
         <div id="coverage"></div>
       </section>
+    </div>
 
-      <section class="card" aria-labelledby="h-approve">
+    <div class="page" id="page-shape" data-page="shape" hidden>
+      <section class="card" aria-labelledby="h-sample">
         <div class="card-head">
-          <h2 id="h-approve">Needs your approval</h2>
-          <span class="muted small" id="approve-count"></span>
+          <h2 id="h-sample">Sample</h2>
+          <select id="sample-pick" aria-label="Choose sample"></select>
         </div>
-        <div id="approvals"></div>
+        <div class="grid three" id="sample-body"></div>
+        <div class="grid media" id="sample-media">
+          <div>
+            <h3>Reference views <span class="muted small">Nano Banana · hover to enlarge</span></h3>
+            <div class="views" id="views"></div>
+          </div>
+          <div>
+            <h3 class="mesh-head">Mesh <span class="muted small">Hunyuan3D</span><span class="tabs" id="mesh-tabs"></span></h3>
+            <div class="mesh-view" id="mesh-view"><p class="muted small" id="mesh-empty">No mesh yet.</p></div>
+            <p class="muted small" id="mesh-note">Drag to rotate · scroll to zoom</p>
+          </div>
+          <div>
+            <h3>Flow <span class="muted small">FluidX3D · Q-criterion</span></h3>
+            <div class="flow-view" id="flow-view"><p class="muted small" id="flow-empty">Simulation not rendered yet.</p><video id="flow-video" muted loop playsinline autoplay hidden></video></div>
+            <p class="muted small" id="flow-note"></p>
+          </div>
+        </div>
+        <h3>Similar shapes <span class="muted small" id="similar-note"></span></h3>
+        <div class="similar" id="similar"></div>
+        <h3>Prompts <span class="muted small">every Gemini call · click to open</span> <span class="muted small" id="prompts-note"></span></h3>
+        <div class="prompts" id="prompts"></div>
       </section>
+      <section class="card" aria-labelledby="h-activity">
+        <div class="card-head">
+          <h2 id="h-activity">Agent activity</h2>
+          <span class="muted small" id="activity-note"></span>
+        </div>
+        <p class="muted small" id="activity-sample"></p>
+        <ol class="timeline" id="timeline"></ol>
+      </section>
+    </div>
+
+
+    <div class="page" id="page-about" data-page="about" hidden>
+      <section class="deck" id="deck" aria-label="About FlowArc" tabindex="0"></section>
     </div>
   </main>
 
@@ -140,6 +155,43 @@
     </div>
     <div class="finale-grid" id="finale-grid"></div>
   </section>
+  <section class="stage" id="stage" aria-label="Stage view" hidden>
+    <header class="stage-top">
+      <div class="stage-brand"><span class="stage-mark" aria-hidden="true"></span><b>FlowArc</b><span>Text in · checked flow simulation out</span></div>
+      <dl class="stage-kpis" id="stage-kpis"></dl>
+      <button class="stage-exit" id="stage-exit" type="button" aria-label="Leave the stage view (P)">✕</button>
+    </header>
+    <div class="stage-main">
+      <article class="stage-shape">
+        <div class="sh-head">
+          <div class="sh-kicker" id="sh-kicker"></div>
+          <h2 id="sh-title"></h2>
+        </div>
+        <div class="sh-sheet">
+          <div class="sh-3d" id="sh-3d"><div class="sh-mesh" id="sh-mesh"></div><video id="sh-video" muted loop playsinline></video><img id="sh-img" alt=""><div class="sh-wait" id="sh-wait"></div><span class="sh-label" id="sh-3dlabel"></span><span class="sh-dim" aria-hidden="true">← L = 1.00 →</span></div>
+          <div class="sh-views" id="sh-views"></div>
+          <table class="sh-block" id="sh-block"></table>
+        </div>
+        <ol class="track" id="sh-track"></ol>
+      </article>
+      <div class="stage-side">
+        <section class="stage-chat" aria-live="polite">
+          <h3>Agent log <span id="chat-sample"></span></h3>
+          <ol id="stage-chat"></ol>
+        </section>
+        <section class="atlas" id="atlas">
+          <h3>MongoDB Atlas <span>agent memory · live</span></h3>
+          <div class="atlas-stats" id="atlas-stats"></div>
+          <div class="atlas-ask">
+            <input id="atlas-q" type="search" placeholder="Ask Atlas: something that flies" autocomplete="off" aria-label="Search every shape in Atlas">
+            <div class="atlas-results" id="atlas-results" hidden></div>
+          </div>
+          <p class="atlas-chips">Vector Search · Hybrid search ($rankFusion) · Voyage AI · GridFS</p>
+        </section>
+      </div>
+    </div>
+  </section>
   <script src="app.js"></script>
+  <script src="stage.js"></script>
 </body>
 </html>

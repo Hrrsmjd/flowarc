@@ -37,7 +37,11 @@ async function load() {
   }
   for (const a of state.approvals) Object.assign(a, localApprovals[a.id] || {});
   scopeRun(state);
-  if (selected && !state.samples.find((s) => s.id === selected)) selected = null;
+  if (selected && !state.samples.find((s) => s.id === selected)) {
+    // A link to an older shape the run scope hides: show everything rather than lose it.
+    if (olderIds.has(selected)) return void ((everything = true), load());
+    selected = null;
+  }
   render();
 }
 
@@ -45,12 +49,7 @@ async function load() {
 let everything = false;
 let olderIds = new Set(); // samples hidden by the run scope, so opening one can show them
 function scopeRun(st) {
-  const btn = $("scope");
-  btn.hidden = !st.run.scope;
   if (!st.run.scope) return;
-  const outside = st.samples.filter((s) => !s.in_run).length;
-  btn.textContent = everything ? `All samples · show ${st.run.scope} only` : `${st.run.scope} · ${outside} older hidden`;
-  btn.title = everything ? "Count only this run's samples" : "Show older samples too";
   olderIds = new Set(everything ? [] : st.samples.filter((s) => !s.in_run).map((s) => s.id));
   if (everything) return void (st.run.gpu_hours = st.run.gpu_hours_all);
   st.samples = st.samples.filter((s) => s.in_run);
@@ -58,7 +57,6 @@ function scopeRun(st) {
   for (const s of st.samples) { g.calls += s.gemini?.calls || 0; g.tokens += s.gemini?.tokens || 0; }
   st.run.gemini = g;
 }
-$("scope").addEventListener("click", () => { everything = !everything; sampleSig = ""; load(); });
 
 async function loadMap() {
   try {
@@ -70,7 +68,7 @@ async function loadMap() {
 
 function liveTick() {
   const age = (Date.now() - lastOk) / 1000;
-  const el = $("live");
+  const el = $("live-status");
   el.classList.toggle("stale", Boolean(lastError) || !lastOk || age > 10);
   el.title = lastError;
   if (lastError) return ($("live-text").textContent = `API error: ${lastError.slice(0, 60)}`);
@@ -105,6 +103,7 @@ function render() {
     run.gpus && `${run.gpus} GPUs`,
     `running ${fmtDur(elapsed)}`,
   ].filter(Boolean).join(" · ");
+  renderOverview(run, samples);
   renderKpis(run, samples);
   renderHero();
   renderGallery(samples);
@@ -123,6 +122,8 @@ function render() {
     renderDiversity();
   }
   renderTimeline();
+  window.renderStage?.();
+  if (document.body.dataset.page === "home") renderHome();
 }
 
 // Connected, but nothing in the registry yet: say so instead of showing blank panels.
@@ -145,6 +146,7 @@ const featured = () => state.samples.find((s) => s.id === state.run.featured) ||
 const selectedSample = () => (selected && state.samples.find((s) => s.id === selected)) || featured();
 function select(id) {
   selected = id;
+  if (!document.body.classList.contains("present")) go(id ? `shape/${encodeURIComponent(id)}` : "shape");
   // Search and similar shapes can point at an older sample the run scope hides: show all.
   if (olderIds.has(id)) {
     everything = true;
@@ -152,6 +154,25 @@ function select(id) {
     return void load();
   }
   render();
+}
+
+// One sentence and one bar: how far the run is, before any detail.
+function renderOverview(run, samples) {
+  const n = (st) => samples.filter((s) => s.status === st).length;
+  const done = n("done"), running = n("running"), bad = n("failed"), flagged = n("flagged");
+  const total = Math.max(run.target_samples || 0, samples.length);
+  const waiting = Math.max(0, total - done - running - bad - flagged);
+  const fixes = samples.reduce((a, s) => a + s.log.filter((e) => e.fix).length, 0);
+  const segs = [["done", done], ["running", running], ["flagged", flagged], ["failed", bad], ["waiting", waiting]];
+  const bar = segs.filter(([, v]) => v).map(([k, v]) => `<span class="seg ${k}" style="flex:${v}" title="${v} ${k}"></span>`).join("");
+  const key = segs.map(([k, v]) => `<span class="key ${k}"><i></i>${v} ${k}</span>`).join("");
+  const html = `<p class="ov-label">${esc(run.phase || "")} run · started ${fmtDur(Date.now() / 1000 - run.started_at)} ago</p>
+    <h1 class="headline"><span class="num">${done}</span> of ${total} shapes are done.</h1>
+    <p class="lede">${running ? `${running} ${running === 1 ? "is" : "are"} running now. ` : ""}Argon has fixed ${fixes} problem${fixes === 1 ? "" : "s"} on its own${bad + flagged ? `; ${bad + flagged} need${bad + flagged === 1 ? "s" : ""} a look` : ""}.</p>
+    <div class="progress" aria-label="Run progress">${bar}</div><div class="progress-key">${key}</div>`;
+  const el = $("overview");
+  if (el.dataset.html !== html.replace(/started [^·<]+ago/, "")) { el.dataset.html = html.replace(/started [^·<]+ago/, ""); el.innerHTML = html; }
+  else el.querySelector(".ov-label").textContent = `${run.phase || ""} run · started ${fmtDur(Date.now() / 1000 - run.started_at)} ago`;
 }
 
 function renderKpis(run, samples) {
@@ -805,24 +826,60 @@ async function decide(id, decision) {
 }
 
 // ---------- search ----------
-let searchTimer;
-$("q").addEventListener("input", (e) => {
+// Search by meaning or name (Atlas hybrid search). Arrow keys pick a result, Enter opens it,
+// / jumps to the box from anywhere, and an empty box offers a few things to try.
+const TRY = ["something that flies", "kitchen tools", "sea creatures", "tall buildings"];
+let searchTimer, hits = [], hit = 0;
+function showResults(html) { $("results").innerHTML = html; $("results").hidden = false; }
+function paintHits(engine) {
+  const engines = { hybrid: "Atlas hybrid search · meaning + keywords", "hybrid-descriptions": "Atlas hybrid search (descriptions only)", "atlas-search": "Atlas Search", regex: "Atlas", mock: "Local replay" };
+  const row = (x, i) => {
+    const s = state?.samples.find((t) => t.id === x.id);
+    const img = s && viewUrl(s);
+    return `<button type="button" data-id="${esc(x.id)}" class="${i === hit ? "on" : ""}">${img ? `<img src="${esc(img)}" alt="">` : `<span class="noimg"></span>`}
+      <span class="r-name">${esc(x.name)}<small>${esc([s?.bucket, x.status].filter(Boolean).join(" · "))}</small></span></button>`;
+  };
+  showResults((hits.map(row).join("") || "<div class='engine'>No matches. Try describing the shape.</div>") + `<div class="engine">${engines[engine] || ""}</div>`);
+  $("results").querySelectorAll("[data-id]").forEach((b) => b.addEventListener("click", () => openHit(b.dataset.id)));
+}
+function openHit(id) {
+  $("results").hidden = true;
+  $("q").value = "";
+  $("q").blur();
+  select(id);
+}
+function suggest() {
+  showResults(`<div class="engine">Try</div>${TRY.map((t) => `<button type="button" class="try" data-q="${esc(t)}">${esc(t)}</button>`).join("")}`);
+  $("results").querySelectorAll("[data-q]").forEach((b) => b.addEventListener("click", () => { $("q").value = b.dataset.q; $("q").focus(); search(); }));
+}
+function search() {
   clearTimeout(searchTimer);
-  const q = e.target.value.trim();
-  if (!q) return ($("results").hidden = true);
+  const q = $("q").value.trim();
+  hits = []; hit = 0;
+  if (!q) return suggest();
+  showResults("<div class='engine'>Searching…</div>");
   searchTimer = setTimeout(async () => {
     const r = await fetch(`api/search?q=${encodeURIComponent(q)}&start=${start}`).then((r) => r.json()).catch(() => ({ results: [] }));
-    const engines = { hybrid: "Atlas hybrid search · Voyage AI meaning + keywords", "hybrid-descriptions": "Atlas hybrid search (descriptions only: re-run setup_atlas.py to add names)", "atlas-search": "Atlas Search", regex: "Atlas (no search index)", mock: "mock" };
-    $("results").innerHTML = (r.results.map((x) => `<button type="button" data-id="${esc(x.id)}"><span>${esc(x.name)}</span><span class="muted small">${esc(x.status)}</span></button>`).join("") || "<div class='engine'>No matches</div>") +
-      `<div class="engine">${engines[r.engine] || ""}</div>`;
-    $("results").hidden = false;
-    $("results").querySelectorAll("[data-id]").forEach((b) => b.addEventListener("click", () => {
-      $("results").hidden = true;
-      $("q").value = "";
-      select(b.dataset.id);
-      $("h-sample").scrollIntoView({ behavior: "smooth" });
-    }));
+    if ($("q").value.trim() !== q) return;
+    hits = r.results || [];
+    paintHits(r.engine);
   }, 200);
+}
+$("q").addEventListener("input", search);
+$("q").addEventListener("focus", () => { if (!$("q").value.trim()) suggest(); });
+$("q").addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { $("q").value = ""; $("results").hidden = true; $("q").blur(); }
+  else if (e.key === "Enter" && hits[hit]) openHit(hits[hit].id);
+  else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && hits.length) {
+    e.preventDefault();
+    hit = (hit + (e.key === "ArrowDown" ? 1 : -1) + hits.length) % hits.length;
+    $("results").querySelectorAll("[data-id]").forEach((b, i) => b.classList.toggle("on", i === hit));
+  }
+});
+addEventListener("keydown", (e) => {
+  if (e.key !== "/" || e.target.closest("input, textarea, select") || document.body.classList.contains("present") || finaleOpen()) return;
+  e.preventDefault();
+  $("q").focus();
 });
 document.addEventListener("click", (e) => { if (!e.target.closest(".search")) $("results").hidden = true; });
 
@@ -834,25 +891,118 @@ $("restart").addEventListener("click", () => {
   load().then(loadMap);
 });
 
-// ---------- theme ----------
-$("theme").addEventListener("click", () => {
-  const root = document.documentElement;
-  const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-  root.dataset.theme = dark ? "light" : "dark";
-});
 
 load().then(loadMap);
 setInterval(load, POLL_MS);
 setInterval(loadMap, MAP_MS);
 setInterval(liveTick, 1000);
 
+// ---------- tabs ----------
+// A small site: one job per tab, each with its own link (#live, #shapes, #about), and one per
+// shape (#shape/<id>), so a refresh or a shared link opens the same shape.
+const PAGES = ["home", "live", "shapes", "shape", "about"];
+function go(route) {
+  if (location.hash.slice(1) !== route) history.pushState(null, "", `#${route}`);
+  showPage(route);
+}
+function showPage(route = location.hash.slice(1)) {
+  let [page, id] = route.split("/");
+  const want = id ? decodeURIComponent(id) : null; // #shape alone follows the live sample
+  if (page === "shape" && want !== selected) {
+    selected = want;
+    sampleSig = "";
+    if (state) render();
+  }
+  if (page === "run") page = "live";
+  if (!PAGES.includes(page)) page = "home";
+  document.querySelectorAll(".page").forEach((el) => (el.hidden = el.dataset.page !== page));
+  document.querySelectorAll(".tabs-nav a").forEach((a) => a.toggleAttribute("aria-current", a.getAttribute("href") === `#${page === "shape" ? "shapes" : page}`));
+  document.body.dataset.page = page;
+  if (page === "home") renderHome();
+  if (page === "about") { renderDeck(); $("deck").focus({ preventScroll: true }); }
+  scrollTo(0, 0);
+}
+addEventListener("hashchange", () => showPage());
+
+// ---------- home: the landing page ----------
+// The pitch in one scroll: what FlowArc is, then the slides' sections, with a way into the live run.
+let homeSig = "";
+function renderHome() {
+  const samples = state?.samples || [];
+  const done = samples.filter((s) => s.status === "done");
+  const live = samples.find((s) => s.status === "running");
+  const pic = done.filter((s) => viewUrl(s)).sort((a, b) => b.last_t - a.last_t)[0]; // the newest finished shape
+  const age = Date.now() / 1000 - (pic?.last_t || 0); // to the minute, so the page only redraws when it changes
+  const when = pic?.last_t > 1e9 ? ` · finished ${age < 60 ? "just now" : age < 3600 ? `${Math.floor(age / 60)} min ago` : `${(age / 3600).toFixed(1)} h ago`}` : "";
+  const kinds = new Set(done.map((s) => s.bucket)).size;
+  const html = `<section class="l-hero">
+      <div class="l-copy"><p class="kick">AI4Physics datasets · Encode London 2026</p>
+        <h1 class="l-title">Text in.<br>Checked flow<br>simulation out.</h1>
+        <p class="lead">FlowArc is an agent that turns a sentence into a 3D shape and a verified airflow simulation, so flow models can learn from more than cars.</p>
+        <div class="l-cta"><a class="btn approve" href="#live">Watch it live →</a></div>
+        <p class="l-live">${live ? `<span class="dot"></span>Running now: <b>${esc(live.title)}</b> · ` : ""}${done.length} shapes checked · ${kinds} kinds of object</p></div>
+      ${pic ? `<figure class="l-pic"><p class="l-pic-label"><span class="dot"></span>Latest finished shape <span>updates as the run goes</span></p><img src="${esc(viewUrl(pic))}" alt="${esc(pic.title)}"><figcaption><b>${esc(pic.title)}</b> · ${esc(pic.bucket)}${when}</figcaption></figure>` : ""}
+    </section>
+    ${slides().slice(1).map((x) => `<section class="slide l-sec">${x}</section>`).join("")}
+    <section class="l-end"><a class="btn approve" href="#live">Watch it live →</a></section>`;
+  if (html === homeSig) return;
+  homeSig = html;
+  $("page-home").innerHTML = html;
+}
+
+// ---------- about: slides ----------
+// The pitch as slides, with the run's own numbers. ← and → (or space) move between them.
+let slide = 0;
+function slides() {
+  const samples = state?.samples || [];
+  const done = samples.filter((s) => s.status === "done");
+  const kinds = new Set(done.map((s) => s.bucket)).size;
+  const fixes = samples.flatMap((s) => s.log.filter((e) => e.fix).map((e) => ({ s, e })));
+  const last = fixes[fixes.length - 1];
+  const flows = done.filter((s) => s.media?.video).length;
+  const pics = done.filter((s) => viewUrl(s)).slice(0, 6);
+  const media = samples.reduce((a, s) => a + Object.keys(s.media?.views || {}).length + (s.media?.meshes?.length || 0) + (s.media?.video ? 1 : 0), 0);
+  const step = (n, t, who, d) => `<li><span class="n">${n}</span><b>${t}</b><small>${who}</small><p>${d}</p></li>`;
+  return [
+    `<p class="kick">Encode London 2026</p><h2 class="big">FlowArc</h2><p class="lead">Text in. Checked flow simulation out.</p>`,
+    `<p class="kick">The problem</p><h2>AI flow models only know shapes like the ones they trained on.</h2>
+     <div class="facts"><div><b>8,000</b><span>shapes in DrivAerNet++</span></div><div><b>1</b><span>kind of shape: cars</span></div><div><b>Months</b><span>of expert work per dataset</span></div></div>`,
+    `<p class="kick">How it works</p><h2>An agent builds each sample and checks every step.</h2>
+     <ol class="pipe">${step(1, "Concept", "Argon", "invents a new shape for a gap in the dataset")}${step(2, "Images", "Nano Banana", "draws it from four sides")}${step(3, "Mesh", "Hunyuan3D", "builds the 3D mesh; Flash checks it against the drawings")}${step(4, "Simulation", "FluidX3D", "runs the airflow on two grids until drag agrees")}${step(5, "Package", "Atlas", "stores the result and remembers the shape")}</ol>`,
+    `<p class="kick">Argon, the supervisor</p><h2>When a check fails, Argon reads why and fixes it.</h2>
+     <div class="facts"><div><b>${fixes.length}</b><span>${fixes.length === 1 ? "problem" : "problems"} fixed without a person</span></div><div><b>${samples.reduce((a, s) => a + (s.gemini?.calls || 0), 0)}</b><span>Gemini calls</span></div></div>
+     ${last ? `<blockquote><b>${esc(last.s.title)}</b>: ${esc(last.e.msg.replace(/^repair:\s*/, ""))}${last.e.diagnosis ? `<small>${esc(last.e.diagnosis)}</small>` : ""}</blockquote>` : ""}`,
+    `<p class="kick">MongoDB Atlas</p><h2>Atlas is the agent's memory.</h2>
+     <ul class="uses"><li><b>Vector Search</b> on 3072-d Gemini embeddings, so Argon never repeats a shape</li><li><b>Hybrid search</b> with Voyage AI and <code>$rankFusion</code>, to find any shape by meaning</li><li><b>GridFS</b> for every view, mesh and flow video</li><li><b>The agent log</b>, every step and every fix</li></ul>
+     <div class="facts"><div><b>${samples.length}</b><span>shapes remembered</span></div><div><b>${media}</b><span>files in GridFS</span></div></div>`,
+    `<p class="kick">So far</p><h2>${done.length} checked shapes, ${kinds} kinds of object${flows ? `, ${flows} flows` : ""}.</h2>
+     <div class="strip">${pics.map((s) => `<figure><img src="${esc(viewUrl(s))}" alt=""><figcaption>${esc(s.title)}</figcaption></figure>`).join("")}</div>
+     <div class="facts"><div><b>${state ? state.run.gpu_hours.toFixed(1) : "–"}</b><span>GPU-hours</span></div><div><b>1</b><span>kind in DrivAerNet++</span></div></div>`,
+    `<p class="kick">Who it's for</p><h2>Diverse, verified flow datasets in days, not months.</h2><p class="lead">For researchers and frontier AI4Physics teams, starting with us.</p>`,
+  ];
+}
+function renderDeck() {
+  const all = slides();
+  slide = Math.max(0, Math.min(slide, all.length - 1));
+  $("deck").innerHTML = `<div class="slide">${all[slide]}</div>
+    <div class="deck-nav"><button class="ghost" type="button" data-d="-1" aria-label="Previous slide">←</button>
+    <span>${slide + 1} / ${all.length}</span><button class="ghost" type="button" data-d="1" aria-label="Next slide">→</button></div>`;
+  $("deck").querySelectorAll("[data-d]").forEach((b) => b.addEventListener("click", () => { slide += Number(b.dataset.d); renderDeck(); }));
+}
+addEventListener("keydown", (e) => {
+  if (document.body.dataset.page !== "about" || e.target.closest("input, textarea, select") || finaleOpen() || document.body.classList.contains("present")) return;
+  if (e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); slide++; renderDeck(); }
+  else if (e.key === "ArrowLeft") { slide--; renderDeck(); }
+});
+
 // ---------- presenter mode ----------
-// Bigger type, fewer panels, and when nothing is happening it walks through finished shapes
-// so the screen keeps moving while you talk. ?present, the Present button, or P.
+// The dark stage view (stage.js), and when nothing is happening it walks through finished
+// shapes so the screen keeps moving while you talk. ?present, the Present button, or P.
 const IDLE_MS = 60000, CYCLE_MS = 15000;
 let lastTouch = 0, cycleTimer = null;
 function present(on) {
   document.body.classList.toggle("present", on);
+  window.stageShow?.(on);
   $("present").textContent = on ? "■ Exit" : "▶ Present";
   clearInterval(cycleTimer);
   if (on) cycleTimer = setInterval(cycle, CYCLE_MS);
@@ -959,3 +1109,6 @@ addEventListener("keydown", (e) => {
   else if (finaleOpen() && (e.key === "ArrowRight" || e.key === " ")) { e.preventDefault(); spot(nextSpot()); }
 });
 if (new URLSearchParams(location.search).has("finale")) addEventListener("load", () => setTimeout(() => state && finale(true), 2500));
+
+// Start on the tab in the link, once everything above is defined.
+showPage();

@@ -1,6 +1,13 @@
 # Dashboard
 
-Live dashboard for the demo, deployed on Vercel. It shows:
+Live dashboard for the demo, deployed on Vercel. It is a small site with its own links:
+
+- **Home** (`#home`, the logo): the pitch in one scroll, with the run's own numbers
+- **Live** (`#live`): the headline, the shape being made now, GPUs, run progress and approvals
+- **Dataset** (`#shapes`): the gallery and the diversity map; a click on a shape opens it at its own link (`#shape/<id>`)
+- `#about`: the pitch as slides (← → or space)
+
+Search is in the top bar (`/` to focus, arrow keys and Enter to open a result). Across these it shows:
 
 - run progress for each sample and stage
 - agent activity for the sample running now, including failed checks and Argon's repairs
@@ -74,7 +81,12 @@ the runner:
 python -m flowarc.media --watch 5    # new views (512 px JPEG), meshes (GLB, ≤20k faces), flow video (MP4, ≤4 MB)
 ```
 
-**Finale** (★ Finale, the F key, or `?finale`) is the closing shot: every finished shape as picture,
+**Stage** (the P key, or `?present`) is the full-screen view for the talk, in `public/stage.js`: the
+live shape on a drawing sheet with its views and turning mesh (or flow video), its stage track, the
+agent log, and an Atlas panel that counts what's stored and takes searches (`/`). L goes back to the
+live sample; P leaves.
+
+**Finale** (the F key, or `?finale`) is the closing shot: every finished shape as picture,
 turning mesh and flow video, with the totals next to DrivAerNet++. It steps through the shapes
 by itself every 7 s; → or a click picks one, Esc closes it.
 
