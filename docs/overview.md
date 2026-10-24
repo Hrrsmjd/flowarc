@@ -1,6 +1,6 @@
 # FlowArc overview
 
-FlowArc builds a CFD dataset with many different shapes. Gemini comes up with objects and draws them, an image-to-3D model turns the drawings into meshes, and FluidX3D simulates the flow around each one. Every stage checks its own output and retries when the check fails.
+FlowArc builds a CFD dataset with many different shapes. Gemini comes up with objects and draws them, an image-to-3D model turns the drawings into meshes, and FluidX3D simulates the flow around each one. Every stage checks its own output and retries when the check fails. MongoDB Atlas holds the registry and is the agent's memory: what exists, what failed, and what fixed it.
 
 Status as of 2026-10-24. The build plan is in [PLAN.md](../PLAN.md).
 
@@ -24,7 +24,7 @@ flowchart LR
 
 | Stage | Check | Pass when |
 |---|---|---|
-| Concept | Embedding similarity to every existing sample | below 0.88 |
+| Concept | Embedding similarity to every existing sample (Atlas Vector Search) and to the rest of the batch | below 0.88 |
 | Views | Flash compares the 4 views | same object, parts and proportions |
 | Mesh | Watertight, one body, no thin parts | thin surface below 1% |
 | Mesh | Hole count vs what Argon expects | equal |
@@ -45,7 +45,7 @@ flowchart TB
     C -- fail --> A
     C -- pass --> F{Flash looks at 6 renders<br/>next to the views}
     F -- pass --> OK[Mesh accepted]
-    F -- fail --> A[Argon picks a fix]
+    F -- fail --> A[Argon picks a fix,<br/>given past fixes for<br/>similar failures]
     A --> R1[Repair the mesh]
     A --> R2[New mesh: other seed or view]
     A --> R3[Redo the images]
@@ -62,6 +62,34 @@ Flash answers pass or fail, with a reason, for each of these:
 - Clean surface: no lumpy noise, no stair-steps, no collapsed thin parts.
 - Upright, front facing the flow.
 
+## Registry: MongoDB Atlas
+
+Argon reads Atlas before it acts: it searches what exists before proposing an object, and it looks up fixes that worked before choosing a repair. The dashboard reads the same collections.
+
+```mermaid
+flowchart LR
+    subgraph Atlas[MongoDB Atlas: cluster flowarc]
+        S[(samples)]
+        L[(logs)]
+        R[(repairs)]
+    end
+    A1[Argon proposes concepts] -- search_registry tool:<br/>hybrid search --> S
+    N[Novelty check] -- Vector Search on<br/>Gemini embeddings --> S
+    A2[Argon picks a repair] -- past_fixes:<br/>hybrid search --> R
+    D[Dashboard] -- facets, text search,<br/>autocomplete --> S
+    D -- log search, metrics --> L
+```
+
+| Atlas feature | Index | Used for |
+|---|---|---|
+| Vector Search | `concept_vectors` (3072-d `gemini-embedding-2`) | Novelty check, diversity map |
+| Atlas Search | `samples_text`, `logs_text`, `repairs_text` | Coverage facets (bucket, status, stage, Re band), text search, autocomplete, log search |
+| Automated Embedding (Voyage AI `voyage-4`) | `concept_voyage`, `repairs_semantic` | Atlas embeds descriptions and diagnoses itself; queries are plain text |
+| Hybrid Search (`$rankFusion`) | the two above, fused | Argon's `search_registry` tool, `past_fixes` |
+| Stream Processing | `scripts/stream_metrics.js` | Per-minute stage metrics. Built, not deployed yet (see Next) |
+
+`scripts/setup_atlas.py` creates the indexes; `scripts/atlas_smoke.py` runs every query once (9/9 pass on the real cluster). Without `MONGODB_URI` the registry falls back to JSON files.
+
 ## One sample on disk
 
 ```mermaid
@@ -75,7 +103,7 @@ flowchart TB
     S --> V[video.mp4]
 ```
 
-`sample.json` records which stage runs next, so a crashed run picks up where it stopped.
+`sample.json` records which stage runs next, so a crashed run picks up where it stopped. With Atlas connected, the record and log live in the `samples` and `logs` collections instead, and the folder holds only the bulk files.
 
 ## Solver checks so far
 
@@ -91,7 +119,7 @@ The solver has no wall model, so drag is only trusted up to about Re 1e5. Sample
 
 ## Pull requests
 
-All merged into `main`.
+All merged into `main` except PR 13 (open).
 
 ```mermaid
 flowchart LR
@@ -102,6 +130,7 @@ flowchart LR
     P2 --> P7[PR 7: concepts + views]
     P7 --> P8[PR 8: mesh stage + mesh review]
     P2 --> P11[PR 11: this overview]
+    P7 --> P13[PR 13: Atlas registry,<br/>search and agent memory]
 ```
 
 ## Where we are
@@ -113,6 +142,7 @@ flowchart LR
     classDef todo fill:#eeeeee,stroke:#888
     c[Concept]:::done --> v[Views]:::done --> m[Mesh]:::done --> s[Simulate]:::done --> r[Video]:::part --> p[Package]:::done --> u[HF upload]:::todo
     o[Runner: GPU pool,<br/>resume, approvals]:::part
+    a[Atlas registry<br/>and search]:::done
 ```
 
 Green works, amber works but needs tuning, grey is not built yet.
@@ -124,8 +154,10 @@ Mesh bake-off on 4 objects: Hunyuan3D-2.1 was as good as 2mv or better (2mv lost
 1. Runner: one sample per GPU on w7830, resume after a crash, approval before publishing or going over budget.
 2. First full samples end to end, then 10–20, then 100.
 3. Upload to a private HF dataset (needs a write token), then delete the copy on RDS.
+4. Atlas Stream Processing (optional): deploy `scripts/stream_metrics.js` only once the end-to-end demo and dashboard work. It adds a fifth Atlas feature for the MongoDB bounty, but the dashboard already gets the same numbers from a plain aggregation, so it is about 20 minutes of setup plus per-hour cost for points, not function.
 
 ## Where things live
 
 - Code: this repo. Validation scripts are in `scripts/`.
+- Registry: MongoDB Atlas cluster `flowarc` (M10, AWS London, MongoDB 8.0), database `flowarc`. Connection string in `.env` as `MONGODB_URI`.
 - w7830: everything under `/remote/rds/users/s1612415/flowarc` (code, FluidX3D builds, Hunyuan weights, validation runs). Nothing outside RDS.
