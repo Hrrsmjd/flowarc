@@ -200,16 +200,9 @@ function renderHero() {
   const v = s.status === "done" && s.media?.video;
   const pic = v
     ? `<video src="${esc(v.url)}" muted loop playsinline autoplay></video>`
-    : viewUrl(s) ? `<img src="${esc(viewUrl(s))}" alt="${esc(s.title)}">` : "";
-  // A simulation takes longer than a demo: while this one runs, play the last finished flow
-  // (big while there's no picture of this one yet).
-  const prev = !v && lastFlow(s);
-  const shot = !pic && !prev && state.samples.filter((x) => x !== s && x.status === "done" && viewUrl(x)).sort((a, b) => b.last_t - a.last_t)[0];
-  const inset = prev ? `<figure class="hero-flow${pic ? "" : " big"}" data-open="${esc(prev.id)}" title="Open ${esc(prev.title)}"><video src="${esc(prev.media.video.url)}" muted loop playsinline autoplay></video><figcaption>Flow from the last finished shape · ${esc(prev.title)} ↗</figcaption></figure>`
-    : shot ? `<figure class="hero-flow big" data-open="${esc(shot.id)}" title="Open ${esc(shot.title)}"><img src="${esc(viewUrl(shot))}" alt=""><figcaption>Last finished · ${esc(shot.title)} ↗</figcaption></figure>`
-    : pic ? "" : `<div class="hero-empty">${live ? "drawing…" : ""}</div>`;
+    : viewUrl(s) ? `<img src="${esc(viewUrl(s))}" alt="${esc(s.title)}">` : `<div class="hero-empty">${live ? "drawing…" : ""}</div>`;
   const c = s.concept || {};
-  const html = `<div class="hero-pic">${pic}${inset}</div>
+  const html = `<div class="hero-pic">${pic}</div>
     <div class="hero-body">
       <div class="hero-kicker">${live ? `<span class="pulse"></span>Now running${s.gpu != null ? ` · GPU ${s.gpu}` : ""}` : "Latest sample"}</div>
       <h2 class="hero-title">${esc(s.title)}</h2>
@@ -220,15 +213,9 @@ function renderHero() {
   if (el.dataset.html !== html) {
     el.dataset.html = html;
     el.innerHTML = html;
-    el.querySelectorAll("video").forEach((x) => x.play().catch(() => {}));
-    el.querySelector("[data-open]")?.addEventListener("click", (e) => {
-      select(e.currentTarget.dataset.open);
-      $("h-sample").scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+    el.querySelector("video")?.play().catch(() => {});
   }
 }
-
-const lastFlow = (not) => state.samples.filter((x) => x !== not && x.status === "done" && x.media?.video).sort((a, b) => b.last_t - a.last_t)[0];
 
 // ---------- gallery ----------
 function renderGallery(samples) {

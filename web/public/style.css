@@ -277,9 +277,6 @@ table.qoi { width: 100%; border-collapse: collapse; font-size: 12px; margin-top:
 .hero-pic > img, .hero-pic > video { width: 100%; height: 100%; object-fit: contain; display: block; }
 .hero-pic > video { background: #000; }
 .hero-empty { height: 100%; display: grid; place-items: center; color: var(--muted); background: var(--wash); }
-.hero-flow { position: absolute; right: 10px; bottom: 10px; width: 42%; margin: 0; border-radius: 8px; overflow: hidden; background: #000; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25); }
-.hero-flow video { width: 100%; display: block; aspect-ratio: 16 / 10; object-fit: cover; }
-.hero-flow figcaption { font-size: 11px; color: #e8e7e2; padding: 3px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hero-body { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
 .hero-kicker { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); display: flex; align-items: center; gap: 8px; }
 .hero-title { font-size: 28px; line-height: 1.15; margin: 0; }
@@ -333,9 +330,6 @@ body.present .search, body.present #card-progress { display: none; }
 body.present .grid.two { grid-template-columns: minmax(0, 1fr); }
 body.present .hero-title { font-size: 36px; }
 .hero-pic { max-height: 380px; width: 100%; }
-.hero-flow.big { inset: 0; width: auto; border-radius: 0; box-shadow: none; display: flex; flex-direction: column; }
-.hero-flow.big video, .hero-flow.big img { flex: 1; min-height: 0; aspect-ratio: auto; width: 100%; object-fit: contain; }
-.hero-flow.big img { background: #fff; }
 @media (max-width: 520px) { .top-right { flex-wrap: wrap; gap: 6px; } #present { display: none; } }
 
 /* finale */
@@ -372,9 +366,6 @@ body.finale-on { overflow: hidden; }
   .spot { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 520px) { #finale-open { display: none; } }
-.hero-flow[data-open] { cursor: pointer; }
-.hero-flow[data-open]:hover { outline: 2px solid var(--accent); }
-
 /* now running */
 table.now { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 .now th { text-align: left; font-weight: 500; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .03em; padding: 4px 8px; }
