@@ -14,8 +14,13 @@ import json
 import math
 import random
 import sys
+from pathlib import Path
 
 from flowarc.sample import STAGES
+
+# Real concepts, views and meshes from the pipeline, written by scripts/demo_media.py. When
+# present they replace the stand-ins: the demo then shows real Nano Banana and Hunyuan3D output.
+REAL = Path(__file__).resolve().parent.parent / "web" / "lib" / "demo_real.json"
 
 TAXONOMY = [
     "animals and organic forms",
@@ -56,7 +61,25 @@ DIM = 16  # mock embedding size; real ones come from gemini-embedding-2
 PACE = 0.6  # the live sample takes about two minutes, so it fits in a 3-minute demo
 
 
-def _script(fail_mesh: bool, flag_sim: bool = False, give_up: bool = False) -> list[tuple]:
+# What goes wrong with the live sample's first mesh, and Argon's fix.
+COW_STORY = {
+    "view": "front",
+    "reason": "only three legs; the front-left leg is missing",
+    "diagnosis": "The front view shows the front-left leg hidden behind the right one, so "
+    "image-to-3D merged them. Redraw the front view with all four legs clearly apart and "
+    "rebuild the mesh.",
+}
+REAL_STORY = {  # matches scripts/demo_media.py: a cropped side view, a mesh missing its back
+    "view": "side",
+    "reason": "the back of the shape is missing from the mesh",
+    "diagnosis": "The side view crops the back of the object, so image-to-3D left it out. "
+    "Redraw the side view with the whole object in frame and rebuild the mesh.",
+}
+
+
+def _script(
+    fail_mesh: bool, flag_sim: bool = False, give_up: bool = False, story: dict = COW_STORY
+) -> list[tuple]:
     """(seconds after the previous event, stage, msg, extra fields) for one sample."""
     ev = [
         (
@@ -98,8 +121,8 @@ def _script(fail_mesh: bool, flag_sim: bool = False, give_up: bool = False) -> l
                     "check": "flash_review",
                     "passed": False,
                     "actor": "flash",
-                    "reason": "only three legs; the front-left leg is missing",
-                    "iou": {"front": 0.71, "side": 0.88, "top": 0.90},
+                    "reason": story["reason"],
+                    "iou": {"front": 0.88, "side": 0.90, "top": 0.90, story["view"]: 0.71},
                 },
             ),
             (
@@ -108,12 +131,15 @@ def _script(fail_mesh: bool, flag_sim: bool = False, give_up: bool = False) -> l
                 "repair: new mesh from a redrawn front view",
                 {
                     "actor": "argon",
-                    "diagnosis": "The front view shows the front-left leg hidden behind the right "
-                    "one, so image-to-3D merged them. Redraw the front view with all four legs "
-                    "clearly apart and rebuild the mesh.",
+                    "diagnosis": story["diagnosis"],
                 },
             ),
-            (10, "images", "Nano Banana redrew the front view", {"actor": "nano-banana"}),
+            (
+                10,
+                "images",
+                f"Nano Banana redrew the {story['view']} view",
+                {"actor": "nano-banana"},
+            ),
             (16, "mesh", "Hunyuan3D-2.1 rebuilt the mesh (attempt 2)", {"actor": "hunyuan3d"}),
             (
                 4,
@@ -247,7 +273,15 @@ def _unit(rng: random.Random, centre: list[float] | None, spread: float) -> list
     return [round(x / n, 4) for x in v]
 
 
+def _real() -> dict[str, dict]:
+    """Slot (mock sample id) -> real sample from demo_real.json, or {} without it."""
+    if not REAL.exists():
+        return {}
+    return {r["slot"]: r for r in json.loads(REAL.read_text())["samples"]}
+
+
 def batch() -> dict:
+    real = _real()
     rng = random.Random(7)
     centres = [_unit(rng, None, 1.0) for _ in TAXONOMY]
     # start offsets (s): history, the live sample at 0, two more finishing during the demo
@@ -264,9 +298,25 @@ def batch() -> dict:
     for i, (name, b, re, yaw, ground, facing) in enumerate(CONCEPTS):
         sid = f"s{i + 1:04d}"
         p = plan.get(sid, {})
+        concept = {
+            "name": name,
+            "bucket": TAXONOMY[b],
+            "description": f"{name}, {facing}",
+            "facing": facing,
+            "reynolds": re,
+            "yaw_deg": yaw,
+            "ground": ground,
+        }
+        if sid in real:
+            concept = {**concept, **real[sid]["concept"]}
+            if concept["bucket"] in TAXONOMY:
+                b = TAXONOMY.index(concept["bucket"])
         start = p.get("start", -12600 + i * 900)
         script = _script(
-            p.get("fail_mesh", False), p.get("flag_sim", False), p.get("give_up", False)
+            p.get("fail_mesh", False),
+            p.get("flag_sim", False),
+            p.get("give_up", False),
+            REAL_STORY if sid in real else COW_STORY,
         )
         t = start
         for dt, stage, msg, extra in script:
@@ -281,15 +331,7 @@ def batch() -> dict:
                 "_id": sid,
                 "stage": final_stage,
                 "status": final,
-                "concept": {
-                    "name": name,
-                    "bucket": TAXONOMY[b],
-                    "description": f"{name}, {facing}",
-                    "facing": facing,
-                    "reynolds": re,
-                    "yaw_deg": yaw,
-                    "ground": ground,
-                },
+                "concept": concept,
                 "checks": {},
                 "attempts": {"mesh": 2}
                 if p.get("fail_mesh")
@@ -329,11 +371,12 @@ def batch() -> dict:
         for k in range(80)
     ]
     end_live = max(e["t"] for e in logs if e["sample"] == LIVE)
+    flagged = next(s for s in samples if s["_id"] == "s0012")["concept"]["name"]
     approvals = [
         {
             "_id": "flagged-s0012",
             "kind": "flagged",
-            "title": "Review flagged sample s0012 (Grand piano, lid open)",
+            "title": f"Review flagged sample s0012 ({flagged})",
             "detail": "Drag changed 6.1% between 48 and 64 cells/L; tolerance is 3%.",
             "sample": "s0012",
             "status": "pending",
@@ -357,7 +400,7 @@ def batch() -> dict:
         },
     ]
     return {
-        "media": _media(samples, logs),
+        "media": _media(samples, logs, real),
         "run": {
             "phase": "pilot",
             "cells_per_length": [48, 64],
@@ -376,34 +419,49 @@ def batch() -> dict:
 MEDIA_SAMPLES = {"s0001", "s0002", "s0007", LIVE}  # the ones mock_media has shapes for
 
 
-def _media(samples: list[dict], logs: list[dict]) -> list[dict]:
-    """Views and mesh files, each appearing when the log event that made it does."""
+def _media(
+    samples: list[dict], logs: list[dict], real: dict[str, dict] | None = None
+) -> list[dict]:
+    """Views and mesh files, each appearing when the log event that made it does.
+
+    Stand-ins are drawn by mock_media under mock-media/<sample>/; real samples point at the
+    files scripts/demo_media.py saved (attempt 1 of a failed mesh uses its broken copies).
+    """
+    real = real or {}
     out = []
 
     def add(e, kind, name, attempt):
-        ext = "jpg" if kind == "view" else "glb"
-        url = f"mock-media/{e['sample']}/{kind}-{attempt}-{name}.{ext}"
-        out.append(
-            {
-                "sample": e["sample"],
-                "kind": kind,
-                "name": name,
-                "attempt": attempt,
-                "t": e["t"],
-                "url": url,
-            }
-        )
+        r = real.get(e["sample"])
+        if r and kind == "view":
+            url = r["views"].get(f"{name}-{attempt}") or r["views"].get(name)
+        elif r:
+            url = r["mesh"] if attempt > 1 or "broken_mesh" not in r else r["broken_mesh"]
+        else:
+            ext = "jpg" if kind == "view" else "glb"
+            url = f"mock-media/{e['sample']}/{kind}-{attempt}-{name}.{ext}"
+        if url:
+            out.append(
+                {
+                    "sample": e["sample"],
+                    "kind": kind,
+                    "name": name,
+                    "attempt": attempt,
+                    "t": e["t"],
+                    "url": url,
+                }
+            )
 
     for e in logs:
-        if e["sample"] not in MEDIA_SAMPLES:
+        if e["sample"] not in MEDIA_SAMPLES and e["sample"] not in real:
             continue
+        fails = e["sample"] == LIVE
         if e["msg"].startswith("Nano Banana drew"):
             for v in VIEWS:
                 add(e, "view", v, 1)
-        elif e["msg"].startswith("Nano Banana redrew the front"):
-            add(e, "view", "front", 2)
+        elif e["msg"].startswith("Nano Banana redrew the "):
+            add(e, "view", e["msg"].split()[4], 2)
         elif e["msg"].startswith("Hunyuan3D-2.1 built"):
-            add(e, "mesh", "mesh", 1)
+            add(e, "mesh", "mesh", 1 if fails or e["sample"] not in real else 2)
         elif e["msg"].startswith("Hunyuan3D-2.1 rebuilt"):
             add(e, "mesh", "mesh", 2)
     return out
@@ -414,16 +472,22 @@ def stage_after(stage: str) -> str:
     return STAGES[i + 1] if i + 1 < len(STAGES) else "done"
 
 
-if __name__ == "__main__":
-    out = sys.argv[1] if len(sys.argv) > 1 else "web/lib/mock.json"
-    media_dir = sys.argv[2] if len(sys.argv) > 2 else "web/public"
+def write(out: str = "web/lib/mock.json", media_dir: str = "web/public") -> dict:
+    """Write the batch, and draw the stand-in views and meshes it needs (not the real ones)."""
+    from flowarc import mock_media
+
     b = batch()
     with open(out, "w") as f:
         json.dump(b, f, separators=(",", ":"))
-    from pathlib import Path
-
-    from flowarc import mock_media
-
+    real = _real()
+    drawn = [m for m in b["media"] if m["sample"] not in real]
     names = {s["_id"]: s["concept"]["name"] for s in b["samples"]}
-    mock_media.write(b["media"], names, Path(media_dir))
-    print(f"wrote {out} and {len(b['media'])} media files under {media_dir}")
+    mock_media.write(drawn, names, Path(media_dir))
+    print(
+        f"wrote {out} ({len(real)} real samples) and drew {len(drawn)} stand-ins under {media_dir}"
+    )
+    return b
+
+
+if __name__ == "__main__":
+    write(*sys.argv[1:3])
