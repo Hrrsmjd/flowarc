@@ -834,13 +834,6 @@ $("restart").addEventListener("click", () => {
   load().then(loadMap);
 });
 
-// ---------- theme ----------
-$("theme").addEventListener("click", () => {
-  const root = document.documentElement;
-  const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-  root.dataset.theme = dark ? "light" : "dark";
-});
-
 load().then(loadMap);
 setInterval(load, POLL_MS);
 setInterval(loadMap, MAP_MS);
