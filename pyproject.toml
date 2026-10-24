@@ -15,11 +15,11 @@ dependencies = [
     "scikit-image",
     "zarr>=3",
     "python-dotenv",
+    "pymongo>=4.8",
 ]
 
 [project.optional-dependencies]
-store = ["pymongo>=4.8"]
-dev = ["ruff", "pytest"]
+dev = ["ruff", "pytest", "mongomock"]
 
 [build-system]
 requires = ["hatchling"]
