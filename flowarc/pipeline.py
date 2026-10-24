@@ -1,7 +1,7 @@
 """Runs samples through the stages. Each stage checks its output and says whether it passed.
 
 State is saved after every stage, so a crashed run picks up from the last finished stage.
-Fixed retry policy for now; Argon choosing the fix comes later.
+When a stage fails, Argon picks the fix (triage.py).
 """
 
 import json
@@ -13,7 +13,7 @@ from pathlib import Path
 
 import trimesh
 
-from flowarc import concepts, config, gemini, images
+from flowarc import concepts, config, gemini, images, triage
 from flowarc.sample import STAGES, Sample, all_samples
 from flowarc.sim.solver import SimConfig, SimResult
 
@@ -67,13 +67,17 @@ def run_mesh(s: Sample, gpu: int) -> bool:
 
     tries = s.attempts["mesh"]
     cells = cells_per_length(s)
+    raw = s.dir / "mesh" / "raw.glb"
+    remesh = s.meta.pop("remesh", False) and raw.exists()  # Argon chose repair_mesh
     rep = make_mesh(
         views_of(s),
         s.dir / "mesh",
         gpu,
         s.concept,
+        raw=raw if remesh else None,
         seed=tries,
         min_thickness=2 / cells,
+        remesh=remesh,
     )
     (s.dir / "mesh" / f"report_{tries}.json").write_text(json.dumps(rep, indent=1, default=float))
     rev = rep.get("review", {})
@@ -88,8 +92,6 @@ def run_mesh(s: Sample, gpu: int) -> bool:
         flash=rev.get("flash", {}).get("checks"),
         turns=rev.get("turns"),
     )
-    if not rep["passed"] and tries % 2 == 0:  # two meshes failed from these views: redo them
-        s.stage = "images"
     return rep["passed"]
 
 
@@ -277,21 +279,27 @@ def run_sample(s: Sample, gpu: int, budget_hours: float = math.inf) -> Sample:
             return s
         s.status = "running"
         s.save()
+        n_checks, error = len(s.checks.get(stage, [])), None
         token = gemini.CALLS.set([])
         try:
             passed = STAGE_FNS[stage](s, gpu)
         except Exception as e:  # noqa: BLE001 - any stage crash counts as a failed try
             s.log(f"{stage} error: {e!r}", trace=traceback.format_exc())
-            passed = False
+            passed, error = False, repr(e)
         finally:
             for c in gemini.CALLS.get():
                 s.log(f"gemini {c['model']}", actor="gemini", **c)
             gemini.CALLS.reset(token)
+        triage.close_repair(s, stage, passed)
         if passed:
             advance(s)
             upload(s, stage)
-        else:
-            upload(s, stage, s.attempts[stage])
+            continue
+        upload(s, stage, s.attempts[stage])
+        if not triage.handle(s, stage, s.checks.get(stage, [])[n_checks:], error):
+            s.status = "failed"
+            s.save()
+            return s
     soft = [c for cs in s.checks.values() for c in cs if not c["passed"] and c.get("hard") is False]
     s.status = "flagged" if soft else "done"
     s.save()

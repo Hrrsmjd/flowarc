@@ -46,4 +46,6 @@ FRAME_INTERVAL = 0.1
 
 # Runs stop here until Harris approves more (--budget).
 PHASE_GPU_HOURS = float(os.environ.get("FLOWARC_GPU_HOURS", "5"))
+# Argon picks the fix after a failed stage (triage.py); 0 = the fixed retry policy.
+ARGON_REPAIR = os.environ.get("FLOWARC_ARGON_REPAIR", "1") != "0"
 MAX_ATTEMPTS = {"concept": 3, "images": 3, "mesh": 4, "sim": 3, "render": 2}

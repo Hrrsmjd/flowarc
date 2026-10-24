@@ -58,7 +58,7 @@ class Sample:
         `past_fixes` returns for later failures.
         """
         entry = {"sample": self.id, "stage": self.stage, "diagnosis": diagnosis, "action": action}
-        self.log(f"repair: {action}", diagnosis=diagnosis)
+        self.log(f"repair: {action}", diagnosis=diagnosis, actor="argon")
         if (d := store.db()) is not None:
             return str(d.repairs.insert_one({**entry, "fixed": None, "t": time.time()}).inserted_id)
         rid = f"{self.id}-{time.time_ns()}"

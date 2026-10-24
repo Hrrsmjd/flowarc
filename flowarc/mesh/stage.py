@@ -18,8 +18,12 @@ def make_mesh(
     generator=None,
     seed: int = 0,
     min_thickness: float = 0.01,
+    remesh: bool = False,
 ) -> dict:
-    """Writes out/mesh.stl and returns the report. `concept` turns on the Flash review."""
+    """Writes out/mesh.stl and returns the report. `concept` turns on the Flash review.
+
+    `remesh` voxel-remeshes even a watertight mesh (Argon's repair_mesh, with `raw` the last one).
+    """
     out.mkdir(parents=True, exist_ok=True)
     raw = raw or (generator or Hunyuan21()).generate(views, out, gpu, seed=seed)
     mesh = trimesh.load(raw, force="mesh")
@@ -31,7 +35,7 @@ def make_mesh(
         }
     }
     mesh = repair.drop_fragments(mesh)
-    report["remeshed"] = not mesh.is_watertight
+    report["remeshed"] = remesh or not mesh.is_watertight
     if report["remeshed"]:  # remeshing leaves stair steps, so only when needed
         mesh = repair.voxel_remesh(mesh, cells=384)
     imgs = {v: Path(f).read_bytes() for v, f in views.items()}
