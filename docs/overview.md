@@ -91,17 +91,18 @@ The solver has no wall model, so drag is only trusted up to about Re 1e5. Sample
 
 ## Pull requests
 
+All merged into `main`.
+
 ```mermaid
 flowchart LR
-    P1[PR 1: docs + skeleton<br/>merged] --> P2[PR 2: FluidX3D, sphere, test jet<br/>merged]
+    P1[PR 1: docs + skeleton] --> P2[PR 2: FluidX3D, sphere, test jet]
     P2 --> P4[PR 4: drop lattice noise<br/>from drag RMS]
     P2 --> P5[PR 5: cylinder check]
     P2 --> P6[PR 6: Ahmed body check]
     P2 --> P7[PR 7: concepts + views]
-    P2 --> P8[PR 8: mesh stage]
+    P7 --> P8[PR 8: mesh stage + mesh review]
+    P2 --> P11[PR 11: this overview]
 ```
-
-Each open PR is based on `main`. Only #4 and #5 conflict (the same line in PLAN.md).
 
 ## Where we are
 
@@ -110,18 +111,19 @@ flowchart LR
     classDef done fill:#cfe8d5,stroke:#2f7d46
     classDef part fill:#fbe8c0,stroke:#b07a12
     classDef todo fill:#eeeeee,stroke:#888
-    c[Concept]:::done --> v[Views]:::done --> m[Mesh]:::part --> s[Simulate]:::done --> r[Video]:::part --> p[Package]:::done --> u[HF upload]:::todo
-    o[Runner: GPU pool,<br/>resume, approvals]:::todo
+    c[Concept]:::done --> v[Views]:::done --> m[Mesh]:::done --> s[Simulate]:::done --> r[Video]:::part --> p[Package]:::done --> u[HF upload]:::todo
+    o[Runner: GPU pool,<br/>resume, approvals]:::part
 ```
 
 Green works, amber works but needs tuning, grey is not built yet.
 
+Mesh bake-off on 4 objects: Hunyuan3D-2.1 was as good as 2mv or better (2mv lost the aircraft's inner wings), so 2.1 is the default and 2mv the backup.
+
 ## Next
 
-1. Mesh bake-off: Hunyuan3D-2.1 (one view) vs 2mv (front, left and back views) on a few objects. Add the mesh review above.
-2. Runner: one sample per GPU on w7830, resume after a crash, approval before publishing or going over budget.
-3. First full samples end to end, then 10–20, then 100.
-4. Upload to a private HF dataset (needs a write token), then delete the copy on RDS.
+1. Runner: one sample per GPU on w7830, resume after a crash, approval before publishing or going over budget.
+2. First full samples end to end, then 10–20, then 100.
+3. Upload to a private HF dataset (needs a write token), then delete the copy on RDS.
 
 ## Where things live
 
