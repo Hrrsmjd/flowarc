@@ -1,0 +1,166 @@
+{
+ "samples": [
+  {
+   "slot": "s0016",
+   "source": "s00001",
+   "concept": {
+    "name": "Manta Ray",
+    "bucket": "animals and organic forms",
+    "description": "A wide, diamond-shaped marine creature with broad, triangular pectoral fins that taper to blunt tips, a flattened central body, two forward-projecting cephalic lobes at the head, and a thick, sturdy tail extending from the rear. The body has a gentle dorsal arch and a flat ventral side, with no parts thinner than 2% of its total wingspan.",
+    "facing": "head first",
+    "reynolds": 250.0,
+    "yaw_deg": 0,
+    "ground": false
+   },
+   "views": {
+    "three-quarter": "mock-media/real/s00001/three-quarter.jpg",
+    "front": "mock-media/real/s00001/front.jpg",
+    "side": "mock-media/real/s00001/side.jpg",
+    "top": "mock-media/real/s00001/top.jpg",
+    "side-1": "mock-media/real/s00001/side-1.jpg"
+   },
+   "mesh": "mock-media/real/s00001/mesh.glb",
+   "broken_mesh": "mock-media/real/s00001/mesh-broken.glb"
+  },
+  {
+   "slot": "s0017",
+   "source": "s00002",
+   "concept": {
+    "name": "Vintage Biplane",
+    "bucket": "vehicles (land, air, sea, fictional, any era)",
+    "description": "A fuselage with a blunt radial engine nose, open cockpit indentation, and tail fins, fitted with two stacked horizontal wings connected by four thick vertical struts on each side and two landing gear struts supporting solid wheels. The struts between the upper and lower wings and between the fuselage and landing gear axle create seven through-holes.",
+    "facing": "nose first",
+    "reynolds": 78370.0,
+    "yaw_deg": 20,
+    "ground": false
+   },
+   "views": {
+    "three-quarter": "mock-media/real/s00002/three-quarter.jpg",
+    "front": "mock-media/real/s00002/front.jpg",
+    "side": "mock-media/real/s00002/side.jpg",
+    "top": "mock-media/real/s00002/top.jpg"
+   },
+   "mesh": "mock-media/real/s00002/mesh.glb"
+  },
+  {
+   "slot": "s0018",
+   "source": "s00003",
+   "concept": {
+    "name": "Mushroom Cluster",
+    "bucket": "plants",
+    "description": "Three dome-capped toadstools of small, medium, and large heights emerging at slight angles from a single fused bulbous base clump. Each thick umbrella cap has coarse radial gill ridges on its underside and an annular collar ring around its curved stem, with the two tallest caps fusing at their touching rims to create a single enclosed gap between their stems.",
+    "facing": "smallest mushroom in front",
+    "reynolds": 14310.0,
+    "yaw_deg": 20,
+    "ground": true
+   },
+   "views": {
+    "three-quarter": "mock-media/real/s00003/three-quarter.jpg",
+    "front": "mock-media/real/s00003/front.jpg",
+    "side": "mock-media/real/s00003/side.jpg",
+    "top": "mock-media/real/s00003/top.jpg"
+   },
+   "mesh": "mock-media/real/s00003/mesh.glb"
+  },
+  {
+   "slot": "s0015",
+   "source": "s00004",
+   "concept": {
+    "name": "Octagonal Moka Pot",
+    "bucket": "furniture and everyday objects",
+    "description": "A two-tiered octagonal pitcher with a wide faceted base, a narrow waist, and a flared upper carafe topped by a hinged-style lid with a faceted knob and a projecting triangular pouring spout. A thick, angular C-shaped handle loops from the upper rim back to the waist on the side opposite the spout, creating a single through-hole.",
+    "facing": "pouring spout forward",
+    "reynolds": 740.0,
+    "yaw_deg": 10,
+    "ground": true
+   },
+   "views": {
+    "three-quarter": "mock-media/real/s00004/three-quarter.jpg",
+    "front": "mock-media/real/s00004/front.jpg",
+    "side": "mock-media/real/s00004/side.jpg",
+    "top": "mock-media/real/s00004/top.jpg"
+   },
+   "mesh": "mock-media/real/s00004/mesh.glb"
+  },
+  {
+   "slot": "s0014",
+   "source": "s00007",
+   "concept": {
+    "name": "Five-Tier Pagoda",
+    "bucket": "buildings and structures",
+    "description": "A square-plan stepped tower with a solid central core and five stacked, upturned hip roofs whose corners curve upward and project outward in decreasing widths from bottom to top. The structure sits on a heavy square plinth and is topped by a thick cylindrical finial spire with three bulbous rings.",
+    "facing": "front facade",
+    "reynolds": 63070.0,
+    "yaw_deg": 10,
+    "ground": true
+   },
+   "views": {
+    "three-quarter": "mock-media/real/s00007/three-quarter.jpg",
+    "front": "mock-media/real/s00007/front.jpg",
+    "side": "mock-media/real/s00007/side.jpg",
+    "top": "mock-media/real/s00007/top.jpg"
+   },
+   "mesh": "mock-media/real/s00007/mesh.glb"
+  },
+  {
+   "slot": "s0001",
+   "source": "s00009",
+   "concept": {
+    "name": "Prickly Pear Armchair",
+    "bucket": "combinations of the above",
+    "description": "A lounge chair assembled from thick, flattened oval cactus pads, using a massive horizontal pad as the seat base, a tall upright pad as the backrest, and two angled side pads as armrests. Two smaller round pads bridge between the front of the armrests and the seat base, forming two enclosed loop openings on the sides.",
+    "facing": "front of the seat pad",
+    "reynolds": 12060.0,
+    "yaw_deg": 0,
+    "ground": true
+   },
+   "views": {
+    "three-quarter": "mock-media/real/s00009/three-quarter.jpg",
+    "front": "mock-media/real/s00009/front.jpg",
+    "side": "mock-media/real/s00009/side.jpg",
+    "top": "mock-media/real/s00009/top.jpg"
+   },
+   "mesh": "mock-media/real/s00009/mesh.glb"
+  },
+  {
+   "slot": "s0002",
+   "source": "s00010",
+   "concept": {
+    "name": "Aperture Skyscraper",
+    "bucket": "buildings and structures",
+    "description": "A tall, tapering rectangular prism tower that twists 45 degrees from its base to its flat roof and features a large trapezoidal through-hole near the upper third of its height. All structural walls and the bridging roof bar above the opening have a thickness exceeding 8% of the tower height.",
+    "facing": "broad face of the upper aperture",
+    "reynolds": 27080.0,
+    "yaw_deg": 0,
+    "ground": true
+   },
+   "views": {
+    "three-quarter": "mock-media/real/s00010/three-quarter.jpg",
+    "front": "mock-media/real/s00010/front.jpg",
+    "side": "mock-media/real/s00010/side.jpg",
+    "top": "mock-media/real/s00010/top.jpg"
+   },
+   "mesh": "mock-media/real/s00010/mesh.glb"
+  },
+  {
+   "slot": "s0007",
+   "source": "s00011",
+   "concept": {
+    "name": "Observatory Dome",
+    "bucket": "buildings and structures",
+    "description": "A squat cylindrical base topped by a hemispherical dome of equal diameter with a wide vertical recess carved into one side from the horizon line to the zenith. A thick cylindrical telescope barrel protrudes outward at a 45-degree angle from the recessed cavity.",
+    "facing": "telescope barrel pointing into the wind",
+    "reynolds": 22370.0,
+    "yaw_deg": 0,
+    "ground": true
+   },
+   "views": {
+    "three-quarter": "mock-media/real/s00011/three-quarter.jpg",
+    "front": "mock-media/real/s00011/front.jpg",
+    "side": "mock-media/real/s00011/side.jpg",
+    "top": "mock-media/real/s00011/top.jpg"
+   },
+   "mesh": "mock-media/real/s00011/mesh.glb"
+  }
+ ]
+}
