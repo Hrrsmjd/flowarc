@@ -41,13 +41,17 @@ All calls use the Interactions API (`client.interactions.create`, `google-genai>
 
 ## Data: MongoDB Atlas
 
-Atlas is the dataset registry. Each sample is one document in `samples`: stage, status, concept, every check result, attempts, solver settings and the concept's embedding. Agent events go to `logs`. All GPU workers and the dashboard read and write the same registry.
+Atlas is the dataset registry and the agent's memory. Each sample is one document in `samples`: stage, status, concept, every check result, attempts, solver settings and the concept's embedding. Agent events go to `logs`, Argon's repairs to `repairs`. All GPU workers and the dashboard share it.
 
-- **Novelty.** A new concept is embedded with `gemini-embedding-2` and checked against every existing sample with Atlas Vector Search (`concept_vectors` index, cosine). Too close to an existing sample → rejected, with the nearest neighbours recorded as evidence.
-- **Coverage.** An aggregation counts samples per taxonomy bucket, so Argon can aim new concepts at the gaps.
-- Bulk outputs (Zarr, video, meshes) stay on disk under `FLOWARC_DATA`; Atlas holds the record.
+| Atlas feature | What it does in FlowArc |
+|---|---|
+| Vector Search | Novelty: a new concept's `gemini-embedding-2` vector is checked against every sample (`concept_vectors`); too close → rejected, nearest neighbours kept as evidence. Also the diversity map. |
+| Atlas Search | Coverage per bucket, status, stage and Reynolds band from one `$searchMeta` facet query; full-text search and autocomplete over samples; search over the agent log. |
+| Automated Embedding + Voyage AI | Atlas embeds every description and failure diagnosis itself with `voyage-4`; queries are plain text. |
+| Hybrid Search | `$rankFusion` of Voyage semantic and keyword search. Argon calls it as the `search_registry` tool before proposing concepts, and `past_fixes` uses it to find repairs that worked for similar failures. |
+| Stream Processing | `scripts/stream_metrics.js` turns the change stream on `logs` into per-minute, per-stage counts in `metrics` for the dashboard. |
 
-Without `MONGODB_URI` the registry falls back to JSON files in each sample folder (used by the tests).
+Bulk outputs (Zarr, video, meshes) stay on disk under `FLOWARC_DATA`; Atlas holds the record. Without `MONGODB_URI` everything falls back to JSON files (used by the tests).
 
 ## Compute
 
@@ -60,7 +64,7 @@ Without `MONGODB_URI` the registry falls back to JSON files in each sample folde
 flowarc/         Python package
   config.py      paths and phase settings
   sample.py      sample record, state and log (the registry)
-  store.py       MongoDB Atlas: registry, vector search, coverage
+  store.py       MongoDB Atlas: registry, search, hybrid, failure memory, metrics
   gemini.py      thin Gemini wrapper
   concepts.py    stage 1
   images.py      stage 2
@@ -80,7 +84,8 @@ docs/GOAL.md     the full brief
 ```bash
 uv venv --python 3.12 && uv pip install -e '.[dev]'   # add '.[sim]' on a GPU box
 cp .env.example .env                                   # add GEMINI_API_KEY and MONGODB_URI
-python scripts/setup_atlas.py                          # once: indexes + vector search index
+python scripts/setup_atlas.py                          # once: all Atlas indexes
+python scripts/atlas_smoke.py                          # check every Atlas query
 pytest
 ```
 
