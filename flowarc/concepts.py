@@ -36,8 +36,17 @@ SCHEMA = {
                     "ground": {"type": "boolean"},
                     "facing": {"type": "string"},
                     "symmetric": {"type": "boolean"},
+                    "holes": {"type": "integer"},
                 },
-                "required": ["name", "bucket", "description", "ground", "facing", "symmetric"],
+                "required": [
+                    "name",
+                    "bucket",
+                    "description",
+                    "ground",
+                    "facing",
+                    "symmetric",
+                    "holes",
+                ],
             },
         }
     },
@@ -58,7 +67,8 @@ Propose {n} new objects, mostly from the least-covered buckets. For each give:
 - description: 1-3 sentences on shape only (parts, proportions, holes), no colours or textures. It must be one solid, connected object with no loose parts and no part thinner than 1% of its length.
 - ground: true if it rests on the ground (car, building), false if it is in free flow (bird, ball)
 - facing: which side of the object faces into the wind, e.g. "nose first" or "broadside"
-- symmetric: true if it has a left-right mirror plane"""
+- symmetric: true if it has a left-right mirror plane
+- holes: how many through-holes the solid has (a mug handle is 1, a ring is 1, a shark is 0)"""
 
 
 def coverage(samples) -> dict[str, int]:
