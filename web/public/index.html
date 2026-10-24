@@ -15,8 +15,14 @@
         <p class="sub" id="run-sub">loading…</p>
       </div>
     </div>
+    <div class="search" role="search">
+      <input id="q" type="search" placeholder="Search samples" autocomplete="off" aria-label="Search samples">
+      <div class="results" id="results" hidden></div>
+    </div>
     <div class="top-right">
-      <span class="badge" id="mode-badge" hidden>Mock data</span>
+      <span class="live" id="live"><span class="dot"></span><span id="live-text">connecting…</span></span>
+      <span class="badge" id="mode-badge" hidden>Mock replay</span>
+      <button class="ghost small" id="restart" type="button" hidden>↺ Restart</button>
       <button class="ghost" id="theme" type="button" aria-label="Toggle theme">◐</button>
     </div>
   </header>
@@ -37,7 +43,7 @@
       <section class="card" aria-labelledby="h-activity">
         <div class="card-head">
           <h2 id="h-activity">Agent activity</h2>
-          <button class="ghost small" id="replay" type="button">▶ Replay</button>
+          <span class="muted small" id="activity-note"></span>
         </div>
         <p class="muted small" id="activity-sample"></p>
         <ol class="timeline" id="timeline"></ol>

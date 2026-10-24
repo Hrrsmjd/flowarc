@@ -1,24 +1,68 @@
 # Dashboard
 
-Static page (no build step) for the demo: run progress per sample and stage, live agent activity
-with failed checks and Argon's fixes, a sample viewer (silhouette IoU per attempt, convergence of
-running-mean drag across grid levels), the diversity map against a car-only baseline, and the
-human approval gate.
+Live dashboard for the demo, deployed on Vercel. It shows:
+
+- run progress for each sample and stage
+- agent activity for the sample running now, including failed checks and Argon's repairs
+- a sample viewer: silhouette IoU per attempt, convergence of drag across grid levels
+- the diversity map, our samples vs a car-only baseline
+- the human approval gate (publish, over-budget runs, flagged samples)
+
+The page polls `/api/state` every 2 s. The API reads MongoDB Atlas, the same collections the
+pipeline writes (`samples`, `logs`, `approvals`, plus `baseline` for the map and `runs` for the
+run summary). Without `MONGODB_URI` it plays a mock batch on a loop (`lib/mock.json`), so a
+deployment is live from the first minute; **Restart** starts the story again.
+
+| Route | |
+|---|---|
+| `GET /api/state` | run summary, samples with their logs, approvals |
+| `GET /api/map` | 2D PCA of concept embeddings (ours + `baseline`) |
+| `GET /api/search?q=` | sample search: Atlas Search index `samples_text`, regex if it's missing |
+| `POST /api/approve` | `{id, decision: "approved" \| "rejected"}` sets the approval in Atlas |
+
+## Run locally
 
 ```bash
-python -m flowarc.dashboard           # reads the registry under FLOWARC_DATA; mock data if it is empty
-python -m flowarc.dashboard --mock    # always mock data
+cd web && npm install
+npm run dev                      # http://localhost:3000, mock replay
+MONGODB_URI=... MONGODB_DB=flowarc_demo npm run dev   # read Atlas
+npm test
 ```
 
-Open http://localhost:8000. Click a row or a map point to open a sample; **Replay** steps
-through the followed sample's log for the demo.
+## Deploy on Vercel
 
-The page reads `GET /api/state` and posts decisions to `POST /api/approve`. Served as plain static
-files (no Python), it falls back to `mock.json`. Regenerate that with
-`python -m flowarc.dashboard --write-mock web/mock.json`. The state shape is built in
-`flowarc/dashboard.py` (`live_state`) and `flowarc/mock.py`.
+1. New project from this repo, **Root Directory** `web`. No build step (`vercel.json` sets it).
+2. Environment variables:
+   - `MONGODB_URI`: Atlas connection string. Leave unset for the mock replay.
+   - `MONGODB_DB`: `flowarc` for the real registry, `flowarc_demo` for the demo feed.
+   - `APPROVAL_TOKEN` (recommended): approving then asks for this token, so a public URL
+     can't approve publishing.
+3. In Atlas, Network Access must allow Vercel (0.0.0.0/0 for the hackathon).
 
-Live data the pipeline still needs to write: `bucket` in the concept, `meta.convergence`
-(levels with `t`, `cd_mean`, `cd`, `cl_rms`, `st` and `tol`), `meta.gpu_seconds`, `actor` on log
-events (`argon`, `flash`, ...), `DATA/diversity.json` (2D embedding points) and
-`DATA/approvals.json`.
+## Demo feed
+
+`scripts/demo_feed.py` plays the mock batch into Atlas in real time (database `flowarc_demo`),
+so the deployed dashboard runs on Atlas end to end before the real pipeline does. At the end
+it asks to publish and waits until someone presses Approve or Reject on the dashboard.
+
+```bash
+python scripts/demo_feed.py            # once; --loop to repeat, --speed 2 for faster
+```
+
+Regenerate the mock batch with `python -m flowarc.mock web/lib/mock.json`.
+
+## What the pipeline needs to write
+
+The dashboard already reads what `Sample.save`, `Sample.log`, `record_check` and
+`record_repair` write. For the full picture the pipeline should also set:
+
+- `concept.bucket`, `concept.reynolds`, `concept.facing`, `concept.ground`
+- `status: "running"` while a sample is on a GPU, and `meta.gpu`
+- `meta.gpu_seconds` and `meta.convergence`: `{levels: [{cells, t, cd_mean, cd, cl_rms, st}], tol: {cd, cl_rms, st}}`
+- `actor` on log events (`argon`, `flash`, `nano-banana`, `hunyuan3d`, `fluidx3d`); without it
+  the dashboard guesses from the message
+- `iou: {front, side, top}` on the silhouette or Flash review check
+- an `approvals` document `{_id, kind, title, detail, status: "pending", t}` before publishing or
+  an over-budget run, then wait for `status` to change
+- `baseline` documents `{_id, name, embedding}` for car-only concepts, embedded with the same
+  model as the samples

@@ -1,37 +1,54 @@
-// FlowArc dashboard. Reads /api/state (python -m flowarc.dashboard), or mock.json when served statically.
+// FlowArc dashboard. Polls /api/state (Atlas, or the mock replay when Atlas isn't set) every
+// two seconds and /api/map every twenty.
 
 const STAGES = ["concept", "images", "mesh", "sim", "render", "package"];
-const POLL_MS = 5000;
+const POLL_MS = 2000;
+const MAP_MS = 20000;
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const fmtRe = (re) => { const e = Math.floor(Math.log10(re)); const m = re / 10 ** e; return e < 4 ? Math.round(re).toLocaleString() : `${m.toFixed(1)}×10${sup(e)}`; };
 const sup = (n) => String(n).split("").map((d) => "⁰¹²³⁴⁵⁶⁷⁸⁹"[d]).join("");
 const fmtDur = (s) => (s < 60 ? `${Math.round(s)}s` : s < 3600 ? `${Math.floor(s / 60)}m ${String(Math.round(s % 60)).padStart(2, "0")}s` : `${(s / 3600).toFixed(1)}h`);
 
+// The mock replay starts its story when the page opens; Restart begins it again.
+let start = Math.floor(Date.now() / 1000);
 let state = null;
-let staticMode = false;
-let selected = null;
-let replayTimer = null;
+let map = { points: [] };
+let selected = null; // null: follow the live sample
+let lastOk = 0;
+let sampleSig = "";
+const seen = new Set(); // timeline events already shown, so only new ones flash
 const localApprovals = {};
 
 // ---------- data ----------
 async function load() {
   try {
-    const r = await fetch("api/state", { cache: "no-store" });
+    const r = await fetch(`api/state?start=${start}`, { cache: "no-store" });
     if (!r.ok) throw new Error(r.status);
     state = await r.json();
+    lastOk = Date.now();
   } catch {
-    staticMode = true;
-    const r = await fetch("mock.json", { cache: "no-store" });
-    state = await r.json();
-    // Shift mock timestamps so the run looks current.
-    const shift = Date.now() / 1000 - state.generated_at;
-    state.run.started_at += shift;
-    for (const s of state.samples) for (const e of s.log) e.t += shift;
+    return liveTick();
   }
   for (const a of state.approvals) Object.assign(a, localApprovals[a.id] || {});
-  if (!selected || !state.samples.find((s) => s.id === selected)) selected = state.run.featured;
+  if (selected && !state.samples.find((s) => s.id === selected)) selected = null;
   render();
+}
+
+async function loadMap() {
+  try {
+    const r = await fetch(`api/map?start=${start}`, { cache: "no-store" });
+    if (r.ok) map = await r.json();
+    if (state) renderDiversity();
+  } catch {}
+}
+
+function liveTick() {
+  const age = (Date.now() - lastOk) / 1000;
+  const el = $("live");
+  el.classList.toggle("stale", !lastOk || age > 10);
+  const src = state?.mode === "atlas" ? "MongoDB Atlas" : "mock replay";
+  $("live-text").textContent = !lastOk ? "connecting…" : age > 10 ? `offline ${fmtDur(age)}` : `Live · ${src}`;
 }
 
 // ---------- tooltip ----------
@@ -52,19 +69,30 @@ const hideTip = () => (tip.hidden = true);
 function render() {
   const { run, samples } = state;
   $("mode-badge").hidden = state.mode !== "mock";
+  $("restart").hidden = state.mode !== "mock";
+  liveTick();
   const elapsed = Date.now() / 1000 - run.started_at;
   $("run-sub").textContent = `Phase 1 ${run.phase} · ${run.cells_per_length.join(" → ")} cells/L · ${run.gpus} GPUs · running ${fmtDur(elapsed)}`;
   renderKpis(run, samples);
   renderStages(samples);
   renderPicker(samples);
-  renderSample();
-  if (!replayTimer) renderTimeline(featured().log);
-  renderDiversity();
+  const s = selectedSample();
+  const sig = `${s.id}|${s.status}|${s.stage}|${s.log.length}`;
+  if (sig !== sampleSig) {
+    sampleSig = sig;
+    renderSample();
+    renderDiversity();
+  }
+  renderTimeline();
   renderApprovals();
 }
 
 const featured = () => state.samples.find((s) => s.id === state.run.featured) || state.samples[0];
-const selectedSample = () => state.samples.find((s) => s.id === selected) || featured();
+const selectedSample = () => (selected && state.samples.find((s) => s.id === selected)) || featured();
+function select(id) {
+  selected = id;
+  render();
+}
 
 function renderKpis(run, samples) {
   const n = (st) => samples.filter((s) => s.status === st).length;
@@ -103,10 +131,10 @@ function renderStages(samples) {
       const label = `${st}: ${c.cls}${c.retried ? ", failed a check then fixed" : ""}${tries ? `, ${tries} attempts` : ""}`;
       return `<td><div class="cell ${c.cls}${c.retried ? " retried" : ""}" title="${esc(label)}">${c.txt}${tries > 1 ? `<sup>${tries}</sup>` : ""}</div></td>`;
     }).join("");
-    return `<tr data-id="${s.id}" class="${s.id === selected ? "sel" : ""}"><td class="name"><span class="id">${s.id}</span>${esc(s.title)}</td>${cells}</tr>`;
+    return `<tr data-id="${s.id}" class="${s.id === selectedSample().id ? "sel" : ""}"><td class="name"><span class="id">${s.id}</span>${esc(s.title)}</td>${cells}</tr>`;
   }).join("");
   $("stages").innerHTML = head + `<tbody>${rows}</tbody>`;
-  $("stages").querySelectorAll("tbody tr").forEach((tr) => tr.addEventListener("click", () => { selected = tr.dataset.id; render(); }));
+  $("stages").querySelectorAll("tbody tr").forEach((tr) => tr.addEventListener("click", () => select(tr.dataset.id)));
   const running = samples.filter((s) => s.status === "running").length;
   $("progress-note").textContent = `${samples.length} samples · ${running} on GPUs`;
   $("stage-legend").innerHTML = [
@@ -115,68 +143,68 @@ function renderStages(samples) {
 }
 
 function renderPicker(samples) {
-  $("sample-pick").innerHTML = samples.map((s) => `<option value="${s.id}" ${s.id === selected ? "selected" : ""}>${s.id} · ${esc(s.title)}</option>`).join("");
+  const pick = $("sample-pick");
+  if (document.activeElement === pick) return;
+  const f = featured();
+  pick.innerHTML = `<option value="">Follow live sample (${f.id})</option>` +
+    samples.map((s) => `<option value="${s.id}" ${s.id === selected ? "selected" : ""}>${s.id} · ${esc(s.title)}</option>`).join("");
 }
-$("sample-pick").addEventListener("change", (e) => { selected = e.target.value; render(); });
+$("sample-pick").addEventListener("change", (e) => select(e.target.value || null));
 
 // ---------- activity timeline ----------
-function eventHtml(e, t0) {
+function eventHtml(e, t0, fresh) {
   const extra = [];
-  if (e.iou) extra.push(Object.entries(e.iou).map(([v, x]) => `${v} <span class="${x < (e.threshold ?? 0.85) ? "bad" : "ok"}">${x.toFixed(2)}</span>`).join(" · ") + ` (min ${e.threshold})`);
+  if (e.reason) extra.push(esc(e.reason));
+  if (e.iou) extra.push(Object.entries(e.iou).map(([v, x]) => `${v} <span class="${x < 0.85 ? "bad" : "ok"}">${x.toFixed(2)}</span>`).join(" · ") + " silhouette IoU");
   if (e.d_cd != null) extra.push(`ΔCd ${(e.d_cd * 100).toFixed(1)}% (tol ${(e.tol * 100).toFixed(0)}%)`);
   if (e.mach_max != null) extra.push(`max Mach ${e.mach_max}`);
   if (e.notes) extra.push(esc(e.notes));
-  const cls = e.failed ? "fail" : e.fix ? "fix" : "";
-  const actor = e.actor || "system";
-  return `<li class="${cls}"><span class="t">+${fmtDur(e.t - t0)}</span><span class="actor ${esc(actor)}">${esc(actor)}</span><div class="msg"><span class="stage-tag">${esc(e.stage)}</span>${esc(e.msg)}${extra.length ? `<div class="extra">${extra.join("<br>")}</div>` : ""}</div></li>`;
+  const cls = [e.failed ? "fail" : e.fix ? "fix" : "", fresh ? "new" : ""].join(" ");
+  return `<li class="${cls}"><span class="t">+${fmtDur(e.t - t0)}</span><span class="actor ${esc(e.actor)}">${esc(e.actor)}</span><div class="msg"><span class="stage-tag">${esc(e.stage)}</span>${esc(e.msg)}${extra.length ? `<div class="extra">${extra.join("<br>")}</div>` : ""}${e.diagnosis ? `<div class="diag">${esc(e.diagnosis)}</div>` : ""}</div></li>`;
 }
 
-function renderTimeline(log, upto = log.length) {
+function renderTimeline() {
   const s = featured();
-  $("activity-sample").innerHTML = `Following <b>${s.id} · ${esc(s.title)}</b>, ${s.status}`;
-  const t0 = log[0]?.t ?? 0;
-  $("timeline").innerHTML = log.slice(0, upto).map((e) => eventHtml(e, t0)).reverse().join("");
-}
-
-$("replay").addEventListener("click", () => {
-  if (replayTimer) return stopReplay();
-  const log = featured().log;
-  let i = 0;
-  renderTimeline(log, 0);
-  $("replay").textContent = "■ Stop";
-  replayTimer = setInterval(() => {
-    i += 1;
-    renderTimeline(log, i);
-    if (i >= log.length) stopReplay();
-  }, 1100);
-});
-function stopReplay() {
-  clearInterval(replayTimer);
-  replayTimer = null;
-  $("replay").textContent = "▶ Replay";
-  renderTimeline(featured().log);
+  if (!s) return;
+  const where = s.status === "running" ? `${s.stage}${s.gpu != null ? `, GPU ${s.gpu}` : ""}` : s.status;
+  $("activity-sample").innerHTML = `Following <b>${s.id} · ${esc(s.title)}</b> (${esc(where)})`;
+  $("activity-note").textContent = `${s.log.length} events`;
+  const t0 = s.log[0]?.t ?? 0;
+  const first = renderTimeline.last !== s.id;
+  renderTimeline.last = s.id;
+  const html = s.log.map((e) => {
+    const key = `${s.id}|${e.t}|${e.msg}`;
+    const fresh = !first && !seen.has(key);
+    seen.add(key);
+    return eventHtml(e, t0, fresh);
+  }).reverse().join("");
+  if ($("timeline").dataset.html !== html) {
+    $("timeline").innerHTML = html;
+    $("timeline").dataset.html = html;
+  }
 }
 
 // ---------- sample viewer ----------
 function renderSample() {
   const s = selectedSample();
   const c = s.concept || {};
-  const checks = s.log.filter((e) => /^check /.test(e.msg));
+  const checks = s.log.filter((e) => e.check);
   const ious = s.log.filter((e) => e.iou);
   const facts = `
     <div>
       <h3 style="margin-top:0">${esc(s.title)}</h3>
       <dl class="facts">
         <dt>Bucket</dt><dd>${esc(s.bucket)}</dd>
-        <dt>Reynolds</dt><dd>${c.re ? fmtRe(c.re) : "–"}</dd>
-        <dt>Angle</dt><dd>${c.angle ?? 0}°</dd>
+        <dt>Reynolds</dt><dd>${c.reynolds ? fmtRe(c.reynolds) : "–"}</dd>
+        <dt>Yaw</dt><dd>${c.yaw_deg ?? 0}°</dd>
+        <dt>Facing</dt><dd>${esc(c.facing || "–")}</dd>
         <dt>Setup</dt><dd>${c.ground ? "ground plane" : "free stream"}</dd>
         <dt>Status</dt><dd>${esc(s.status)}${s.status === "running" ? ` (${esc(s.stage)}, GPU ${s.gpu})` : ""}</dd>
-        <dt>GPU time</dt><dd>${fmtDur(s.gpu_seconds || 0)}</dd>
+        <dt>GPU time</dt><dd>${s.gpu_seconds ? fmtDur(s.gpu_seconds) : "–"}</dd>
       </dl>
-      <ul class="checks">${checks.map((e) => `<li><span>${esc(e.stage)} · ${esc(e.msg.replace(/^check |: .*$/g, ""))}</span><span class="${e.failed ? "bad" : "ok"}">${e.failed ? "✕ fail" : "✓ pass"}</span></li>`).join("") || "<li class='muted'>no checks yet</li>"}</ul>
+      <ul class="checks">${checks.map((e) => `<li><span>${esc(e.stage)} · ${esc(e.check)}</span><span class="${e.failed ? "bad" : "ok"}">${e.failed ? "✕ fail" : "✓ pass"}</span></li>`).join("") || "<li class='muted'>no checks yet</li>"}</ul>
     </div>`;
-  const iou = `<div><h3 style="margin-top:0">Silhouette IoU vs reference views</h3>${ious.length ? iouChart(ious) : "<p class='muted small'>Mesh stage not reached.</p>"}</div>`;
+  const iou = `<div><h3 style="margin-top:0">Silhouette IoU vs reference views</h3>${ious.length ? iouChart(ious) : "<p class='muted small'>Mesh not reviewed yet.</p>"}</div>`;
   const conv = `<div><h3 style="margin-top:0">Convergence: running mean drag vs t (L/U)</h3>${s.convergence ? convChart(s.convergence) : "<p class='muted small'>Simulation not finished.</p>"}</div>`;
   $("sample-body").innerHTML = facts + iou + conv;
   bindHover($("sample-body"));
@@ -185,7 +213,7 @@ function renderSample() {
 // Grouped bars: one group per view, one bar per attempt. Two series max.
 function iouChart(events) {
   const views = Object.keys(events[0].iou);
-  const thr = events[0].threshold ?? 0.85;
+  const thr = 0.85;
   const W = 300, H = 170, L = 30, B = 22, T = 8;
   const y = (v) => T + (1 - (v - 0.5) / 0.5) * (H - T - B);
   const gw = (W - L) / views.length, bw = Math.min(22, (gw - 16) / events.length);
@@ -204,7 +232,7 @@ function iouChart(events) {
   g += `<line x1="${L}" x2="${W}" y1="${y(thr)}" y2="${y(thr)}" stroke="var(--critical)" stroke-dasharray="4 3" stroke-width="1.5"/><text x="${L + 2}" y="${y(thr) - 4}">min ${thr}</text>`;
   g += `<line class="axis" x1="${L}" x2="${W}" y1="${y(0.5)}" y2="${y(0.5)}"/>`;
   const legend = events.length > 1
-    ? `<div class="legend-row"><span><span class="swatch" style="background:var(--series-2)"></span>attempt 1 (failed)</span><span><span class="swatch" style="background:var(--series-1)"></span>attempt ${events.length} (after Argon's fix)</span></div>`
+    ? `<div class="legend-row"><span><span class="swatch" style="background:var(--series-2)"></span>attempt 1${events[0].failed ? " (failed)" : ""}</span><span><span class="swatch" style="background:var(--series-1)"></span>attempt ${events.length}${events[0].failed ? " (after Argon's fix)" : ""}</span></div>`
     : "";
   return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Silhouette IoU per view">${g}</svg></div>${legend}`;
 }
@@ -287,7 +315,7 @@ function bindHover(root) {
 
 // ---------- diversity map ----------
 function renderDiversity() {
-  const pts = state.diversity.points || [];
+  const pts = map.points || [];
   if (!pts.length) { $("divmap").innerHTML = "<p class='muted small'>No embeddings yet.</p>"; $("coverage").innerHTML = ""; return; }
   const W = 520, H = 340, P = 14;
   const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
@@ -300,14 +328,14 @@ function renderDiversity() {
   for (const p of order) {
     const mine = ids.has(p.id), r = mine ? 5.5 : 4;
     g += `<circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="${r}" fill="${color[p.source] || "var(--muted)"}" stroke="var(--surface)" stroke-width="1.5" opacity="${p.source === "car_baseline" ? 0.85 : 1}" data-tip="<b>${esc(p.label)}</b><br>${esc(p.bucket)} · ${p.source === "car_baseline" ? "car baseline" : "FlowArc"}" ${mine ? `data-id="${p.id}" style="cursor:pointer"` : ""}/>`;
-    if (p.id === selected) g += `<circle cx="${sx(p.x)}" cy="${sy(p.y)}" r="10" fill="none" stroke="var(--ink)" stroke-width="1.5"/>`;
+    if (p.id === selectedSample().id) g += `<circle cx="${sx(p.x)}" cy="${sy(p.y)}" r="10" fill="none" stroke="var(--ink)" stroke-width="1.5"/>`;
   }
   $("divmap").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Shape embedding map, FlowArc samples versus a car-only baseline">${g}</svg>`;
   bindHover($("divmap"));
-  $("divmap").querySelectorAll("[data-id]").forEach((c) => c.addEventListener("click", () => { selected = c.dataset.id; render(); }));
+  $("divmap").querySelectorAll("[data-id]").forEach((c) => c.addEventListener("click", () => select(c.dataset.id)));
   const n = (src) => pts.filter((p) => p.source === src).length;
   const spread = (src) => { const q = pts.filter((p) => p.source === src); if (!q.length) return 0; const mx = q.reduce((a, p) => a + p.x, 0) / q.length, my = q.reduce((a, p) => a + p.y, 0) / q.length; return Math.sqrt(q.reduce((a, p) => a + (p.x - mx) ** 2 + (p.y - my) ** 2, 0) / q.length); };
-  $("div-legend").innerHTML = `<span><span class="swatch" style="background:var(--series-1)"></span>FlowArc (${n("flowarc")}, spread ${spread("flowarc").toFixed(2)})</span><span><span class="swatch" style="background:var(--series-2)"></span>${esc(state.diversity.baseline || "car baseline")} (${n("car_baseline")}, spread ${spread("car_baseline").toFixed(2)})</span>`;
+  $("div-legend").innerHTML = `<span><span class="swatch" style="background:var(--series-1)"></span>FlowArc (${n("flowarc")}, spread ${spread("flowarc").toFixed(2)})</span><span><span class="swatch" style="background:var(--series-2)"></span>${esc(map.baseline || "car baseline")} (${n("car_baseline")}, spread ${spread("car_baseline").toFixed(2)})</span>`;
   const buckets = {};
   for (const p of pts) if (p.source === "flowarc") buckets[p.bucket] = (buckets[p.bucket] || 0) + 1;
   const max = Math.max(...Object.values(buckets));
@@ -329,17 +357,59 @@ function renderApprovals() {
         : `<span class="verdict ${a.status === "approved" ? "ok" : "bad"}">${a.status === "approved" ? "✓ Approved" : "✕ Rejected"}</span>`}</div>
     </div>`).join("") || "<p class='muted'>Nothing waiting.</p>";
   $("approvals").querySelectorAll("[data-d]").forEach((b) => b.addEventListener("click", () => decide(b.dataset.id, b.dataset.d)));
-  $("approvals").querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => { selected = b.dataset.open; render(); $("h-sample").scrollIntoView({ behavior: "smooth" }); }));
+  $("approvals").querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => { select(b.dataset.open); $("h-sample").scrollIntoView({ behavior: "smooth" }); }));
 }
 
 async function decide(id, decision) {
-  localApprovals[id] = { status: decision };
-  if (!staticMode) {
-    await fetch("api/approve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, decision }) }).catch(() => {});
+  let token = localStorage.getItem("approvalToken") || "";
+  for (let tries = 0; tries < 2; tries++) {
+    const r = await fetch("api/approve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-approval-token": token },
+      body: JSON.stringify({ id, decision }),
+    }).catch(() => null);
+    if (r?.status === 401) {
+      token = prompt("Approval token") || "";
+      if (!token) return;
+      try { localStorage.setItem("approvalToken", token); } catch {}
+      continue;
+    }
+    if (!r?.ok) return alert("Could not record the decision. Try again.");
+    localApprovals[id] = { status: decision };
+    Object.assign(state.approvals.find((a) => a.id === id), localApprovals[id]);
+    return renderApprovals();
   }
-  Object.assign(state.approvals.find((a) => a.id === id), localApprovals[id]);
-  renderApprovals();
 }
+
+// ---------- search ----------
+let searchTimer;
+$("q").addEventListener("input", (e) => {
+  clearTimeout(searchTimer);
+  const q = e.target.value.trim();
+  if (!q) return ($("results").hidden = true);
+  searchTimer = setTimeout(async () => {
+    const r = await fetch(`api/search?q=${encodeURIComponent(q)}&start=${start}`).then((r) => r.json()).catch(() => ({ results: [] }));
+    const engines = { "atlas-search": "Atlas Search", regex: "Atlas (no search index)", mock: "mock" };
+    $("results").innerHTML = (r.results.map((x) => `<button type="button" data-id="${esc(x.id)}"><span>${esc(x.name)}</span><span class="muted small">${esc(x.status)}</span></button>`).join("") || "<div class='engine'>No matches</div>") +
+      `<div class="engine">${engines[r.engine] || ""}</div>`;
+    $("results").hidden = false;
+    $("results").querySelectorAll("[data-id]").forEach((b) => b.addEventListener("click", () => {
+      $("results").hidden = true;
+      $("q").value = "";
+      select(b.dataset.id);
+      $("h-sample").scrollIntoView({ behavior: "smooth" });
+    }));
+  }, 200);
+});
+document.addEventListener("click", (e) => { if (!e.target.closest(".search")) $("results").hidden = true; });
+
+$("restart").addEventListener("click", () => {
+  start = Math.floor(Date.now() / 1000);
+  selected = null;
+  sampleSig = "";
+  for (const k in localApprovals) delete localApprovals[k];
+  load().then(loadMap);
+});
 
 // ---------- theme ----------
 $("theme").addEventListener("click", () => {
@@ -348,5 +418,7 @@ $("theme").addEventListener("click", () => {
   root.dataset.theme = dark ? "light" : "dark";
 });
 
-load();
-setInterval(() => { if (!staticMode && !replayTimer) load(); }, POLL_MS);
+load().then(loadMap);
+setInterval(load, POLL_MS);
+setInterval(loadMap, MAP_MS);
+setInterval(liveTick, 1000);

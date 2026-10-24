@@ -141,7 +141,7 @@ table.stages { border-collapse: collapse; width: 100%; font-variant-numeric: tab
 .timeline { list-style: none; margin: 0; padding: 0; max-height: 470px; overflow-y: auto; }
 .timeline li {
   display: grid; grid-template-columns: 72px 74px minmax(0, 1fr); gap: 8px; padding: 6px 4px;
-  border-top: 1px solid var(--grid); animation: in .35s ease;
+  border-top: 1px solid var(--grid);
 }
 @keyframes in { from { opacity: 0; transform: translateY(-4px); } }
 .timeline .t { color: var(--muted); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -207,4 +207,32 @@ table.qoi { width: 100%; border-collapse: collapse; font-size: 12px; margin-top:
   .timeline li { grid-template-columns: 48px minmax(0, 1fr); }
   .timeline .actor { grid-column: 2; justify-self: start; }
   .timeline .msg { grid-column: 2; }
+}
+
+.search { position: relative; flex: 1; max-width: 360px; margin: 0 16px; }
+.search input {
+  width: 100%; background: var(--page); color: var(--ink); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 10px; font: inherit;
+}
+.results {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 20px rgba(0, 0, 0, .14);
+  overflow: hidden; z-index: 10;
+}
+.results button {
+  display: flex; justify-content: space-between; gap: 8px; width: 100%; text-align: left;
+  background: none; border: 0; padding: 7px 10px; cursor: pointer; border-top: 1px solid var(--grid);
+}
+.results button:first-child { border-top: 0; }
+.results button:hover, .results button:focus { background: var(--wash); outline: none; }
+.results .engine { padding: 5px 10px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--grid); }
+.live { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.live .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); animation: pulse 1.6s infinite; }
+.live.stale .dot { background: var(--critical); animation: none; }
+.timeline li.new { animation: flash 1.6s ease; }
+@keyframes flash { from { background: color-mix(in srgb, var(--accent) 22%, transparent); } }
+.timeline .diag { color: var(--ink-2); font-size: 12px; margin-top: 3px; padding-left: 8px; border-left: 2px solid var(--argon); }
+@media (max-width: 760px) {
+  .top { flex-wrap: wrap; gap: 8px; }
+  .search { order: 3; max-width: none; margin: 0; flex-basis: 100%; }
 }

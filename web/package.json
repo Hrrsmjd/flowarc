@@ -1,0 +1,13 @@
+{
+  "name": "flowarc-dashboard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node dev.js",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "mongodb": "7.7.0"
+  }
+}

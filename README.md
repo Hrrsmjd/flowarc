@@ -75,7 +75,7 @@ flowarc/         Python package
   pipeline.py    runs samples through the stages
 scripts/         one-off runs and benchmarks
 tests/
-web/             demo dashboard (python -m flowarc.dashboard)
+web/             live demo dashboard (Vercel; reads Atlas), see web/README.md
 docs/GOAL.md     the full brief
 ```
 
