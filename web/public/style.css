@@ -827,3 +827,8 @@ select option { background: var(--surface); color: var(--ink); }
 .l-next { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: 40px; height: 40px; padding: 0; border: 1px solid var(--border); background: transparent; color: var(--ink-2); font: 18px/1 var(--mono); cursor: pointer; }
 .l-next:hover, .l-next:focus-visible { color: var(--accent); border-color: var(--accent); }
 @media (max-width: 860px) { .l-sec { min-height: 0; } .l-next { display: none; } }
+
+/* slide 4: Argon's latest fix, in its own words */
+.argon-quote .who { display: block; margin-bottom: 8px; font: 500 11.5px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--argon); }
+.argon-quote p { margin: 0; font-size: 19px; line-height: 1.45; }
+.slide .argon-quote small { margin-top: 10px; }

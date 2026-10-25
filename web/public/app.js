@@ -1052,7 +1052,7 @@ function slides() {
      <ul class="uses"><li><b>MongoDB Atlas is the agent's memory:</b> Vector Search stops repeats, hybrid search finds any shape, GridFS holds every file</li></ul>`,
     `<p class="kick">Argon, the supervisor</p><h2>When a check fails, Argon reads why and picks the fix.</h2>
      <div class="facts"><div><b>${fixes.length}</b><span>${fixes.length === 1 ? "problem" : "problems"} fixed without a person</span></div><div><b>3</b><span>ways to fix: new images, new mesh, or repair</span></div></div>
-     ${last ? `<blockquote><b>${esc(last.s.title)}</b>: ${esc(fixText(last.e.msg))}${last.e.diagnosis ? `<small>${esc(last.e.diagnosis)}</small>` : ""}</blockquote>` : ""}`,
+     ${last ? `<blockquote class="argon-quote"><span class="who">Argon · latest fix</span>${last.e.diagnosis ? `<p>“${esc(last.e.diagnosis)}”</p>` : ""}<small><b>${esc(last.s.title)}</b>: ${esc(fixText(last.e.msg))}</small></blockquote>` : ""}`,
     `<p class="kick">So far</p><h2>In ${state ? fmtSpan(runTime()) : "–"}, ${done.length} checked simulations of ${kinds} kinds of object.</h2>
      <div class="strip">${pics.map((s) => `<figure><img src="${esc(viewUrl(s))}" alt=""><figcaption>${esc(s.title)}</figcaption></figure>`).join("")}</div>`,
     `<p class="kick">Who it's for</p><h2>Diverse flow datasets in days, not months.</h2><p class="lead">For frontier AI teams, researchers, and us.</p>`,
