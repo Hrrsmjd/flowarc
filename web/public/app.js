@@ -767,13 +767,17 @@ function renderDiversity() {
   const sx = (v) => P + ((v - x0) / (x1 - x0)) * (W - 2 * P), sy = (v) => H - P - ((v - y0) / (y1 - y0)) * (H - 2 * P);
   const color = { flowarc: "var(--series-1)", car_baseline: "var(--series-2)" };
   const ids = new Set(state.samples.map((s) => s.id));
-  const order = [...pts].sort((a, b) => (b.source === "car_baseline") - (a.source === "car_baseline"));
+  // Cars draw last so our dots never hide them, and none of our pictures sits on the car cluster.
+  const order = [...pts].sort((a, b) => (a.source === "car_baseline") - (b.source === "car_baseline"));
+  const cars = pts.filter((p) => p.source === "car_baseline");
+  const box = cars.length && { x0: Math.min(...cars.map((p) => sx(p.x))), x1: Math.max(...cars.map((p) => sx(p.x))), y0: Math.min(...cars.map((p) => sy(p.y))), y1: Math.max(...cars.map((p) => sy(p.y))) };
+  const onCars = (x, y, pad) => box && x > box.x0 - pad && x < box.x1 + pad && y > box.y0 - pad && y < box.y1 + pad;
   let g = `<rect x="0" y="0" width="${W}" height="${H}" fill="none" stroke="var(--grid)" rx="8"/>`;
   const thumb = new Map(state.samples.map((x) => [x.id, viewUrl(x)]));
   g += `<defs><clipPath id="dot" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"/></clipPath></defs>`;
   for (const p of order) {
     const mine = ids.has(p.id), r = mine ? 5.5 : 4;
-    const img = mine && thumb.get(p.id);
+    const img = mine && !onCars(sx(p.x), sy(p.y), 18) && thumb.get(p.id);
     if (img) { // our finished shapes show as their own picture
       const T = 30, x = sx(p.x) - T / 2, y = sy(p.y) - T / 2;
       const tipHtml = esc(`<b>${esc(p.label)}</b><br>${esc(p.bucket)} · FlowArc`);
@@ -784,22 +788,28 @@ function renderDiversity() {
     g += `<circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="${r}" fill="${color[p.source] || "var(--muted)"}" stroke="var(--surface)" stroke-width="1.5" opacity="${p.source === "car_baseline" ? 0.85 : 1}" data-tip="${esc(`<b>${esc(p.label)}</b><br>${esc(p.bucket)} · ${p.source === "car_baseline" ? "car baseline" : "FlowArc"}`)}" ${mine ? `data-id="${p.id}" style="cursor:pointer"` : ""}/>`;
     if (p.id === selectedSample()?.id) g += `<circle cx="${sx(p.x)}" cy="${sy(p.y)}" r="10" fill="none" stroke="var(--ink)" stroke-width="1.5"/>`;
   }
-  // Name the car cluster on the map itself, just above it (below when it sits at the top).
-  const cars = pts.filter((p) => p.source === "car_baseline");
-  if (cars.length) {
-    const cx = cars.reduce((a, p) => a + sx(p.x), 0) / cars.length;
-    const top = Math.min(...cars.map((p) => sy(p.y))), bottom = Math.max(...cars.map((p) => sy(p.y)));
-    const above = top > 34, y = above ? top - 18 : bottom + 16;
-    const x = Math.min(Math.max(cx, 60), W - 60);
+  // Name the car cluster on the map itself, on whichever side of it is emptiest.
+  if (box) {
+    const lw = 104, lh = 22, gap = 8, cx = (box.x0 + box.x1) / 2, cy = (box.y0 + box.y1) / 2;
+    const spots = [
+      [cx - lw / 2, box.y0 - gap - lh], [cx - lw / 2, box.y1 + gap],
+      [box.x1 + gap, cy - lh / 2], [box.x0 - gap - lw, cy - lh / 2],
+    ].map(([x, y]) => [Math.min(Math.max(x, 4), W - lw - 4), Math.min(Math.max(y, 4), H - lh - 4)]);
+    const hits = ([x, y]) => pts.reduce((n, p) => {
+      const pad = ids.has(p.id) && thumb.get(p.id) && !onCars(sx(p.x), sy(p.y), 18) ? 17 : 6;
+      return n + (sx(p.x) > x - pad && sx(p.x) < x + lw + pad && sy(p.y) > y - pad && sy(p.y) < y + lh + pad ? (pad > 6 ? 5 : 1) : 0);
+    }, 0);
+    const [lx, ly] = spots.reduce((best, s) => (hits(s) < hits(best) ? s : best));
     const name = esc((map.baseline || "car baseline").replace(/\s*\(.*\)\s*$/, ""));
-    g += `<text class="cluster-label" x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle">${name}</text><text class="cluster-label sub" x="${x.toFixed(1)}" y="${(y + 9).toFixed(1)}" text-anchor="middle">every one a car</text>`;
+    g += `<text class="cluster-label" x="${(lx + lw / 2).toFixed(1)}" y="${(ly + 9).toFixed(1)}" text-anchor="middle">${name}</text><text class="cluster-label sub" x="${(lx + lw / 2).toFixed(1)}" y="${(ly + 19).toFixed(1)}" text-anchor="middle">every one a car</text>`;
   }
   $("divmap").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Shape embedding map, FlowArc samples versus a car-only baseline">${g}</svg>`;
   bindHover($("divmap"));
   $("divmap").querySelectorAll("[data-id]").forEach((c) => c.addEventListener("click", () => select(c.dataset.id)));
   const n = (src) => pts.filter((p) => p.source === src).length;
   const spread = (src) => map.spread?.[src] || 0; // mean pairwise cosine distance, full embedding
-  $("div-legend").innerHTML = `<span><span class="swatch" style="background:var(--series-1)"></span>FlowArc (${n("flowarc")}, spread ${spread("flowarc").toFixed(2)})</span><span><span class="swatch" style="background:var(--series-2)"></span>${esc(map.baseline || "car baseline")} (${n("car_baseline")}, spread ${spread("car_baseline").toFixed(2)})</span>`;
+  const name = esc((map.baseline || "car baseline").replace(/\s*\(.*\)\s*$/, ""));
+  $("div-legend").innerHTML = `<span><span class="swatch" style="background:var(--series-1)"></span>FlowArc · ${n("flowarc")} shapes · spread ${spread("flowarc").toFixed(2)}</span><span><span class="swatch" style="background:var(--series-2)"></span>${name} · ${n("car_baseline")} cars · spread ${spread("car_baseline").toFixed(2)}</span><span class="muted">spread = how different two shapes are on average, 0 to 1</span>`;
   const buckets = {};
   for (const p of pts) if (p.source === "flowarc") buckets[p.bucket] = (buckets[p.bucket] || 0) + 1;
   const max = Math.max(...Object.values(buckets));
