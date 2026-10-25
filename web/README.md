@@ -114,4 +114,4 @@ The dashboard already reads what `Sample.save`, `Sample.log`, `record_check` and
   person's feedback, **drop** marks it failed for good. Log what you did as usual; any log line
   after the review tells the dashboard it was handled
 - `baseline` documents `{_id, name, embedding}` for car-only concepts, embedded with the same
-  model as the samples
+  model as the samples; `python scripts/seed_baseline.py` writes k variants of each of the 24 discrete DrivAerNet++ combinations (96 cars at the default k=4)
