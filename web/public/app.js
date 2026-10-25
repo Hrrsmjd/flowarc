@@ -86,6 +86,12 @@ function liveTick() {
   el.title = lastError || (state?.db ? `database ${state.db}` : "");
   if (lastError) return ($("live-text").textContent = `API error: ${lastError.slice(0, 60)}`);
   const src = state?.mode === "atlas" ? "MongoDB Atlas" : "mock replay";
+  if (state?.run?.paused) {
+    el.classList.add("paused");
+    el.title = state.run.paused_note || el.title;
+    return ($("live-text").textContent = `Paused · ${src}`);
+  }
+  el.classList.remove("paused");
   $("live-text").textContent = !lastOk ? "connecting…" : age > 10 ? `offline ${fmtDur(age)}` : `Live · ${src}`;
 }
 
@@ -188,7 +194,7 @@ function renderOverview(run, samples) {
 // How long the run has taken, wall clock: start to now while anything runs, else start to the last event.
 function runTime() {
   const { run, samples } = state;
-  const live = samples.some((s) => s.status === "running");
+  const live = !run.paused && samples.some((s) => s.status === "running");
   const end = live || !samples.length ? Date.now() / 1000 : Math.max(...samples.map((s) => s.last_t || 0));
   return Math.max(0, end - run.started_at);
 }

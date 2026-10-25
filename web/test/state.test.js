@@ -130,3 +130,11 @@ test("log lines never name Modal", () => {
   assert.deepEqual(log.map((e) => e.msg), ["sim: reset, app restarted", "sim: started"]);
   assert.equal(log[1].reason, "timeout");
 });
+
+test("a paused run is flagged from the runs document", () => {
+  const reg = mockRegistry(T0, T0 + 20);
+  assert.equal(buildState({ ...reg, mode: "mock", now: T0 + 20 }).run.paused, false);
+  const st = buildState({ ...reg, run: { ...reg.run, paused: true, paused_note: "Gemini access lost" }, mode: "mock", now: T0 + 20 });
+  assert.equal(st.run.paused, true);
+  assert.equal(st.run.paused_note, "Gemini access lost");
+});
