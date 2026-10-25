@@ -86,6 +86,7 @@ function liveTick() {
   el.title = lastError || (state?.db ? `database ${state.db}` : "");
   if (lastError) return ($("live-text").textContent = `API error: ${lastError.slice(0, 60)}`);
   const src = state?.mode === "atlas" ? "MongoDB Atlas" : "mock replay";
+  $("paused-banner").hidden = !state?.run?.paused;
   if (state?.run?.paused) {
     el.classList.add("paused");
     el.title = state.run.paused_note || el.title;

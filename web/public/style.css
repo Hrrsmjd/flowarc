@@ -862,3 +862,8 @@ html:has(body[data-page="home"]) { scroll-snap-type: y proximity; }
 .l-hero, .l-sec { scroll-snap-align: start; }
 .mini-map .mm-label { font: 600 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; fill: var(--series-2); }
 .mini-map .mm-label.sub { font: 11px var(--mono); text-transform: none; letter-spacing: 0; fill: var(--ink-2); }
+
+.paused-banner { position: fixed; left: 16px; bottom: 16px; z-index: 50; display: flex; flex-direction: column; gap: 2px; padding: 12px 16px; border-radius: 10px; background: var(--ink); color: var(--surface); font-size: 13px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25); max-width: calc(100vw - 32px); }
+.paused-banner[hidden] { display: none; }
+.paused-banner strong { font-size: 14px; }
+.paused-banner a { color: inherit; text-decoration: underline; }
