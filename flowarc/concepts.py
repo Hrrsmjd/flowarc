@@ -15,7 +15,16 @@ TAXONOMY = [
     "sports gear and tools",
     "plants",
     "abstract or parametric shapes",
-    "combinations of the above",
+    "machines and industrial equipment",
+    "aircraft, rockets and drones",
+    "musical instruments",
+    "electronics and appliances",
+    "toys and games",
+    "food",
+    "insects and small creatures",
+    "rocks, ice and natural formations",
+    "bones, shells and fossils",
+    "sculpture and art",
 ]
 
 RE_RANGE = (1e2, 1e5)  # where the solver checks pass; above this Re is nominal (no wall model)

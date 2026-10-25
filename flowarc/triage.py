@@ -156,8 +156,25 @@ def fixed_policy(s: Sample, stage: str) -> dict:
     return {"action": "redraw_views" if redraw else "retry"}
 
 
+MARGINAL_MACH = 0.6
+
+
+def just_too_fast(stage: str, checks: list[dict]) -> bool:
+    """An LES sim that only just broke the Mach limit: rerun it slower, the mesh is fine."""
+    return stage == "sim" and any(
+        c["name"] == "stable"
+        and not c["passed"]
+        and c.get("les", True)
+        and 0 < (c.get("mach_max") or 0) < MARGINAL_MACH
+        for c in checks
+    )
+
+
 def handle(s: Sample, stage: str, checks: list[dict], error: str | None = None) -> bool:
     """Choose and set up the next step after a failed stage. False means Argon gave up."""
+    if just_too_fast(stage, checks):
+        s.log("sim just over the Mach limit: retry with slower inflow", actor="triage")
+        return apply(s, stage, {"action": "retry"})
     if not config.ARGON_REPAIR:
         return apply(s, stage, fixed_policy(s, stage))
     try:

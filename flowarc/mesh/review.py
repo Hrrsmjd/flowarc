@@ -128,7 +128,7 @@ def flash_review(concept: dict, views: dict[str, bytes], renders: dict[str, Imag
             {"type": "text", "text": f"mesh render {v}:"},
             gemini.image_part(buf.getvalue(), "image/jpeg"),
         ]
-    out = gemini.ask(parts, schema=SCHEMA)
+    out = gemini.argon(parts, schema=SCHEMA)
     out["failed"] = [c["check"] for c in out["checks"] if not c["passed"]]
     return out
 

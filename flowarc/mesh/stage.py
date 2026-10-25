@@ -5,8 +5,9 @@ from pathlib import Path
 import numpy as np
 import trimesh
 
+from flowarc import config
 from flowarc.mesh import checks, repair, review
-from flowarc.mesh.generators import Hunyuan21
+from flowarc.mesh.generators import Hunyuan21, Hunyuan21Modal
 
 
 def make_mesh(
@@ -25,7 +26,9 @@ def make_mesh(
     `remesh` voxel-remeshes even a watertight mesh (Argon's repair_mesh, with `raw` the last one).
     """
     out.mkdir(parents=True, exist_ok=True)
-    raw = raw or (generator or Hunyuan21()).generate(views, out, gpu, seed=seed)
+    raw = raw or (
+        generator or (Hunyuan21Modal() if config.MESH_HOST == "modal" else Hunyuan21())
+    ).generate(views, out, gpu, seed=seed)
     mesh = trimesh.load(raw, force="mesh")
     report = {
         "raw": {

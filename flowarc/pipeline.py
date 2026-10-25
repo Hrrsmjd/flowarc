@@ -36,9 +36,19 @@ def new_samples(n: int, seed: int | None = None) -> list[Sample]:
     existing = all_samples()
     start = 1 + max((int(s.id[1:]) for s in existing), default=0)
     out = []
-    for i, c in enumerate(concepts.select(n, seed)):
+    token = gemini.CALLS.set([])
+    try:
+        picked = concepts.select(n, seed)
+        calls = gemini.CALLS.get()
+    finally:
+        gemini.CALLS.reset(token)
+    for i, c in enumerate(picked):
         s = Sample(id=f"s{start + i:05d}", embedding=c.pop("embedding"), concept=c)
         s.meta["phase"] = config.PHASE.name  # the dashboard counts this run's samples by it
+        # Argon proposes the whole batch in one call: every sample shows it under Prompts,
+        # and only the first counts it towards the run's totals.
+        for call in calls:
+            s.log(f"gemini {call['model']}", actor="gemini", **call, shared=len(picked), copy=i > 0)
         s.record_check("novel", True)
         advance(s)
         out.append(s)
@@ -60,6 +70,7 @@ def run_images(s: Sample, gpu: int) -> bool:
         bad=review["bad_views"],
         reason=review.get("reason"),
         hard=False,
+        actor="argon",
     )
     return True  # views are only a reference for the mesh review
 
@@ -98,6 +109,7 @@ def run_mesh(s: Sample, gpu: int) -> bool:
         flash=rev.get("flash", {}).get("checks"),
         turns=rev.get("turns"),
         argon=rep.get("argon"),
+        actor="argon",
     )
     return rep["passed"]
 
@@ -203,9 +215,17 @@ def sim_progress(s: Sample, p: dict) -> None:
     s.save()
 
 
-def run_sim(s: Sample, gpu: int) -> bool:
+def solver():
+    if config.SOLVER == "modal":
+        from flowarc.sim.modal_solver import ModalFluidX3D
+
+        return ModalFluidX3D()
     from flowarc.sim.fluidx3d import FluidX3D
 
+    return FluidX3D()
+
+
+def run_sim(s: Sample, gpu: int) -> bool:
     m = trimesh.load(s.dir / "mesh" / "mesh.stl")
     m.apply_transform(
         trimesh.transformations.rotation_matrix(
@@ -215,7 +235,7 @@ def run_sim(s: Sample, gpu: int) -> bool:
     m.export(s.dir / "mesh" / "sim_body.stl")
     cfg = sim_config(s)
     s.meta.pop("sim_progress", None)  # from an earlier try
-    r = FluidX3D().run(
+    r = solver().run(
         s.dir / "mesh" / "sim_body.stl", cfg, s.dir / "sim", gpu, lambda p: sim_progress(s, p)
     )
     st = r.stats
@@ -253,7 +273,12 @@ def run_render(s: Sample, gpu: int) -> bool:
     rev = render.review(video, s.concept, save_to=s.dir / "sim" / "frames")
     s.meta["video_review"] = rev
     s.record_check(
-        "video_review", rev["passed"], failed=rev["failed"], summary=rev["summary"], hard=False
+        "video_review",
+        rev["passed"],
+        failed=rev["failed"],
+        summary=rev["summary"],
+        hard=False,
+        actor="argon",
     )
     return True
 
@@ -303,9 +328,8 @@ def upload(s: Sample, stage: str, attempt: int | None = None) -> None:
 def run_sample(s: Sample, gpu: int, budget_hours: float = math.inf) -> Sample:
     """Run the remaining stages. Ends done, flagged (a soft check failed) or failed."""
     s.meta.setdefault("phase", config.PHASE.name)
-    if s.status == "running":  # the worker was stopped mid-stage; that try doesn't count
-        s.attempts[s.stage] = max(0, s.attempts.get(s.stage, 0) - 1)
-        s.log(f"{s.stage}: resumed after a stop")
+    if s.meta.pop("in_try", None) == s.stage:  # a restart cut the last try short; don't count it
+        s.attempts[s.stage] -= 1
     while s.stage != "done":
         if s.stage == "sim" and gpu_hours() >= budget_hours:
             s.status = "pending"
@@ -320,6 +344,7 @@ def run_sample(s: Sample, gpu: int, budget_hours: float = math.inf) -> Sample:
             return s
         s.status = "running"
         s.meta["gpu"] = gpu
+        s.meta["in_try"] = stage
         s.save()
         n_checks, error = len(s.checks.get(stage, [])), None
         token = gemini.CALLS.set([])
@@ -332,13 +357,21 @@ def run_sample(s: Sample, gpu: int, budget_hours: float = math.inf) -> Sample:
             for c in gemini.CALLS.get():
                 s.log(f"gemini {c['model']}", actor="gemini", **c)
             gemini.CALLS.reset(token)
+        s.meta.pop("in_try", None)
         triage.close_repair(s, stage, passed)
         if passed:
             advance(s)
             upload(s, stage)
             continue
         upload(s, stage, s.attempts[stage])
-        if not triage.handle(s, stage, s.checks.get(stage, [])[n_checks:], error):
+        token = gemini.CALLS.set([])
+        try:
+            go_on = triage.handle(s, stage, s.checks.get(stage, [])[n_checks:], error)
+        finally:
+            for c in gemini.CALLS.get():
+                s.log(f"gemini {c['model']}", actor="gemini", **c)
+            gemini.CALLS.reset(token)
+        if not go_on:
             s.status = "failed"
             s.save()
             return s
