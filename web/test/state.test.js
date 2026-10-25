@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mockRegistry, mockSimilar } from "../lib/mock.js";
+import { mockRegistry, mockReview, mockSimilar } from "../lib/mock.js";
 import { buildState, diversityMap, shortBucket } from "../lib/state.js";
 
 const T0 = 1_800_000_000;
@@ -99,4 +99,21 @@ test("a batch-wide Argon call shows on every sample but counts once in the total
   assert.deepEqual(st.samples.map((s) => s.gemini.copies?.tokens || 0), [0, 100]);
   assert.equal(st.run.gemini.calls, 1);
   assert.equal(st.run.gemini.tokens, 100);
+});
+
+test("a review shows in the agent log and stays open until the runner acts", () => {
+  const T1 = T0 + 1000, now = T1 + 240;
+  assert.ok(mockReview("s0012", "retry", "thicken the lid", T1, now));
+  const s = buildState({ ...mockRegistry(T1, now), mode: "mock", now }).samples.find((x) => x.id === "s0012");
+  const e = s.log.find((x) => x.review);
+  assert.equal(e.actor, "human");
+  assert.equal(e.reason, "thicken the lid");
+  assert.deepEqual({ ...s.review, t: 0 }, { decision: "retry", note: "thicken the lid", t: 0, acted: false });
+  assert.equal(mockReview("nope", "drop", "", T1, now), false);
+});
+
+test("the runner's GPU -1 (off the GPU) reads as no GPU", () => {
+  const reg = mockRegistry(T0, T0 + 20);
+  reg.samples = reg.samples.map((s) => (s._id === "s0016" ? { ...s, meta: { ...s.meta, gpu: -1 } } : s));
+  assert.equal(live(buildState({ ...reg, mode: "mock", now: T0 + 20 })).gpu, null);
 });

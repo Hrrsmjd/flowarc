@@ -6,8 +6,9 @@ import { readFileSync } from "node:fs";
 import { STAGES } from "./state.js";
 
 const batch = JSON.parse(readFileSync(new URL("./mock.json", import.meta.url), "utf8"));
-// Approvals made in the mock, per replay (viewer start and loop), per server instance.
+// Approvals and reviews made in the mock, per replay (viewer start and loop), per server instance.
 const decisions = new Map();
+const reviews = new Map();
 const MAX_REPLAYS = 200;
 
 function replay(start, nowAbs) {
@@ -31,7 +32,7 @@ export function mockRegistry(start = 0, nowAbs = Date.now() / 1000) {
   const { rel, key } = replay(start, nowAbs); // rel: seconds into this loop
   const mine = decisions.get(key);
   const toAbs = (t) => nowAbs - (rel - t);
-  const logs = batch.logs.filter((e) => e.t <= rel);
+  const logs = [...batch.logs.filter((e) => e.t <= rel), ...(reviews.get(key) || []).map((e) => ({ ...e, t: rel - (nowAbs - e.t) }))];
   const samples = batch.samples.map((s) => {
     const all = batch.logs.filter((e) => e.sample === s._id);
     if (!all.length) return s; // pre-computed batch
@@ -63,6 +64,15 @@ export function mockRegistry(start = 0, nowAbs = Date.now() / 1000) {
 
 export function mockDecide(id, status, start = 0, nowAbs = Date.now() / 1000) {
   decided(replay(start, nowAbs).key).set(id, { status, decided_at: nowAbs });
+}
+
+export function mockReview(sample, decision, note, start = 0, nowAbs = Date.now() / 1000) {
+  const s = batch.samples.find((x) => x._id === sample);
+  if (!s) return false;
+  const { key } = replay(start, nowAbs);
+  if (!reviews.has(key)) reviews.set(key, []);
+  reviews.get(key).push({ sample, t: nowAbs, stage: s.stage, actor: "human", msg: `review: ${decision}`, review: decision, note });
+  return true;
 }
 
 // Cosine similarity over the mock batch's concept embeddings, in place of Atlas Vector Search.

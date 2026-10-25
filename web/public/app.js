@@ -222,6 +222,10 @@ function bubble(s) {
   const recent = s.log.slice(-4).reverse();
   const e = recent.find((x) => x.fix || (x.failed && !x.soft)) || s.log[s.log.length - 1];
   if (!e) return "";
+  if (e.review) {
+    const said = { accept: "Accepted as is", retry: "Asked Argon to retry", drop: "Dropped it" }[e.review] || e.review;
+    return `<div class="bubble human"><span class="who">You</span><b>${esc(said)}</b>${e.reason ? `<p>“${esc(e.reason)}”</p>` : ""}</div>`;
+  }
   if (e.fix) {
     return `<div class="bubble argon"><span class="who">Argon</span><b>Fix: ${esc(fixText(e.msg))}</b>${e.diagnosis ? `<p>${esc(e.diagnosis)}</p>` : ""}</div>`;
   }
@@ -275,7 +279,7 @@ function alsoRunning(s) {
   const others = state.samples.filter((x) => x.status === "running" && x.id !== s.id).sort((a, b) => (a.gpu ?? 99) - (b.gpu ?? 99));
   if (!others.length) return "";
   const row = (x) => `<li><a href="#shape/${encodeURIComponent(x.id)}">${x.gpu != null ? `<span class="gpu">GPU ${x.gpu}</span>` : ""}${esc(x.title)}<span class="st">${esc(x.stage)}</span></a></li>`;
-  return `<div class="also"><p>Also running</p><ul>${others.slice(0, 6).map(row).join("")}</ul>${others.length > 6 ? `<p class="more">+${others.length - 6} more</p>` : ""}</div>`;
+  return `<div class="also"><p>Also running</p><ul>${others.slice(0, 4).map(row).join("")}</ul>${others.length > 4 ? `<p class="more">+${others.length - 4} more in the pipeline</p>` : ""}</div>`;
 }
 
 // ---------- gallery ----------
@@ -802,12 +806,14 @@ function renderDiversity() {
 // ---------- needs a look ----------
 // Flagged and failed shapes with the reason, newest first, plus any approval the pipeline asks for.
 function lookReason(s) {
-  const e = [...s.log].reverse().find((x) => x.failed && !x.soft) || [...s.log].reverse().find((x) => x.failed) || s.log[s.log.length - 1];
+  const log = s.log.filter((x) => !x.review).reverse();
+  const e = log.find((x) => x.failed && !x.soft) || log.find((x) => x.failed) || log[0];
   if (!e) return { what: s.status, why: "" };
   const tries = s.attempts?.[e.stage] > 1 ? ` after ${s.attempts[e.stage]} attempts` : "";
   return { what: `${e.stage} · ${e.check ? `${e.check} check failed` : e.msg}${tries}`, why: e.reason || e.diagnosis || "" };
 }
 function renderApprovals() {
+  if (reviewOpen && document.activeElement?.closest(".look-form")) return; // don't redraw under someone typing
   const kinds = { publish: "Publish dataset", over_budget: "Over compute budget", flagged: "Flagged sample" };
   const list = state.approvals;
   const pending = list.filter((a) => a.status === "pending").length;
@@ -824,36 +830,70 @@ function renderApprovals() {
     </div>`).join("");
   const rows = look.map((s) => {
     const r = lookReason(s);
-    return `<button type="button" class="look ${s.status}" data-open="${esc(s.id)}"><span class="look-tag">${s.status === "failed" ? "✕ failed" : "⚑ flagged"}</span><b>${esc(s.title)}</b><span class="look-what">${esc(r.what)}</span>${r.why ? `<span class="look-why">${esc(r.why)}</span>` : ""}</button>`;
+    const open = reviewOpen === s.id;
+    const done = s.review && !s.review.acted;
+    const said = done ? `<p class="look-said">You said <b>${esc(REVIEW_SAID[s.review.decision] || s.review.decision)}</b>${s.review.note ? `: “${esc(s.review.note)}”` : ""} · waiting for the runner</p>` : "";
+    const form = open ? `<div class="look-form"><input type="text" maxlength="500" placeholder="Note for Argon (optional), e.g. thicken the handle" aria-label="Note for Argon" value="${esc(reviewNote)}">
+        <div class="actions">${REVIEWS.map(([d, l]) => `<button type="button" class="btn ${d === "retry" ? "approve" : "reject"}" data-review="${d}" data-sample="${esc(s.id)}">${l}</button>`).join("")}<button type="button" class="ghost small" data-cancel>Cancel</button></div></div>`
+      : done ? "" : `<div class="actions"><button type="button" class="ghost small" data-review-open="${esc(s.id)}">Review</button><button type="button" class="ghost small" data-open="${esc(s.id)}">Open</button></div>`;
+    return `<div class="look ${s.status}${open ? " open" : ""}"><button type="button" class="look-head" data-open="${esc(s.id)}"><span class="look-tag">${s.status === "failed" ? "✕ failed" : "⚑ flagged"}</span><b>${esc(s.title)}</b><span class="look-what">${esc(r.what)}</span>${r.why ? `<span class="look-why">${esc(r.why)}</span>` : ""}</button>${said}${form}</div>`;
   }).join("");
   const html = asks + (rows ? `<div class="looks">${rows}</div>` : "") || "<p class='muted'>Nothing needs a look. Every check has passed or Argon fixed it.</p>";
   if ($("approvals").dataset.html === html) return;
-  $("approvals").innerHTML = $("approvals").dataset.html = html;
-  $("approvals").querySelectorAll("[data-d]").forEach((b) => b.addEventListener("click", () => decide(b.dataset.id, b.dataset.d)));
-  $("approvals").querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => select(b.dataset.open)));
+  const el = $("approvals");
+  el.innerHTML = el.dataset.html = html;
+  el.querySelectorAll("[data-d]").forEach((b) => b.addEventListener("click", () => decide(b.dataset.id, b.dataset.d)));
+  el.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => select(b.dataset.open)));
+  el.querySelectorAll("[data-review-open]").forEach((b) => b.addEventListener("click", () => { reviewOpen = b.dataset.reviewOpen; reviewNote = ""; renderApprovals(); el.querySelector(".look-form input")?.focus(); }));
+  el.querySelectorAll("[data-cancel]").forEach((b) => b.addEventListener("click", () => { reviewOpen = null; renderApprovals(); }));
+  const input = el.querySelector(".look-form input");
+  input?.addEventListener("input", () => (reviewNote = input.value)); // kept across the 2 s redraws
+  input?.addEventListener("keydown", (e) => { if (e.key === "Escape") { reviewOpen = null; renderApprovals(); } });
+  el.querySelectorAll("[data-review]").forEach((b) => b.addEventListener("click", () => review(b.dataset.sample, b.dataset.review, reviewNote)));
 }
 
-async function decide(id, decision) {
+// A person's call on a flagged or failed shape, with an optional note for Argon. The runner reads
+// it from Atlas (`reviews`); until it acts, the card says what was asked.
+const REVIEWS = [["accept", "Accept"], ["retry", "Retry"], ["drop", "Drop"]];
+const REVIEW_SAID = { accept: "accept it as is", retry: "retry", drop: "drop it" };
+let reviewOpen = null, reviewNote = "";
+async function review(sample, decision, note) {
+  const r = await post("api/review", { sample, decision, note });
+  if (!r) return;
+  reviewOpen = null;
+  reviewNote = "";
+  toast(`${{ accept: "✓ Accepted", retry: "↻ Retry asked", drop: "✕ Dropped" }[decision]}: ${state.samples.find((s) => s.id === sample)?.title || sample}`, decision === "drop" ? "bad" : "good");
+  load();
+}
+
+// POST with the approval token, asking for it once per browser. Returns the response, or null.
+async function post(url, body) {
   let token = localStorage.getItem("approvalToken") || "";
   for (let tries = 0; tries < 2; tries++) {
-    const r = await fetch(`api/approve?start=${start}`, {
+    const r = await fetch(`${url}?start=${start}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-approval-token": token },
-      body: JSON.stringify({ id, decision }),
+      body: JSON.stringify(body),
     }).catch(() => null);
     if (r?.status === 401) {
       token = prompt("Approval token") || "";
-      if (!token) return;
+      if (!token) return null;
       try { localStorage.setItem("approvalToken", token); } catch {}
       continue;
     }
-    if (!r?.ok) return alert((await r?.json().catch(() => null))?.error || "Could not record the decision. Try again.");
-    localApprovals[id] = { status: decision };
-    Object.assign(state.approvals.find((a) => a.id === id), localApprovals[id]);
-    toast(decision === "approved" ? "✓ Approved by a human" : "✕ Rejected", decision === "approved" ? "good" : "bad");
-    $("approvals").dataset.html = "";
-    return renderApprovals();
+    if (!r?.ok) { alert((await r?.json().catch(() => null))?.error || "Could not save that. Try again."); return null; }
+    return r;
   }
+  return null;
+}
+
+async function decide(id, decision) {
+  if (!(await post("api/approve", { id, decision }))) return;
+  localApprovals[id] = { status: decision };
+  Object.assign(state.approvals.find((a) => a.id === id), localApprovals[id]);
+  toast(decision === "approved" ? "✓ Approved by a human" : "✕ Rejected", decision === "approved" ? "good" : "bad");
+  $("approvals").dataset.html = "";
+  renderApprovals();
 }
 
 // ---------- search ----------

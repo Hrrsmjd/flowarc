@@ -50,13 +50,6 @@
       <div class="live-main">
         <section class="hero" id="hero" aria-live="polite" hidden></section>
         <aside class="live-side">
-          <section class="card" aria-labelledby="h-approve">
-            <div class="card-head">
-              <h2 id="h-approve">Needs a look</h2>
-              <span class="muted small" id="approve-count"></span>
-            </div>
-            <div id="approvals"></div>
-          </section>
           <section class="card" id="card-progress" aria-labelledby="h-progress">
             <div class="card-head">
               <h2 id="h-progress">Pipeline</h2>
@@ -65,6 +58,13 @@
             <div class="funnel" id="funnel"></div>
             <div class="dots" id="dots" aria-label="Every sample, coloured by status"></div>
             <a class="small all-link" href="#shapes/all">Every sample, stage by stage →</a>
+          </section>
+          <section class="card card-look" aria-labelledby="h-approve">
+            <div class="card-head">
+              <h2 id="h-approve">Needs a look</h2>
+              <span class="muted small" id="approve-count"></span>
+            </div>
+            <div id="approvals"></div>
           </section>
         </aside>
       </div>

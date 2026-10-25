@@ -47,6 +47,18 @@ export async function atlasDecide(id, status, by) {
   return r.modifiedCount === 1;
 }
 
+// A person's review of a flagged or failed sample. `reviews` is the runner's queue (status
+// "new" until it acts); the log line shows the review in the agent log.
+export async function atlasReview(sample, decision, note, by) {
+  const d = await db();
+  const s = await d.collection("samples").findOne({ _id: sample }, { projection: { stage: 1 } });
+  if (!s) return false;
+  const t = Date.now() / 1000;
+  await d.collection("reviews").insertOne({ sample, decision, note, by, t, status: "new" });
+  await d.collection("logs").insertOne({ sample, t, stage: s.stage, actor: "human", msg: `review: ${decision}`, review: decision, note });
+  return true;
+}
+
 // Search by meaning and by words: hybrid search, the same query as flowarc.store.hybrid.
 // $rankFusion of Voyage Automated Embedding (index `concept_voyage`) on the name, weighted
 // most because it says what a shape is, and on the description (its geometry), plus Atlas

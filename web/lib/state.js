@@ -2,7 +2,8 @@
 //
 // Inputs follow the pipeline's Atlas collections: `samples` (_id, stage, status, concept,
 // attempts, meta), `logs` ({sample, t, stage, msg, check?, passed?, actor?, ...}) and
-// `approvals` ({_id, kind, title, detail, status, sample?, t}).
+// `approvals` ({_id, kind, title, detail, status, sample?, t}). A person's review of a flagged or
+// failed sample is a log line with actor "human" and `review` (accept | retry | drop) plus `note`.
 
 export const STAGES = ["concept", "images", "mesh", "sim", "render", "package"];
 
@@ -47,7 +48,8 @@ function event(e) {
     fix: /^repair:/.test(e.msg),
     check,
     diagnosis: e.diagnosis,
-    reason: e.reason || e.summary,
+    reason: e.reason || e.summary || e.note,
+    review: e.review,
     similarity: e.similarity,
     iou: e.iou || (typeof e.silhouette === "number" ? { "min view": e.silhouette } : undefined),
     d_cd: e.d_cd,
@@ -107,6 +109,13 @@ function hfViews(s) {
   return views;
 }
 
+// The latest human review, and whether anything has happened since (the runner acting on it).
+function lastReview(log) {
+  const i = log.findLastIndex((e) => e.review);
+  if (i < 0) return null;
+  return { decision: log[i].review, note: log[i].reason || "", t: log[i].t, acted: i < log.length - 1 };
+}
+
 const noCalls = () => ({ calls: 0, tokens: 0, by_model: {} });
 
 export function buildState({ run = {}, samples, logs, approvals = [], media = [], mode, hfRepo = "", runFrom = "", now = Date.now() / 1000 }) {
@@ -158,6 +167,7 @@ export function buildState({ run = {}, samples, logs, approvals = [], media = []
         media: withHf(files.get(s._id), hfViews(s)),
         log,
         last_t: log.length ? log[log.length - 1].t : 0,
+        review: lastReview(log),
       };
     });
 
