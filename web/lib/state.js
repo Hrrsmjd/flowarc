@@ -203,6 +203,8 @@ export function buildState({ run = {}, samples, logs, approvals = [], media = []
       cells_per_length: run.cells_per_length || null, // from the `runs` document, when written
       target_samples: run.target_samples || 20,
       gpus: run.gpus || null,
+      paused: Boolean(run.paused), // set in the `runs` document when the runner is stopped on purpose
+      paused_note: run.paused_note || null,
       started_at: started,
       samples_per_hour: done / hours,
       gpu_hours: seconds((r) => r.in_run) / 3600,
