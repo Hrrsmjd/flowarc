@@ -70,11 +70,11 @@ function renderStage() {
 }
 
 function renderStageKpis() {
-  const { run, samples } = state;
+  const { samples } = state;
   const done = samples.filter((s) => s.status === "done").length;
   const kinds = new Set(samples.filter((s) => s.status !== "failed" && s.stage !== "concept").map((s) => s.bucket)).size;
   const fixes = samples.reduce((a, s) => a + s.log.filter((e) => e.fix).length, 0);
-  const tiles = [["done", "Shapes done", done, 0], ["kinds", "Kinds of object", kinds, 0], ["fixes", "Fixed by Argon", fixes, 0], ["gpuh", "GPU-hours", run.gpu_hours, 1]];
+  const tiles = [["done", "Shapes done", done, 0], ["kinds", "Kinds of object", kinds, 0], ["fixes", "Fixed by Argon", fixes, 0]];
   const el = $("stage-kpis");
   if (!el.children.length) el.innerHTML = tiles.map(([k, l]) => `<div class="kpi" data-k="${k}"><dt>${l}</dt><dd class="num">0</dd></div>`).join("");
   for (const [k, , v, dp] of tiles) tick(el.querySelector(`[data-k="${k}"] .num`), v, dp);

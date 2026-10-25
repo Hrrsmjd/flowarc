@@ -1040,14 +1040,14 @@ function slides() {
     `<p class="kick">How it works</p><h2>An agent builds each sample and checks every step.</h2>
      <ol class="pipe">${step(1, "Concept", "Argon", "invents a new shape for a gap in the dataset")}${step(2, "Images", "Nano Banana", "draws it from four sides")}${step(3, "Mesh", "Hunyuan3D", "builds the 3D mesh; Flash checks it against the drawings")}${step(4, "Simulation", "FluidX3D", "runs the airflow on two grids until drag agrees")}${step(5, "Package", "Atlas", "stores the result and remembers the shape")}</ol>`,
     `<p class="kick">Argon, the supervisor</p><h2>When a check fails, Argon reads why and fixes it.</h2>
-     <div class="facts"><div><b>${fixes.length}</b><span>${fixes.length === 1 ? "problem" : "problems"} fixed without a person</span></div><div><b>${samples.reduce((a, s) => a + (s.gemini?.calls || 0), 0)}</b><span>Gemini calls</span></div></div>
+     <div class="facts"><div><b>${fixes.length}</b><span>${fixes.length === 1 ? "problem" : "problems"} fixed without a person</span></div></div>
      ${last ? `<blockquote><b>${esc(last.s.title)}</b>: ${esc(fixText(last.e.msg))}${last.e.diagnosis ? `<small>${esc(last.e.diagnosis)}</small>` : ""}</blockquote>` : ""}`,
     `<p class="kick">MongoDB Atlas</p><h2>Atlas is the agent's memory.</h2>
      <ul class="uses"><li><b>Vector Search</b> on 3072-d Gemini embeddings, so Argon never repeats a shape</li><li><b>Hybrid search</b> with Voyage AI and <code>$rankFusion</code>, to find any shape by meaning</li><li><b>GridFS</b> for every view, mesh and flow video</li><li><b>The agent log</b>, every step and every fix</li></ul>
      <div class="facts"><div><b>${samples.length}</b><span>shapes remembered</span></div><div><b>${media}</b><span>files in GridFS</span></div></div>`,
     `<p class="kick">So far</p><h2>${done.length} checked shapes, ${kinds} kinds of object${flows ? `, ${flows} airflows` : ""}.</h2>
      <div class="strip">${pics.map((s) => `<figure><img src="${esc(viewUrl(s))}" alt=""><figcaption>${esc(s.title)}</figcaption></figure>`).join("")}</div>
-     <div class="facts"><div><b>${state ? fmtSpan(runTime()) : "–"}</b><span>start to finish${state?.run.gpus ? `, on ${state.run.gpus} GPUs` : ""}</span></div><div><b>${state ? state.run.gpu_hours.toFixed(1) : "–"}</b><span>GPU-hours</span></div></div>`,
+     <div class="facts"><div><b>${state ? fmtSpan(runTime()) : "–"}</b><span>start to finish${state?.run.gpus ? `, on ${state.run.gpus} GPUs` : ""}</span></div></div>`,
     `<p class="kick">Who it's for</p><h2>Diverse, verified flow datasets in days, not months.</h2><p class="lead">For researchers and frontier AI4Physics teams, starting with us.</p>`,
   ];
 }
@@ -1129,14 +1129,13 @@ function renderFinale() {
   const flows = pool.filter((s) => s.media.video).length;
   const t0 = Math.min(...state.samples.map((s) => s.log[0]?.t).filter(Boolean));
   const t1 = Math.max(...pool.map((s) => s.last_t));
-  const span = pool.length && t1 > t0 ? fmtDur(t1 - t0) : "–";
+  const span = pool.length && t1 > t0 ? fmtSpan(t1 - t0) : "–";
   const stats = `<div class="fs-head"><span class="brand">≋ FlowArc</span> made by Argon, checked at every step</div>
     <div class="fs-row">
       <div><b>${pool.length}</b><span>shapes</span></div>
       <div><b>${kinds}</b><span>kinds of shape</span></div>
       <div><b>${flows}</b><span>airflow simulations</span></div>
       <div><b>${span}</b><span>start to finish</span></div>
-      <div><b>${state.run.gpu_hours.toFixed(0)}</b><span>GPU-hours</span></div>
     </div>
     <div class="fs-vs">DrivAerNet++: <b>1 kind</b> (cars), months of expert work</div>`;
   if ($("finale-stats").dataset.html !== stats) $("finale-stats").innerHTML = $("finale-stats").dataset.html = stats;
