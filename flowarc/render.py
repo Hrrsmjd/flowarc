@@ -44,6 +44,6 @@ def review(video: Path, concept: dict, save_to: Path | None = None) -> dict:
             (save_to / f"frame_{i}.jpg").write_bytes(f)
     parts = [{"type": "text", "text": PROMPT.format(name=concept["name"], re=concept["reynolds"])}]
     parts += [gemini.image_part(f) for f in fr]
-    out = gemini.ask(parts, schema=SCHEMA)
+    out = gemini.argon(parts, schema=SCHEMA)
     failed = [k for k in ITEMS if not out[k]["passed"]]
     return {"passed": not failed, "failed": failed, "summary": out["summary"], "items": out}

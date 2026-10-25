@@ -70,6 +70,7 @@ def run_images(s: Sample, gpu: int) -> bool:
         bad=review["bad_views"],
         reason=review.get("reason"),
         hard=False,
+        actor="argon",
     )
     return True  # views are only a reference for the mesh review
 
@@ -108,6 +109,7 @@ def run_mesh(s: Sample, gpu: int) -> bool:
         flash=rev.get("flash", {}).get("checks"),
         turns=rev.get("turns"),
         argon=rep.get("argon"),
+        actor="argon",
     )
     return rep["passed"]
 
@@ -270,7 +272,12 @@ def run_render(s: Sample, gpu: int) -> bool:
     rev = render.review(video, s.concept, save_to=s.dir / "sim" / "frames")
     s.meta["video_review"] = rev
     s.record_check(
-        "video_review", rev["passed"], failed=rev["failed"], summary=rev["summary"], hard=False
+        "video_review",
+        rev["passed"],
+        failed=rev["failed"],
+        summary=rev["summary"],
+        hard=False,
+        actor="argon",
     )
     return True
 

@@ -51,7 +51,7 @@ def check_consistency(concept: dict, views: dict[str, bytes]) -> dict:
     ]
     for v, img in views.items():
         parts += [{"type": "text", "text": f"{v} view:"}, gemini.image_part(img)]
-    return gemini.ask(parts, schema=SCHEMA)
+    return gemini.argon(parts, schema=SCHEMA)
 
 
 def make_views(concept: dict, attempts: int = 3) -> tuple[dict[str, bytes], dict]:
