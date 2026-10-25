@@ -31,6 +31,10 @@ const CHECK_ACTORS = {
   stability: "fluidx3d",
 };
 
+// We run on Modal, but the site doesn't name it: "Modal app restarted" reads "app restarted".
+const hideModal = (t) =>
+  typeof t === "string" ? t.replace(/\s*\b(on|via|in|from) Modal\b/gi, "").replace(/\bModal\s+/gi, "").replace(/\bModal\b/gi, "GPU") : t;
+
 function event(e) {
   // Older log lines carry the check only in the message: "check mesh: FAIL".
   const m = /^check (\w+): (pass|FAIL)/.exec(e.msg);
@@ -41,14 +45,14 @@ function event(e) {
   return {
     t: e.t,
     stage: e.stage,
-    msg: error ? e.msg.slice(0, 160) : e.msg,
+    msg: hideModal(error ? e.msg.slice(0, 160) : e.msg),
     actor,
     failed: passed === false || error || /out of attempts/.test(e.msg),
     soft: e.hard === false,
     fix: /^repair:/.test(e.msg),
     check,
-    diagnosis: e.diagnosis,
-    reason: e.reason || e.summary || e.note,
+    diagnosis: hideModal(e.diagnosis),
+    reason: hideModal(e.reason || e.summary || e.note),
     review: e.review,
     similarity: e.similarity,
     iou: e.iou || (typeof e.silhouette === "number" ? { "min view": e.silhouette } : undefined),

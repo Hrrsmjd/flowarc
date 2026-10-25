@@ -1001,7 +1001,9 @@ let homeSig = "";
 function renderHome() {
   const samples = state?.samples || [];
   const done = samples.filter((s) => s.status === "done");
-  const live = samples.find((s) => s.status === "running");
+  // The same shape the Live hero shows, so "Watch it live" lands on it.
+  const f = state && featured();
+  const live = f?.status === "running" ? f : samples.find((s) => s.status === "running");
   const pic = done.filter((s) => viewUrl(s)).sort((a, b) => b.last_t - a.last_t)[0]; // the newest finished shape
   const age = Date.now() / 1000 - (pic?.last_t || 0); // to the minute, so the page only redraws when it changes
   const when = pic?.last_t > 1e9 ? ` · finished ${age < 60 ? "just now" : age < 3600 ? `${Math.floor(age / 60)} min ago` : `${(age / 3600).toFixed(1)} h ago`}` : "";
