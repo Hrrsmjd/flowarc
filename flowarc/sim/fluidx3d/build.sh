@@ -19,12 +19,12 @@ for variant in les dns; do
   done
   [ "$variant" = les ] && sed -i 's|^//#define SUBGRID |#define SUBGRID |' "$d"
   sed -i 's|^#define GRAPHICS_BACKGROUND_COLOR 0x000000|#define GRAPHICS_BACKGROUND_COLOR 0x22497C|' "$d"
-  # Runtime Q-criterion threshold (FLOWARC_Q). FlowArc colours: navy background, grey body, light blue vortices, yellow where the flow is fast.
+  # Runtime Q-criterion threshold (FLOWARC_Q). FlowArc colours: navy background, grey body, teal vortices, red where the flow is fast.
   sed -i 's|to_string(GRAPHICS_Q_CRITERION)|to_string(getenv("FLOWARC_Q") ? (float)atof(getenv("FLOWARC_Q")) : GRAPHICS_Q_CRITERION)|' "$work/src/lbm.cpp"
   sed -i 's|#define COLOR_S (127<<16\|127<<8\|127)|#define COLOR_S ( 52<<16\| 56<<8\| 60)|' "$work/src/lbm.cpp"
   sed -i 's|^\t\tstd::atomic_int running_encoders = 0;|\tpublic:\n\t\tstd::atomic_int running_encoders = 0;\n\tprivate:|' "$work/src/lbm.hpp"
   k="$work/src/kernel.cpp"
-  sed -i 's|^)+R(int shading(const int c|)+R(int colorscale_flowarc(float x) { return color_mix(0xFFD56B, 0xD8E9FF, clamp(6.0f*(x-0.75f), 0.0f, 1.0f)); }\n)+R(int shading(const int c|' "$k"
+  sed -i 's|^)+R(int shading(const int c|)+R(int colorscale_flowarc(float x) { return color_mix(0xE63946, 0x2A9D8F, clamp(6.0f*(x-0.75f), 0.0f, 1.0f)); }\n)+R(int shading(const int c|' "$k"
   sed -i 's|int c0=0xDFDFDF, c1=0xDFDFDF, c2=0xDFDFDF;|int c0=0x8E98A4, c1=0x8E98A4, c2=0x8E98A4;|' "$k"
   sed -i '/c[012] = colorscale_twocolor(0.5f+def_scale_F\*dot(trilinear3(p[012], Fj), normal));/d' "$k"
   sed -i 's|shading(colorscale_rainbow(def_scale_u\*length(v\([012]\)))|shading(colorscale_flowarc(def_scale_u*length(v\1))|' "$k"
