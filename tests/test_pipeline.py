@@ -102,3 +102,25 @@ def test_view_mismatch_does_not_flag(tmp_path, monkeypatch):
     fns = {n: (lambda s, g: True) for n in ["mesh", "sim", "render", "package"]}
     monkeypatch.setattr(pipeline, "STAGE_FNS", fns | {"images": images})
     assert pipeline.run_sample(Sample(id="s00005", stage="images"), 0).status == "done"
+
+
+def test_package_deletes_sim_scratch(tmp_path, monkeypatch):
+    from flowarc import package
+
+    monkeypatch.setattr(config, "DATA", tmp_path)
+    monkeypatch.setattr(pipeline, "sim_config", lambda s: None)
+    monkeypatch.setattr(package, "pack", lambda *a, **k: tmp_path / "z")
+    monkeypatch.setattr(package, "size_bytes", lambda z: 1e9)
+    s = Sample(
+        id="s00010",
+        stage="package",
+        meta={"sim": {"ok": True, "forces": "f", "frames": None, "stats": {}, "cost": 1}},
+    )
+    sim = s.dir / "sim"
+    for sub in ("probes", "render", "frames"):
+        (sim / sub).mkdir(parents=True)
+        (sim / sub / "x").write_bytes(b"1")
+    (sim / "video.mp4").write_bytes(b"1")
+    assert pipeline.run_package(s, 0)
+    assert not (sim / "probes").exists() and not (sim / "render").exists()
+    assert (sim / "frames" / "x").exists() and (sim / "video.mp4").exists()

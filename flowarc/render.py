@@ -25,12 +25,31 @@ shell and a short wake are normal; fail only if almost nothing shows.
 - no_artifacts: no blank frames, no noise filling the box, no surfaces stuck to the box edges, no stripes."""
 
 
+def duration(video: Path) -> float:
+    cmd = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "csv=p=0",
+        str(video),
+    ]
+    try:
+        return float(subprocess.run(cmd, check=True, capture_output=True, text=True).stdout)
+    except (subprocess.CalledProcessError, ValueError):
+        return float("inf")
+
+
 def frames(video: Path, times=(1.0, 5.0, 9.5)) -> list[bytes]:
+    """One frame per time; a time past the end of the video is moved to its last half second."""
     cmd = ["ffmpeg", "-v", "error", "-ss", "", "-i", str(video), "-frames:v", "1"]
     cmd += ["-vf", "scale=960:-1", "-f", "image2pipe", "-vcodec", "mjpeg", "-"]
+    end = duration(video) - 0.5
     out = []
     for t in times:
-        cmd[4] = str(t)
+        cmd[4] = str(min(t, end))
         out.append(subprocess.run(cmd, check=True, capture_output=True).stdout)
     return out
 

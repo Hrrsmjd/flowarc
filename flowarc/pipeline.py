@@ -297,6 +297,8 @@ def run_package(s: Sample, gpu: int) -> bool:
     meta = {"concept": s.concept, "checks": s.checks, "mesh": "mesh/mesh.stl"}
     z = pack(r, sim_config(s), s.dir / "sample.zarr", json.loads(json.dumps(meta, default=str)))
     s.meta["zarr_gb"] = size_bytes(z) / 1e9
+    for scratch in ("probes", "render"):  # ~1.8 GB per sample, now in the Zarr and the video
+        shutil.rmtree(s.dir / "sim" / scratch, ignore_errors=True)
     return s.record_check("packed", True, gb=s.meta["zarr_gb"])
 
 
