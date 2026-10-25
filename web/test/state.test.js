@@ -32,6 +32,8 @@ test("diversity map puts the car baseline in a tight cluster", () => {
     return Math.sqrt(q.reduce((a, p) => a + (p.x - mx) ** 2 + (p.y - my) ** 2, 0) / q.length);
   };
   assert.ok(spread("flowarc") > 4 * spread("car_baseline"));
+  const full = diversityMap(reg.samples, reg.baseline).spread;
+  assert.ok(full.flowarc > 2 * full.car_baseline);
 });
 
 test("bucket labels are short", () => {

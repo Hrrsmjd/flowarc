@@ -798,7 +798,7 @@ function renderDiversity() {
   bindHover($("divmap"));
   $("divmap").querySelectorAll("[data-id]").forEach((c) => c.addEventListener("click", () => select(c.dataset.id)));
   const n = (src) => pts.filter((p) => p.source === src).length;
-  const spread = (src) => { const q = pts.filter((p) => p.source === src); if (!q.length) return 0; const mx = q.reduce((a, p) => a + p.x, 0) / q.length, my = q.reduce((a, p) => a + p.y, 0) / q.length; return Math.sqrt(q.reduce((a, p) => a + (p.x - mx) ** 2 + (p.y - my) ** 2, 0) / q.length); };
+  const spread = (src) => map.spread?.[src] || 0; // mean pairwise cosine distance, full embedding
   $("div-legend").innerHTML = `<span><span class="swatch" style="background:var(--series-1)"></span>FlowArc (${n("flowarc")}, spread ${spread("flowarc").toFixed(2)})</span><span><span class="swatch" style="background:var(--series-2)"></span>${esc(map.baseline || "car baseline")} (${n("car_baseline")}, spread ${spread("car_baseline").toFixed(2)})</span>`;
   const buckets = {};
   for (const p of pts) if (p.source === "flowarc") buckets[p.bucket] = (buckets[p.bucket] || 0) + 1;
