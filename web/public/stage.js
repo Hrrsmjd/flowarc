@@ -7,7 +7,6 @@ const CREW = {
   argon: { name: "Argon", role: "Supervisor", color: "#a594ff" },
   "nano-banana": { name: "Nano Banana", role: "Image gen", color: "#ffd84d" },
   hunyuan3d: { name: "Hunyuan3D", role: "Mesh gen", color: "#ff8f66" },
-  flash: { name: "Flash", role: "Verifier", color: "#ffb02e" },
   fluidx3d: { name: "FluidX3D", role: "CFD solver", color: "#4cc9f0" },
   atlas: { name: "Atlas", role: "Memory", color: "#00ed64" },
 };
@@ -52,7 +51,7 @@ function line(e) {
   return { who, kind: e.failed ? "fail" : "", text: e.msg.replace(new RegExp(`^${CREW[who].name}:?\\s+`), "").replace(/^\w/, (c) => c.toUpperCase()) };
 }
 // The companion behind a Gemini call, from the model name in "gemini <model>".
-const caller = (e) => (/banana|image/.test(e.msg) ? "nano-banana" : /flash/.test(e.msg) ? "flash" : "argon");
+const caller = (e) => (/banana|image/.test(e.msg) ? "nano-banana" : "argon");
 
 // ---------- render ----------
 const stageEl = $("stage");
