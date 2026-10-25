@@ -809,7 +809,7 @@ function renderDiversity() {
   const n = (src) => pts.filter((p) => p.source === src).length;
   const spread = (src) => map.spread?.[src] || 0; // mean pairwise cosine distance, full embedding
   const name = esc((map.baseline || "car baseline").replace(/\s*\(.*\)\s*$/, ""));
-  $("div-legend").innerHTML = `<span><span class="swatch" style="background:var(--series-1)"></span>FlowArc · ${n("flowarc")} shapes · spread ${spread("flowarc").toFixed(2)}</span><span><span class="swatch" style="background:var(--series-2)"></span>${name} · ${n("car_baseline")} cars · spread ${spread("car_baseline").toFixed(2)}</span><span class="muted">spread = how different two shapes are on average, 0 to 1</span>`;
+  $("div-legend").innerHTML = `<span><span class="swatch" style="background:var(--series-1)"></span>FlowArc · ${n("flowarc")} shapes · spread ${spread("flowarc").toFixed(2)}</span><span><span class="swatch" style="background:var(--series-2)"></span>${name} · ${n("car_baseline")} cars · spread ${spread("car_baseline").toFixed(2)}</span><span class="muted">spread = how different two shapes are on average (higher = more varied)</span>`;
   const buckets = {};
   for (const p of pts) if (p.source === "flowarc") buckets[p.bucket] = (buckets[p.bucket] || 0) + 1;
   const max = Math.max(...Object.values(buckets));
