@@ -20,11 +20,11 @@ const ACTORS = [
 const CHECK_ACTORS = {
   novel: "embedding",
   novelty: "embedding",
-  views_consistent: "flash",
-  view_consistency: "flash",
-  mesh: "flash",
-  flash_review: "flash",
-  video_review: "flash",
+  views_consistent: "argon",
+  view_consistency: "argon",
+  mesh: "argon",
+  flash_review: "argon",
+  video_review: "argon",
   stable: "fluidx3d",
   mass: "fluidx3d",
   converged: "fluidx3d",
@@ -40,7 +40,7 @@ function event(e) {
   const m = /^check (\w+): (pass|FAIL)/.exec(e.msg);
   const check = e.check || m?.[1];
   const passed = e.passed ?? (m ? m[2] === "pass" : undefined);
-  const actor = e.actor || CHECK_ACTORS[check] || (ACTORS.find(([re]) => re.test(e.msg)) || [, "system"])[1];
+  const actor = (e.actor === "flash" ? "argon" : e.actor) || CHECK_ACTORS[check] || (ACTORS.find(([re]) => re.test(e.msg)) || [, "system"])[1];
   const error = / error: /.test(e.msg);
   return {
     t: e.t,

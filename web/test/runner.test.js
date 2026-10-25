@@ -11,7 +11,7 @@ const sample = (id) => st.samples.find((s) => s.id === id);
 test("old log lines get their check and result from the message", () => {
   const mesh = sample("s00001").log.filter((e) => e.check === "mesh");
   assert.deepEqual(mesh.map((e) => e.failed), [true, false]);
-  assert.equal(mesh[0].actor, "flash");
+  assert.equal(mesh[0].actor, "argon");
 });
 
 test("errors and running out of attempts count as failures", () => {

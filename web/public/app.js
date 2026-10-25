@@ -214,7 +214,7 @@ function tick(el, to, dp = 0) {
 // ---------- now running ----------
 const viewUrl = (s) => s.media && (s.media.views["three-quarter"] || Object.values(s.media.views)[0])?.url;
 
-// The last thing worth pointing at: a failed check (Flash) or Argon's fix, if one of the last
+// The last thing worth pointing at: a failed check or Argon's fix, if one of the last
 // few events; otherwise the latest event as a caption.
 function bubble(s) {
   // Only the stage it is on now: an old stage's failure reads as a current problem.
