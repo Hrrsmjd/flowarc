@@ -9,8 +9,11 @@ same model and `name: description` format as our concepts, so both sit in one em
 These are descriptions of the dataset's variants, not its meshes. Replaces the collection.
 """
 
+import itertools
 import random
 import sys
+
+from pymongo import ReplaceOne
 
 from flowarc import config, gemini, store
 from flowarc.concepts import describe
@@ -43,22 +46,21 @@ MORPHS = [
 
 
 def concepts(n: int, seed: int = 0) -> list[dict]:
-    rng = random.Random(seed)
-    out, seen = [], set()
-    while len(out) < n:
-        rear = list(REARS)[len(out) % len(REARS)]
-        morph = " and ".join(rng.sample(MORPHS, 2))
+    """n distinct variants, drawn without replacement from every combination."""
+    combos = list(
+        itertools.product(REARS, UNDERBODY, WHEELS, MIRRORS, itertools.combinations(MORPHS, 2))
+    )
+    if n > len(combos):
+        raise SystemExit(f"at most {len(combos)} distinct variants")
+    out = []
+    for k, (rear, under, wheels, mirrors, morph) in enumerate(
+        random.Random(seed).sample(combos, n)
+    ):
         desc = (
             f"A four-door mid-size passenger saloon car body with {REARS[rear]}, "
-            f"{rng.choice(UNDERBODY)}, {rng.choice(WHEELS)} and {rng.choice(MIRRORS)}; "
-            f"this variant has {morph}."
+            f"{under}, {wheels} and {mirrors}; this variant has {' and '.join(morph)}."
         )
-        if desc in seen:
-            continue
-        seen.add(desc)
-        out.append(
-            {"_id": f"car{len(out) + 1:04d}", "name": f"DrivAer {rear} car", "description": desc}
-        )
+        out.append({"_id": f"car{k + 1:04d}", "name": f"DrivAer {rear} car", "description": desc})
     return out
 
 
@@ -69,8 +71,14 @@ def main():
     cars = concepts(n)
     vectors = gemini.embed([describe(c) for c in cars])
     coll = store.db()["baseline"]
-    coll.delete_many({})
-    coll.insert_many([{**c, "embedding": v} for c, v in zip(cars, vectors)])
+    # Upsert first, then drop leftovers, so a failed write never leaves the map without cars.
+    coll.bulk_write(
+        [
+            ReplaceOne({"_id": c["_id"]}, {**c, "embedding": v}, upsert=True)
+            for c, v in zip(cars, vectors)
+        ]
+    )
+    coll.delete_many({"_id": {"$nin": [c["_id"] for c in cars]}})
     print(f"wrote {len(cars)} car concepts to {config.MONGODB_DB}.baseline ({config.EMBED_MODEL})")
 
 
