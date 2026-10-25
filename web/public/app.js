@@ -767,13 +767,17 @@ function renderDiversity() {
   const sx = (v) => P + ((v - x0) / (x1 - x0)) * (W - 2 * P), sy = (v) => H - P - ((v - y0) / (y1 - y0)) * (H - 2 * P);
   const color = { flowarc: "var(--series-1)", car_baseline: "var(--series-2)" };
   const ids = new Set(state.samples.map((s) => s.id));
-  const order = [...pts].sort((a, b) => (b.source === "car_baseline") - (a.source === "car_baseline"));
+  // Cars draw last so our dots never hide them, and none of our pictures sits on the car cluster.
+  const order = [...pts].sort((a, b) => (a.source === "car_baseline") - (b.source === "car_baseline"));
+  const cars = pts.filter((p) => p.source === "car_baseline");
+  const box = cars.length && { x0: Math.min(...cars.map((p) => sx(p.x))), x1: Math.max(...cars.map((p) => sx(p.x))), y0: Math.min(...cars.map((p) => sy(p.y))), y1: Math.max(...cars.map((p) => sy(p.y))) };
+  const onCars = (x, y, pad) => box && x > box.x0 - pad && x < box.x1 + pad && y > box.y0 - pad && y < box.y1 + pad;
   let g = `<rect x="0" y="0" width="${W}" height="${H}" fill="none" stroke="var(--grid)" rx="8"/>`;
   const thumb = new Map(state.samples.map((x) => [x.id, viewUrl(x)]));
   g += `<defs><clipPath id="dot" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"/></clipPath></defs>`;
   for (const p of order) {
     const mine = ids.has(p.id), r = mine ? 5.5 : 4;
-    const img = mine && thumb.get(p.id);
+    const img = mine && !onCars(sx(p.x), sy(p.y), 18) && thumb.get(p.id);
     if (img) { // our finished shapes show as their own picture
       const T = 30, x = sx(p.x) - T / 2, y = sy(p.y) - T / 2;
       const tipHtml = esc(`<b>${esc(p.label)}</b><br>${esc(p.bucket)} · FlowArc`);
@@ -784,22 +788,28 @@ function renderDiversity() {
     g += `<circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="${r}" fill="${color[p.source] || "var(--muted)"}" stroke="var(--surface)" stroke-width="1.5" opacity="${p.source === "car_baseline" ? 0.85 : 1}" data-tip="${esc(`<b>${esc(p.label)}</b><br>${esc(p.bucket)} · ${p.source === "car_baseline" ? "car baseline" : "FlowArc"}`)}" ${mine ? `data-id="${p.id}" style="cursor:pointer"` : ""}/>`;
     if (p.id === selectedSample()?.id) g += `<circle cx="${sx(p.x)}" cy="${sy(p.y)}" r="10" fill="none" stroke="var(--ink)" stroke-width="1.5"/>`;
   }
-  // Name the car cluster on the map itself, just above it (below when it sits at the top).
-  const cars = pts.filter((p) => p.source === "car_baseline");
-  if (cars.length) {
-    const cx = cars.reduce((a, p) => a + sx(p.x), 0) / cars.length;
-    const top = Math.min(...cars.map((p) => sy(p.y))), bottom = Math.max(...cars.map((p) => sy(p.y)));
-    const above = top > 34, y = above ? top - 18 : bottom + 16;
-    const x = Math.min(Math.max(cx, 60), W - 60);
+  // Name the car cluster on the map itself, on whichever side of it is emptiest.
+  if (box) {
+    const lw = 104, lh = 22, gap = 8, cx = (box.x0 + box.x1) / 2, cy = (box.y0 + box.y1) / 2;
+    const spots = [
+      [cx - lw / 2, box.y0 - gap - lh], [cx - lw / 2, box.y1 + gap],
+      [box.x1 + gap, cy - lh / 2], [box.x0 - gap - lw, cy - lh / 2],
+    ].map(([x, y]) => [Math.min(Math.max(x, 4), W - lw - 4), Math.min(Math.max(y, 4), H - lh - 4)]);
+    const hits = ([x, y]) => pts.reduce((n, p) => {
+      const pad = ids.has(p.id) && thumb.get(p.id) && !onCars(sx(p.x), sy(p.y), 18) ? 17 : 6;
+      return n + (sx(p.x) > x - pad && sx(p.x) < x + lw + pad && sy(p.y) > y - pad && sy(p.y) < y + lh + pad ? (pad > 6 ? 5 : 1) : 0);
+    }, 0);
+    const [lx, ly] = spots.reduce((best, s) => (hits(s) < hits(best) ? s : best));
     const name = esc((map.baseline || "car baseline").replace(/\s*\(.*\)\s*$/, ""));
-    g += `<text class="cluster-label" x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle">${name}</text><text class="cluster-label sub" x="${x.toFixed(1)}" y="${(y + 9).toFixed(1)}" text-anchor="middle">every one a car</text>`;
+    g += `<text class="cluster-label" x="${(lx + lw / 2).toFixed(1)}" y="${(ly + 9).toFixed(1)}" text-anchor="middle">${name}</text><text class="cluster-label sub" x="${(lx + lw / 2).toFixed(1)}" y="${(ly + 19).toFixed(1)}" text-anchor="middle">every one a car</text>`;
   }
   $("divmap").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Shape embedding map, FlowArc samples versus a car-only baseline">${g}</svg>`;
   bindHover($("divmap"));
   $("divmap").querySelectorAll("[data-id]").forEach((c) => c.addEventListener("click", () => select(c.dataset.id)));
   const n = (src) => pts.filter((p) => p.source === src).length;
   const spread = (src) => map.spread?.[src] || 0; // mean pairwise cosine distance, full embedding
-  $("div-legend").innerHTML = `<span><span class="swatch" style="background:var(--series-1)"></span>FlowArc (${n("flowarc")}, spread ${spread("flowarc").toFixed(2)})</span><span><span class="swatch" style="background:var(--series-2)"></span>${esc(map.baseline || "car baseline")} (${n("car_baseline")}, spread ${spread("car_baseline").toFixed(2)})</span>`;
+  const name = esc((map.baseline || "car baseline").replace(/\s*\(.*\)\s*$/, ""));
+  $("div-legend").innerHTML = `<span><span class="swatch" style="background:var(--series-1)"></span>FlowArc · ${n("flowarc")} shapes · spread ${spread("flowarc").toFixed(2)}</span><span><span class="swatch" style="background:var(--series-2)"></span>${name} · ${n("car_baseline")} cars · spread ${spread("car_baseline").toFixed(2)}</span><span class="muted">spread = how different two shapes are on average (higher = more varied)</span>`;
   const buckets = {};
   for (const p of pts) if (p.source === "flowarc") buckets[p.bucket] = (buckets[p.bucket] || 0) + 1;
   const max = Math.max(...Object.values(buckets));
@@ -1040,24 +1050,27 @@ let slide = 0;
 function slides() {
   const samples = state?.samples || [];
   const done = samples.filter((s) => s.status === "done");
-  const kinds = new Set(done.map((s) => s.bucket)).size;
   const fixes = samples.flatMap((s) => s.log.filter((e) => e.fix).map((e) => ({ s, e })));
   const last = fixes[fixes.length - 1];
   const pics = done.filter((s) => viewUrl(s)).slice(0, 6);
   const step = (n, t, who, d) => `<li><span class="n">${n}</span><b>${t}</b><small>${who}</small><p>${d}</p></li>`;
-  // About a minute of talk before the live walkthrough: six slides, in the order of the script.
+  const logs = samples.reduce((a, s) => a + s.log.length, 0);
+  // About a minute of talk before the live walkthrough, one slide per beat of the script.
   return [
     `<p class="kick">Encode London 2026</p><h2 class="big">FlowArc</h2><p class="lead">Text in. Checked flow simulation out.</p>`,
-    `<p class="kick">The problem</p><h2>A flow simulation dataset takes months to build.</h2>
-     <p class="lead">Cars, aircraft and medical devices are designed with fluid simulations. AI can predict the flow in seconds, but only around shapes like the ones it trained on.</p>
-     <div class="facts"><div><b>8,000</b><span>shapes in DrivAerNet++, every one a car</span></div><div><b>1–2 weeks</b><span>for an engineer to mesh one new shape</span></div><div><b>Months</b><span>to simulate and check a dataset</span></div></div>`,
-    `<p class="kick">How FlowArc does it</p><h2>An agent in every stage.</h2>
-     <ol class="pipe">${step(1, "Concept", "Argon + Atlas", "proposes a shape the dataset is missing")}${step(2, "Images", "Nano Banana", "draws it from four sides, checked for agreement")}${step(3, "Mesh", "Image-to-3D", "viewed from the same angles; regenerated or repaired")}${step(4, "Simulation", "FluidX3D", "runs the flow, checked for physical consistency")}${step(5, "Package", "Atlas + Hugging Face", "text, images and mesh in Atlas; flow fields on Hugging Face")}</ol>
-     <ul class="uses"><li><b>MongoDB Atlas is the agent's memory:</b> Vector Search stops repeats, hybrid search finds any shape, GridFS holds every file</li></ul>`,
-    `<p class="kick">Argon, the supervisor</p><h2>When a check fails, Argon reads why and picks the fix.</h2>
-     <div class="facts"><div><b>${fixes.length}</b><span>${fixes.length === 1 ? "problem" : "problems"} fixed without a person</span></div><div><b>3</b><span>ways to fix: new images, new mesh, or repair</span></div></div>
+    `<p class="kick">The problem</p><h2>AI needs data covering every kind of shape.</h2>
+     <p class="lead">The best-known public dataset, DrivAerNet++, is all cars.</p>
+     <div class="facts"><div><b>8,000</b><span>shapes in DrivAerNet++</span></div><div><b>1</b><span>kind of shape: cars</span></div></div>`,
+    `<p class="kick">How FlowArc does it</p><h2>Weeks of expert work per shape, handed to Argon.</h2>
+     <ol class="pipe">${step(1, "Concept", "Gemini 4 Argon", "proposes a shape the dataset is missing")}${step(2, "Images", "Nano Banana", "draws it from several angles")}${step(3, "Mesh", "Image-to-3D", "builds the 3D mesh")}${step(4, "Simulation", "FluidX3D on our GPUs", "simulates the flow around it")}${step(5, "Package", "MongoDB Atlas", "stores every sample, log and fix")}</ol>`,
+    `<p class="kick">Argon, the supervisor</p><h2>Argon checks every step, and fixes what goes wrong.</h2>
+     <div class="facts"><div><b>${fixes.length}</b><span>${fixes.length === 1 ? "issue" : "issues"} fixed without an engineer</span></div></div>
+     <ul class="catches"><li>The drawings disagree</li><li>The mesh looks wrong</li><li>The simulation won't converge</li></ul>
      ${last ? `<blockquote class="argon-quote"><span class="who">Argon · latest fix</span>${last.e.diagnosis ? `<p>“${esc(last.e.diagnosis)}”</p>` : ""}<small><b>${esc(last.s.title)}</b>: ${esc(fixText(last.e.msg))}</small></blockquote>` : ""}`,
-    `<p class="kick">So far</p><h2>In ${state ? fmtSpan(runTime()) : "–"}, ${done.length} checked simulations of ${kinds} kinds of object.</h2>
+    `<p class="kick">MongoDB Atlas</p><h2>Atlas is Argon's memory.</h2>
+     <ul class="uses"><li><b>Every sample, log and fix</b>, as the run goes</li><li><b>Vector Search</b> stops Argon repeating a shape</li><li><b>Hybrid search</b> recalls what fixed similar failures before</li></ul>
+     <div class="facts"><div><b>${samples.length}</b><span>samples</span></div><div><b>${logs}</b><span>log lines</span></div><div><b>${fixes.length}</b><span>${fixes.length === 1 ? "fix" : "fixes"}</span></div></div>`,
+    `<p class="kick">So far</p><h2 class="wide">In ${state ? fmtSpan(runTime()) : "–"}, Argon supervised ${done.length} simulations end to end and fixed ${fixes.length} ${fixes.length === 1 ? "issue" : "issues"} without an engineer.</h2>
      <div class="strip">${pics.map((s) => `<figure><img src="${esc(viewUrl(s))}" alt=""><figcaption>${esc(s.title)}</figcaption></figure>`).join("")}</div>`,
     `<p class="kick">Who it's for</p><h2>Diverse flow datasets in days, not months.</h2><p class="lead">For frontier AI teams, researchers, and us.</p>`,
   ];
