@@ -820,3 +820,10 @@ select option { background: var(--surface); color: var(--ink); }
   .strip img { max-height: 150px; }
   .deck-nav { padding: 8px 14px; }
 }
+
+/* Home reads as slides: each section fills the screen, with a ↓ to the next */
+.l-hero, .l-sec { position: relative; scroll-margin-top: 70px; }
+.l-sec { min-height: calc(100vh - 70px); justify-content: center; padding: 48px 0 72px; }
+.l-next { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: 40px; height: 40px; padding: 0; border: 1px solid var(--border); background: transparent; color: var(--ink-2); font: 18px/1 var(--mono); cursor: pointer; }
+.l-next:hover, .l-next:focus-visible { color: var(--accent); border-color: var(--accent); }
+@media (max-width: 860px) { .l-sec { min-height: 0; } .l-next { display: none; } }

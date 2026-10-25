@@ -1014,14 +1014,21 @@ function renderHome() {
         <p class="lead">FlowArc is an agent that turns a sentence into a 3D shape and a verified airflow simulation, so flow models can learn from more than cars.</p>
         <div class="l-cta"><a class="btn approve" href="#live">Watch it live →</a></div>
         <p class="l-live">${live ? `<span class="dot"></span>Running now: <b>${esc(live.title)}</b><br>` : ""}${done.length} shapes checked · ${kinds} kinds of object${state ? ` · in ${runSpan()}` : ""}</p></div>
+      <button class="l-next" type="button" aria-label="Next">↓</button>
       ${pic ? `<figure class="l-pic"><p class="l-pic-label"><span class="dot"></span>Latest finished shape <span>updates as the run goes</span></p><img src="${esc(viewUrl(pic))}" alt="${esc(pic.title)}"><figcaption><b>${esc(pic.title)}</b> · ${esc(pic.bucket)}${when}</figcaption></figure>` : ""}
     </section>
-    ${slides().slice(1).map((x) => `<section class="slide l-sec">${x}</section>`).join("")}
-    <section class="l-end"><a class="btn approve" href="#live">Watch it live →</a></section>`;
+    ${slides().slice(1).map((x, i, all) => `<section class="slide l-sec">${x}${i < all.length - 1
+      ? `<button class="l-next" type="button" aria-label="Next">↓</button>`
+      : `<div class="l-cta"><a class="btn approve" href="#live">Watch it live →</a></div>`}</section>`).join("")}`;
   if (html === homeSig) return;
   homeSig = html;
   $("page-home").innerHTML = html;
 }
+
+// The ↓ under each section scrolls to the next one, like a slide.
+$("page-home").addEventListener("click", (e) => {
+  e.target.closest(".l-next")?.closest("section").nextElementSibling?.scrollIntoView({ behavior: "smooth" });
+});
 
 // ---------- about: slides ----------
 // The pitch as slides, with the run's own numbers. ← and → (or space) move between them.
