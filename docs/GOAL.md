@@ -4,7 +4,7 @@
 Build an autonomous agent that generates the most shape-diverse fluid-simulation dataset possible. It should go far beyond single-category datasets like DrivAerNet++ (cars only), so that neural physics models trained on it generalize to unseen geometry and flow regimes.
 
 Each sample is a **time-resolved, turbulent 3D flow simulation** around one object: resolved vortex shedding and wake structures, not a steady-state solution. The reference video ([docs/fullflow_loop_1920x1080.mp4](fullflow_loop_1920x1080.mp4)) shows the target. It is a 12-second 1080p loop of a voxelized fighter jet in a statistically steady turbulent flow:
-- the body is rendered dark grey on a light cream background
+- the body is rendered grey on a plain navy background, with teal vortices and red where the flow is fast
 - vortex structures are shown as isosurfaces (Q-criterion style), coloured by a flow quantity
 - the wake is fully developed and detaches downstream
 

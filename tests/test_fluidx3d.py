@@ -70,3 +70,10 @@ def test_rms_ignores_lattice_ringing():
     s = stats(np.stack([t, fx, q * slow, q * slow], axis=1), cfg, lat, 1.0)
     assert abs(s["cd_rms"] - 0.1 / 2**0.5) < 0.01
     assert s["cd_rms_raw"] > 0.15
+
+
+def test_table_keeps_the_first_columns_of_wider_rows(tmp_path):
+    p = tmp_path / "frames.csv"
+    p.write_text("frame,t,mass,max_u,nan,max_x,max_y,max_z,max_u_wall\n1,2,3,0.1,0,5,6,7,0.3\n")
+    assert _table(p, 5).tolist() == [[1, 2, 3, 0.1, 0]]
+    assert _table(p, 9)[0, 8] == 0.3

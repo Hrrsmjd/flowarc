@@ -252,6 +252,7 @@ def run_sim(s: Sample, gpu: int) -> bool:
         "stable",
         stable,
         mach_max=st.get("mach_max"),
+        max_u_wall=st.get("max_u_wall"),
         cd=st.get("cd_mean"),
         u=cfg.lattice_velocity,
         les=cfg.les,

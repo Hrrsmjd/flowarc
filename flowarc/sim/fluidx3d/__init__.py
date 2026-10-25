@@ -58,19 +58,20 @@ def q_level(re: float) -> float:
 
 
 def camera(m: trimesh.Trimesh, lat: dict, L: float) -> dict:
-    """View from upstream and above, nose lower left, wake to the upper right like the F-35 reference.
-    The target is relative to the box centre."""
+    """Three-quarter view from the side, a little above and upstream. The body sits centred on the
+    left third of the frame, about a third of the frame wide, with the wake trailing off to the
+    right. The target is relative to the box centre."""
     lo, hi = m.bounds
     c = (lo + hi) / 2
-    t = [c[0] + 0.4 * L - lat["Nx"] / 2, c[1] - lat["Ny"] / 2, c[2] - lat["Nz"] / 2]
+    t = [c[0] + 0.5 * L - lat["Nx"] / 2, c[1] - lat["Ny"] / 2, c[2] - lat["Nz"] / 2]
     return {
-        "cam_rx": -130.0,
-        "cam_ry": 30.0,
-        "cam_fov": 50.0,
+        "cam_rx": -70.0,
+        "cam_ry": 15.0,
+        "cam_fov": 40.0,
         "cam_tx": round(t[0], 2),
         "cam_ty": round(t[1], 2),
         "cam_tz": round(t[2], 2),
-        "cam_rad": round(1.0 * L, 2),
+        "cam_rad": round(0.85 * L, 2),
     }
 
 
@@ -132,8 +133,8 @@ def _table(path: Path, cols: int) -> np.ndarray:
             r = [float(v) for v in line.split(",")]
         except ValueError:
             continue
-        if len(r) == cols:
-            rows.append(r)
+        if len(r) >= cols:  # older files have fewer columns
+            rows.append(r[:cols])
     return np.array(rows, float).reshape(-1, cols)
 
 
@@ -257,6 +258,11 @@ class FluidX3D:
             st["mass_drift"] = float(abs(mass[-1] - mass[0]) / mass[0])
             st["max_u"] = float(frames[:, 3].max())
             st["mach_max"] = st["max_u"] * 3**0.5
+            # max_u leaves out cells touching a solid (see setup.cpp); max_u_wall includes them
+            more = _table(out / "frames.csv", 9)
+            if len(more):
+                st["max_u_at"] = [int(v) for v in more[more[:, 3].argmax(), 5:8]]
+                st["max_u_wall"] = float(more[:, 8].max())
         seconds = float(status.get("seconds", "nan"))
         cells = lat["Nx"] * lat["Ny"] * lat["Nz"]
         steps = int(status.get("steps", 0))

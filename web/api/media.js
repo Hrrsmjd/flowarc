@@ -35,13 +35,15 @@ export default async function handler(req, res) {
   }
 }
 
-// "bytes=a-b" -> [a, b + 1); null = whole file; false = unsatisfiable.
+export const CHUNK = 4_000_000; // a function response may be at most 4.5 MB; the player asks for the rest
+
+// "bytes=a-b" -> [a, b + 1), at most CHUNK bytes; null = whole file; false = unsatisfiable.
 export function byteRange(header, size) {
   const m = /^bytes=(\d*)-(\d*)$/.exec(header || "");
   if (!m || (!m[1] && !m[2])) return null;
   const start = m[1] ? Number(m[1]) : Math.max(0, size - Number(m[2]));
   const end = m[1] && m[2] ? Math.min(Number(m[2]) + 1, size) : size;
-  return start < end ? [start, end] : false;
+  return start < end ? [start, Math.min(end, start + CHUNK)] : false;
 }
 
 const HF_PATH = /^[\w-]+\/views\/[\w-]+\.jpg$/; // views only: meshes are too big for a function response

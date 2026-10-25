@@ -78,7 +78,7 @@ fix can be compared, and the flow video. They come from the GridFS bucket `media
 the runner:
 
 ```bash
-python -m flowarc.media --watch 5    # new views (512 px JPEG), meshes (GLB, ≤20k faces), flow video (MP4, ≤4 MB)
+python -m flowarc.media --watch 5    # new views (512 px JPEG), meshes (GLB, ≤20k faces), flow video (MP4, 1080p, ≤8 MB)
 ```
 
 **Stage** (the P key, or `?present`) is the full-screen view for the talk, in `public/stage.js`: the

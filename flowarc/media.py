@@ -26,9 +26,9 @@ from flowarc import config, store
 BUCKET = "media"
 VIEW_PX = 512
 MESH_FACES = 20_000  # ~350 KB GLB; Vercel functions return at most 4.5 MB
-VIDEO_MAX = 4_000_000  # bytes, under that same limit
+VIDEO_MAX = 8_000_000  # bytes; web/api/media.js serves it in ranges of at most 4 MB (the Vercel response limit)
+VIDEO_VERSION = 2  # bump to re-encode every video with new settings
 _too_big: set[str] = set()  # videos that wouldn't shrink enough, so --watch doesn't retry them
-VIDEO_VERSION = 2  # bump to re-encode every flow video already in GridFS
 
 
 def view_jpeg(raw: bytes, px: int = VIEW_PX) -> bytes:
@@ -48,7 +48,7 @@ def mesh_glb(path, faces: int = MESH_FACES) -> bytes:
     return m.export(file_type="glb")
 
 
-def video_mp4(path, width: int = 1280) -> bytes | None:
+def video_mp4(path, width: int = 1920) -> bytes | None:
     """The flow video re-encoded to serve (H.264, no audio, faststart), or None if it won't fit.
 
     Two passes at the bitrate that fills VIDEO_MAX for the clip's length, so the picture is as
@@ -124,23 +124,28 @@ def sync(db) -> int:
                 src += f":v{VIDEO_VERSION}"
             if src in _too_big or files.find_one({"metadata.src": src}, {"_id": 1}):
                 continue
-            if kind == "view":
-                data, ctype, attempt = (
-                    view_jpeg(path.read_bytes()),
-                    "image/jpeg",
-                    tries.get("images", 1),
-                )
-            elif kind == "mesh":
-                k = path.stem.removeprefix("mesh_")
-                attempt = int(k) if k.isdigit() else tries.get("mesh", 1)
-                data, ctype = mesh_glb(path), "model/gltf-binary"
-            else:
-                data, ctype, attempt = video_mp4(path), "video/mp4", tries.get("sim", 1)
-                if data is None:
-                    _too_big.add(src)
-                    print(f"{d.name}: flow video too big to serve even re-encoded; skipped")
-                    continue
-            publish(db, d.name, kind, name, attempt, data, ctype, src)
+            try:
+                if kind == "view":
+                    data, ctype, attempt = (
+                        view_jpeg(path.read_bytes()),
+                        "image/jpeg",
+                        tries.get("images", 1),
+                    )
+                elif kind == "mesh":
+                    k = path.stem.removeprefix("mesh_")
+                    attempt = int(k) if k.isdigit() else tries.get("mesh", 1)
+                    data, ctype = mesh_glb(path), "model/gltf-binary"
+                else:
+                    data, ctype, attempt = video_mp4(path), "video/mp4", tries.get("sim", 1)
+                    if data is None:
+                        _too_big.add(src)
+                        print(f"{d.name}: flow video too big to serve even re-encoded; skipped")
+                        continue
+                publish(db, d.name, kind, name, attempt, data, ctype, src)
+            except (subprocess.CalledProcessError, OSError, ValueError) as e:
+                # e.g. a video still being written; retried once the file changes
+                print(f"{d.name}: {path.name} skipped: {e}")
+                continue
             n += 1
     return n
 
