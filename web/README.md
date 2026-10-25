@@ -24,7 +24,7 @@ deployment is live from the first minute; **Restart** starts the story again.
 | Route | |
 |---|---|
 | `GET /api/state` | run summary, samples with their logs, approvals |
-| `GET /api/map` | 2D PCA of concept embeddings (ours + `baseline`) |
+| `GET /api/map` | 2D PCA of concept embeddings, axes fitted on ours, `baseline` cars projected in; `spread` = mean pairwise cosine distance per set |
 | `GET /api/sample?id=` | one sample's Gemini calls: model, prompt, reply, tokens |
 | `GET /api/search?q=` | sample search: hybrid search (`$rankFusion` of Voyage `concept_voyage` and Atlas Search `samples_text`), then Atlas Search alone, then a regex |
 | `GET /api/similar?id=` | the 6 nearest concepts, Atlas Vector Search on `concept_vectors` |

@@ -217,7 +217,10 @@ export function buildState({ run = {}, samples, logs, approvals = [], media = []
   };
 }
 
-// 2D map of concept embeddings: PCA over our samples and the car baseline together.
+// 2D map of concept embeddings: PCA fitted on our shapes only, with the cars projected onto the
+// same axes. Fitting on both picked the gap between the sets and the cars' few varied words as
+// its axes, which made our shapes look like a clump. `spread` is each set's mean pairwise cosine
+// distance in the full embedding, not in 2D.
 export function diversityMap(samples, baseline) {
   const pts = [
     ...samples
@@ -227,20 +230,39 @@ export function diversityMap(samples, baseline) {
   ];
   if (pts.length < 3) return { points: [] };
   const dim = Math.min(...pts.map((p) => p.v.length));
+  let fit = pts.filter((p) => p.source === "flowarc");
+  if (fit.length < 3) fit = pts;
   const mean = new Float64Array(dim);
-  for (const p of pts) for (let i = 0; i < dim; i++) mean[i] += p.v[i] / pts.length;
+  for (const p of fit) for (let i = 0; i < dim; i++) mean[i] += p.v[i] / fit.length;
   const X = pts.map((p) => Float64Array.from({ length: dim }, (_, i) => p.v[i] - mean[i]));
+  const F = X.filter((_, n) => fit.includes(pts[n]));
   const comps = [];
-  for (let k = 0; k < 2; k++) comps.push(topComponent(X, comps, dim));
+  for (let k = 0; k < 2; k++) comps.push(topComponent(F, comps, dim));
   return {
     baseline: "DrivAerNet++ (cars only)",
+    spread: Object.fromEntries(["flowarc", "car_baseline"].map((src) => [src, meanCosineDistance(pts.filter((p) => p.source === src).map((p) => p.v), dim)])),
     points: pts.map((p, n) => ({ id: p.id, label: p.label, bucket: p.bucket, source: p.source, x: dot(X[n], comps[0]), y: dot(X[n], comps[1]) })),
   };
 }
 
-const dot = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0);
+function meanCosineDistance(vs, dim) {
+  const U = vs.map((v) => {
+    let n = 0;
+    for (let i = 0; i < dim; i++) n += v[i] * v[i];
+    n = Math.sqrt(n) || 1;
+    return Float64Array.from({ length: dim }, (_, i) => v[i] / n);
+  });
+  let sum = 0, m = 0;
+  for (let a = 0; a < U.length; a++) for (let b = a + 1; b < U.length; b++, m++) sum += 1 - dot(U[a], U[b]);
+  return m ? sum / m : 0;
+}
 
-// Power iteration on X^T X, deflated against earlier components.
+const dot = (a, b) => {
+  let s = 0;
+  for (let i = 0; i < a.length; i++) s += a[i] * b[i];
+  return s;
+};
+
 function topComponent(X, prev, dim) {
   let v = Float64Array.from({ length: dim }, (_, i) => Math.sin(i + 1 + prev.length));
   for (let it = 0; it < 100; it++) {
