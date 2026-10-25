@@ -1,106 +1,99 @@
 # FlowArc
 
-**An agent that builds a shape-diverse dataset of turbulent 3D flow simulations.**
+**Text in, checked 3D flow simulation out. An agent that builds shape-diverse datasets for AI physics.**
 
-Datasets like DrivAerNet++ hold one kind of shape (cars). Neural physics models trained on them fail on anything else. FlowArc uses Gemini to invent objects of every kind (animals, aircraft, furniture, buildings, abstract shapes), turns each into a checked 3D mesh, and runs a time-resolved GPU flow simulation around it. Every sample ships with proof that it is sound: mesh checks, a stable solve and converged statistics.
+Neural flow models only work on shapes like the ones they were trained on, and public datasets are narrow: DrivAerNet++ is cars only, and a dataset like it takes engineers months. FlowArc lets Gemini 4 Argon invent objects of every kind (animals, aircraft, furniture, buildings, abstract shapes), turn each into a simulation-ready 3D mesh and run a GPU flow simulation around it, checking every step and repairing what fails.
 
-Built at **Encode London 2026** (Google DeepMind Gemini 4 Argon bounty). All code was written during the hackathon. The full brief is in [docs/GOAL.md](docs/GOAL.md); the target look is [docs/fullflow_loop_1920x1080.mp4](docs/fullflow_loop_1920x1080.mp4); the build plan is in [PLAN.md](PLAN.md).
+Built at **Encode London 2026** for Pathway 2 (Real World, Hard Tech & Multimodal Creation), the Google DeepMind Gemini bounty and the MongoDB Atlas bounty. All code was written during the hackathon.
 
-## Who it is for
+**Live dashboard: [flowarc-web.vercel.app](https://flowarc-web.vercel.app)** (Home slides, Live run, Dataset with the diversity map)
 
-People who train neural surrogates for fluid flow (mesh or point-cloud models) and need data that covers many shapes and flow regimes. We are the first users.
+## Result
+
+The run took 12 hours. Measured as mean pairwise distance between concept embeddings, the FlowArc dataset is **4.5× more diverse** than the DrivAerNet++ design space:
+
+| Dataset | Mean pairwise embedding distance |
+|---|---|
+| FlowArc | **0.388** |
+| DrivAerNet++ (baseline) | 0.086 |
 
 ## Pipeline
 
-```
-concept → 4 reference images → mesh → checks/repair → LBM simulation → video + visual check → package
- (Argon)   (Nano Banana)      (image-to-3D)  (Argon)     (GPU, A100)     (Flash)               (Zarr)
+```mermaid
+flowchart LR
+    A["Concept<br/><b>Argon</b>"] --> B["4 reference views<br/><b>Nano Banana</b>"]
+    B --> C["3D mesh<br/><b>Hunyuan3D-2.1</b>"]
+    C --> D{"Mesh checks<br/>watertight, one solid,<br/>matches the views"}
+    D -- fail --> R["Repair or regenerate<br/><b>Argon</b>"]
+    R --> C
+    D -- pass --> E["Flow simulation<br/><b>FluidX3D LBM</b> on GPU"]
+    E --> F{"Video check<br/><b>Argon</b>"}
+    F -- fail --> R
+    F -- pass --> G["Packaged sample<br/>fields, forces, video"]
+    A -. novelty check .-> V[("MongoDB Atlas<br/>Vector Search")]
+    G --> V
 ```
 
-Every stage has a pass/fail check. On failure the evidence goes back to Argon, which repairs or regenerates, up to a set number of tries.
+1. **Concept.** Argon proposes an object that fills a gap in the dataset, with its flow settings. It first asks Atlas what already exists (hybrid search); a concept too close to an existing one is rejected by Vector Search.
+2. **Reference views.** Nano Banana draws four consistent views. Argon checks they agree.
+3. **Mesh.** Hunyuan3D-2.1 turns the views into a mesh. Automatic checks test that it is watertight, a single solid and matches the views. Argon reviews the mesh against the views and decides to repair or regenerate, using past fixes from Atlas.
+4. **Simulation.** FluidX3D (lattice Boltzmann) runs on our GPUs. Forces and statistics must converge.
+5. **Video and package.** A Q-criterion vortex video, checked by Argon, plus surface and volume fields, force histories and metadata.
 
-1. **Concept.** Argon reads the dataset registry and proposes objects that fill gaps in a shape taxonomy. Each gets a Reynolds number, a flow angle and a ground plane or free stream. Near-duplicates are rejected by embedding distance.
-2. **Reference images.** Four views (front, side, top, three-quarter) on white, each conditioned on the first. Flash checks the views agree.
-3. **Mesh.** Image-to-3D (Hunyuan3D-2.1 by default, pluggable). Checks: watertight, one solid, no thin parts, silhouette IoU against the images, symmetry. Argon repairs small defects with code or regenerates.
-4. **Simulation.** Lattice Boltzmann on a voxelized body, with an LES model at high Re. Settings come from Argon. Statistics (drag, lift, Strouhal number, wake profiles) must converge in time and across grid levels.
-5. **Video and visual check.** A 10 s, 1080p loop of Q-criterion vortex surfaces. Flash watches it for leaks, blow-ups or a clipped wake.
-6. **Package.** Surface pressure and wall shear, a 200k-point volume cloud with velocity and pressure for 300 frames, mean and RMS fields, force histories, video and metadata.
+A person can step in from the dashboard: samples that need a look can be accepted, retried or dropped.
 
 ## Gemini models
 
 | Model | Job |
 |---|---|
-| `gemini-4-argon` | Plans batches, picks solver settings, reviews meshes, diagnoses failures |
-| `gemini-3.8-flash` | Per-sample checks: view consistency, mesh-vs-image comparison, video review |
-| `gemini-nano-banana-2.1` | Reference images |
-| `gemini-embedding-2` | Novelty check and diversity map |
+| `gemini-4-argon` | Concepts, view, mesh and video checks, repair decisions |
+| `gemini-nano-banana-2.1` | Multi-view reference images |
+| `gemini-embedding-2` | 3072-d concept embeddings for novelty, similar shapes and the diversity map |
 
-Embeddings are stored in MongoDB Atlas and searched with Atlas Vector Search (see below).
+## MongoDB Atlas
 
-All calls use the Interactions API (`client.interactions.create`, `google-genai>=2.30`).
+Atlas (M10) is the dataset registry and the agent's memory. GPU workers and the dashboard all read and write it.
 
-## Data: MongoDB Atlas
-
-Atlas is the dataset registry and the agent's memory. Each sample is one document in `samples`: stage, status, concept, every check result, attempts, solver settings and the concept's embedding. Agent events go to `logs`, Argon's repairs to `repairs`. All GPU workers and the dashboard share it.
-
-| Atlas feature | What it does in FlowArc |
+| Feature | Used for |
 |---|---|
-| Vector Search | Novelty: a new concept's `gemini-embedding-2` vector is checked against every sample (`concept_vectors`); too close → rejected, nearest neighbours kept as evidence. Also the diversity map. |
-| Atlas Search | Coverage per bucket, status, stage and Reynolds band from one `$searchMeta` facet query; full-text search and autocomplete over samples; search over the agent log. |
-| Automated Embedding + Voyage AI | Atlas embeds every description and failure diagnosis itself with `voyage-4`; queries are plain text. |
-| Hybrid Search | `$rankFusion` of Voyage semantic and keyword search. Argon calls it as the `search_registry` tool before proposing concepts, and `past_fixes` uses it to find repairs that worked for similar failures. |
-| Stream Processing | `scripts/stream_metrics.js` turns the change stream on `logs` into per-minute, per-stage counts in `metrics` for the dashboard. |
+| Vector Search | Novelty check on new concepts; "similar shapes" in the dashboard |
+| Atlas Search | Keyword search and facet counts over samples, logs and repairs |
+| Hybrid Search (`$rankFusion`) | Argon's `search_registry` tool, past-fix lookup for repairs, the dashboard search box |
+| Automated Embedding (Voyage AI) | `voyage-4` embeds descriptions and repair diagnoses inside Atlas |
+| GridFS | Views, meshes and flow videos for the dashboard |
 
-Bulk outputs (views, meshes, video, Zarr) go to a private HF dataset (`FLOWARC_HF_REPO`); Atlas holds the record and the links (`meta.files`). See `docs/overview.md`, Dashboard access. Without `MONGODB_URI` everything falls back to JSON files (used by the tests).
+Full sample files (Zarr fields, meshes, videos) also go to a private Hugging Face dataset; Atlas holds the record and the links.
 
-## Compute
+Collections: `samples`, `logs`, `repairs`, `reviews`, `baseline` (DrivAerNet++ design-space descriptions, embedded the same way as our concepts).
 
-- 7× A100 40 GB (w7830): simulation, rendering, image-to-3D. One sample per GPU.
-- Modal CPU ($100): optional cross-checks only.
+## Run it
+
+```bash
+uv venv --python 3.12 && uv pip install -e '.[dev]'   # add '.[sim]' on a GPU box
+cp .env.example .env                                   # GEMINI_API_KEY, MONGODB_URI
+python scripts/setup_atlas.py                          # once: collections and search indexes
+python scripts/run_pool.py --new 10                    # propose 10 concepts and run them, one per GPU
+python -m flowarc.media --watch 5                      # copy views, meshes and videos to GridFS
+pytest
+```
+
+The dashboard is in [`web/`](web/README.md).
 
 ## Layout
 
 ```
-flowarc/         Python package
-  config.py      paths and phase settings
-  sample.py      sample record, state and log (the registry)
-  store.py       MongoDB Atlas: registry, search, hybrid, failure memory, metrics
-  gemini.py      thin Gemini wrapper
-  concepts.py    stage 1
-  images.py      stage 2
-  mesh/          stage 3: generators, checks, repair
-  sim/           stage 4: solver interface, FluidX3D backend, statistics
-  render.py      stage 5
-  package.py     stage 6
-  pipeline.py    runs samples through the stages
-scripts/         one-off runs and benchmarks
+flowarc/    agent pipeline: concepts, images, mesh/, sim/, render, package, store (Atlas)
+scripts/    Atlas setup, run pool, baseline seeding, solver validation
+web/        dashboard (Vercel, reads Atlas)
 tests/
-web/             live demo dashboard (Vercel; reads Atlas), see web/README.md
-docs/GOAL.md     the full brief
 ```
 
-## Run
+## Limits
 
-```bash
-uv venv --python 3.12 && uv pip install -e '.[dev]'   # add '.[sim]' on a GPU box
-cp .env.example .env                                   # add GEMINI_API_KEY and MONGODB_URI
-python scripts/setup_atlas.py                          # once: all Atlas indexes
-python scripts/atlas_smoke.py                          # check every Atlas query
-pytest
-```
-
-All data goes under `FLOWARC_DATA` (on w7830 this must be inside `~/RDS`).
-
-## Limitations
-
-- Phase 1–2 resolutions (64–128 cells along the body) do not resolve boundary layers at high Re; such samples are flagged "not converged" rather than dropped.
-- The data is checked, not proven accurate. Each sample states its fidelity regime.
+- The data is checked, not proven accurate. At high Reynolds numbers the grid does not resolve the boundary layer, so those samples record a nominal Re and their resolution.
+- The baseline is DrivAerNet++'s design space described in text, not its meshes.
 
 ## Team
 
-- **@Esoiya** — platform, agent and demo
-- **@Hrrsmjd** — physics, solver, ML for science
-
-## Known limits
-
-- No wall model. At high Re the boundary layer is thinner than a few cells, so Re is nominal. Each sample records this under `resolution` in its Zarr attributes (`tau`, `bl_cells`, `re_nominal`).
+- **Ose** ([@Esoiya](https://github.com/Esoiya)): MongoDB Atlas memory and search, Argon repair loop, dashboard and demo
+- **Harris** ([@Hrrsmjd](https://github.com/Hrrsmjd)): agent pipeline (concept to mesh to simulation), FluidX3D solver and validation
