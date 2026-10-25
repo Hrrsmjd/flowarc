@@ -1050,24 +1050,27 @@ let slide = 0;
 function slides() {
   const samples = state?.samples || [];
   const done = samples.filter((s) => s.status === "done");
-  const kinds = new Set(done.map((s) => s.bucket)).size;
   const fixes = samples.flatMap((s) => s.log.filter((e) => e.fix).map((e) => ({ s, e })));
   const last = fixes[fixes.length - 1];
   const pics = done.filter((s) => viewUrl(s)).slice(0, 6);
   const step = (n, t, who, d) => `<li><span class="n">${n}</span><b>${t}</b><small>${who}</small><p>${d}</p></li>`;
-  // About a minute of talk before the live walkthrough: six slides, in the order of the script.
+  const logs = samples.reduce((a, s) => a + s.log.length, 0);
+  // About a minute of talk before the live walkthrough, one slide per beat of the script.
   return [
     `<p class="kick">Encode London 2026</p><h2 class="big">FlowArc</h2><p class="lead">Text in. Checked flow simulation out.</p>`,
-    `<p class="kick">The problem</p><h2>A flow simulation dataset takes months to build.</h2>
-     <p class="lead">Cars, aircraft and medical devices are designed with fluid simulations. AI can predict the flow in seconds, but only around shapes like the ones it trained on.</p>
-     <div class="facts"><div><b>8,000</b><span>shapes in DrivAerNet++, every one a car</span></div><div><b>1–2 weeks</b><span>for an engineer to mesh one new shape</span></div><div><b>Months</b><span>to simulate and check a dataset</span></div></div>`,
-    `<p class="kick">How FlowArc does it</p><h2>An agent in every stage.</h2>
-     <ol class="pipe">${step(1, "Concept", "Argon + Atlas", "proposes a shape the dataset is missing")}${step(2, "Images", "Nano Banana", "draws it from four sides, checked for agreement")}${step(3, "Mesh", "Image-to-3D", "viewed from the same angles; regenerated or repaired")}${step(4, "Simulation", "FluidX3D", "runs the flow, checked for physical consistency")}${step(5, "Package", "Atlas + Hugging Face", "text, images and mesh in Atlas; flow fields on Hugging Face")}</ol>
-     <ul class="uses"><li><b>MongoDB Atlas is the agent's memory:</b> Vector Search stops repeats, hybrid search finds any shape, GridFS holds every file</li></ul>`,
-    `<p class="kick">Argon, the supervisor</p><h2>When a check fails, Argon reads why and picks the fix.</h2>
-     <div class="facts"><div><b>${fixes.length}</b><span>${fixes.length === 1 ? "problem" : "problems"} fixed without a person</span></div><div><b>3</b><span>ways to fix: new images, new mesh, or repair</span></div></div>
+    `<p class="kick">The problem</p><h2>AI needs data covering every kind of shape.</h2>
+     <p class="lead">The best-known public dataset, DrivAerNet++, is all cars.</p>
+     <div class="facts"><div><b>8,000</b><span>shapes in DrivAerNet++</span></div><div><b>1</b><span>kind of shape: cars</span></div></div>`,
+    `<p class="kick">How FlowArc does it</p><h2>Weeks of expert work per shape, handed to Argon.</h2>
+     <ol class="pipe">${step(1, "Concept", "Gemini 4 Argon", "proposes a shape the dataset is missing")}${step(2, "Images", "Nano Banana", "draws it from several angles")}${step(3, "Mesh", "Image-to-3D", "builds the 3D mesh")}${step(4, "Simulation", "FluidX3D on our GPUs", "simulates the flow around it")}${step(5, "Package", "MongoDB Atlas", "stores every sample, log and fix")}</ol>`,
+    `<p class="kick">Argon, the supervisor</p><h2>Argon checks every step, and fixes what goes wrong.</h2>
+     <div class="facts"><div><b>${fixes.length}</b><span>${fixes.length === 1 ? "issue" : "issues"} fixed without an engineer</span></div></div>
+     <ul class="catches"><li>The drawings disagree</li><li>The mesh looks wrong</li><li>The simulation won't converge</li></ul>
      ${last ? `<blockquote class="argon-quote"><span class="who">Argon · latest fix</span>${last.e.diagnosis ? `<p>“${esc(last.e.diagnosis)}”</p>` : ""}<small><b>${esc(last.s.title)}</b>: ${esc(fixText(last.e.msg))}</small></blockquote>` : ""}`,
-    `<p class="kick">So far</p><h2>In ${state ? fmtSpan(runTime()) : "–"}, ${done.length} checked simulations of ${kinds} kinds of object.</h2>
+    `<p class="kick">MongoDB Atlas</p><h2>Atlas is Argon's memory.</h2>
+     <ul class="uses"><li><b>Every sample, log and fix</b>, as the run goes</li><li><b>Vector Search</b> stops Argon repeating a shape</li><li><b>Hybrid search</b> recalls what fixed similar failures before</li></ul>
+     <div class="facts"><div><b>${samples.length}</b><span>samples</span></div><div><b>${logs}</b><span>log lines</span></div><div><b>${fixes.length}</b><span>${fixes.length === 1 ? "fix" : "fixes"}</span></div></div>`,
+    `<p class="kick">So far</p><h2 class="wide">In ${state ? fmtSpan(runTime()) : "–"}, Argon supervised ${done.length} simulations end to end and fixed ${fixes.length} ${fixes.length === 1 ? "issue" : "issues"} without an engineer.</h2>
      <div class="strip">${pics.map((s) => `<figure><img src="${esc(viewUrl(s))}" alt=""><figcaption>${esc(s.title)}</figcaption></figure>`).join("")}</div>`,
     `<p class="kick">Who it's for</p><h2>Diverse flow datasets in days, not months.</h2><p class="lead">For frontier AI teams, researchers, and us.</p>`,
   ];
