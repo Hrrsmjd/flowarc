@@ -5,14 +5,15 @@ Usage: python scripts/seed_baseline.py [k]   (needs MONGODB_URI and GEMINI_API_K
 DrivAerNet++ varies one car (the DrivAer model) along a fixed design space: three rear styles,
 smooth or detailed underbody, open or closed rims, with or without mirrors, and morphs of its
 proportions. Every one of the 24 discrete combinations gets k variants, each with a different
-pair of morphs on two separate axes (never a roof both lower and higher), so coverage is
-complete and the output is the same on every run. Each entry is embedded with the same model
+pair of morphs on two separate axes (never a roof both lower and higher), and every rear style
+gets the same morphs, so coverage is complete, balanced and the same on every run. Each entry is embedded with the same model
 and `name: description` format as our concepts, so both sit in one embedding space.
 These are descriptions of the dataset's design space, not its meshes, and the morphs carry no
 magnitudes. Replaces the collection.
 """
 
 import itertools
+import random
 import sys
 
 from pymongo import ReplaceOne
@@ -52,26 +53,46 @@ PAIRS = [
 ]
 
 
+def balanced(pairs: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Reorder so every stretch of the list uses each axis about equally often."""
+    axis = {m: a for a, ms in MORPHS.items() for m in ms}
+    used, out, left = dict.fromkeys(MORPHS, 0), [], list(pairs)
+    while left:
+        p = min(left, key=lambda p: used[axis[p[0]]] + used[axis[p[1]]])
+        left.remove(p)
+        out.append(p)
+        used[axis[p[0]]] += 1
+        used[axis[p[1]]] += 1
+    return out
+
+
 def concepts(k: int = 4) -> list[dict]:
-    """k variants for each of the 24 discrete combinations, cycling through the morph pairs."""
-    combos = list(itertools.product(REARS, UNDERBODY, WHEELS, MIRRORS))
-    if not 1 <= k <= len(PAIRS):
-        raise SystemExit(f"k must be 1 to {len(PAIRS)}")
+    """k variants for each of the 24 discrete combinations.
+
+    Morph pairs come from one fixed, axis-balanced ordering of PAIRS, and each rear style walks
+    the same list, so every rear style gets the same morphs and no axis clusters in a block of
+    combinations.
+    """
+    others = list(itertools.product(UNDERBODY, WHEELS, MIRRORS))
+    if not 1 <= k * len(others) <= len(PAIRS):
+        raise SystemExit(f"k must be 1 to {len(PAIRS) // len(others)}")
+    pairs = balanced(random.Random(0).sample(PAIRS, len(PAIRS)))
     out = []
-    for i, (rear, under, wheels, mirrors) in enumerate(combos):
-        for j in range(k):
-            a, b = PAIRS[(i * k + j) % len(PAIRS)]
-            desc = (
-                f"A four-door mid-size passenger saloon car body with {REARS[rear]}, "
-                f"{under}, {wheels} and {mirrors}; this variant has {a} and {b}."
-            )
-            out.append(
-                {
-                    "_id": f"car{len(out) + 1:04d}",
-                    "name": f"DrivAer {rear} car",
-                    "description": desc,
-                }
-            )
+    for rear, back in REARS.items():
+        for i, (under, wheels, mirrors) in enumerate(others):
+            for j in range(k):
+                a, b = pairs[i * k + j]
+                desc = (
+                    f"A four-door mid-size passenger saloon car body with {back}, "
+                    f"{under}, {wheels} and {mirrors}; this variant has {a} and {b}."
+                )
+                out.append(
+                    {
+                        "_id": f"car{len(out) + 1:04d}",
+                        "name": f"DrivAer {rear} car",
+                        "description": desc,
+                    }
+                )
     return out
 
 
