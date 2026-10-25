@@ -20,8 +20,9 @@ def test_pack_shapes_and_units(tmp_path):
     U = cfg.lattice_velocity
     for k in range(3):  # rho giving cp = 1, u = U along x
         np.tile(np.float32([1 + 1.5 * U**2, U, 0, 0]), 30).tofile(tmp_path / f"probes/{k:05d}.bin")
+    (tmp_path / "probes/00003.bin").write_bytes(b"")
     (tmp_path / "frames.csv").write_text(
-        "frame,t,mass,umax,nans\n0,100,1,0.1,0\n1,200,1,0.1,0\n2,300,1,0.1,0\n"
+        "frame,t,mass,umax,nans\n0,100,1,0.1,0\n1,200,1,0.1,0\n2,300,1,0.1,0\n3,400,1,0.1,0\n"
     )
     (tmp_path / "forces.csv").write_text("t,fx,fy,fz\n100,1,0,0\n200,1,0,0\n")
     res = SimResult(
@@ -34,3 +35,4 @@ def test_pack_shapes_and_units(tmp_path):
     )
     assert np.isclose(g["surface/points"][:, 0].min(), 0, atol=1e-3)
     assert np.allclose(g["forces"][:, 1], 1) and np.isclose(g["time"][1], 200 * U / 20)
+    assert g["time"].shape == (3,) and g.attrs["frames_dropped"] == 1

@@ -48,10 +48,13 @@ def pack(result: SimResult, cfg: SimConfig, out: Path, meta: dict | None = None)
     origin = np.array([lo[0], (lo[1] + hi[1]) / 2, 1.0 if cfg.ground else (lo[2] + hi[2]) / 2])
     surf = np.load(sim / "surface_points.npy")
     vol = np.load(sim / "volume_points.npy")
-    data = np.stack(
-        [np.fromfile(f, np.float32).reshape(-1, 4) for f in sorted((sim / "probes").glob("*.bin"))]
-    )
+    files = sorted((sim / "probes").glob("*.bin"))
+    kept = [f for f in files if f.stat().st_size]  # a full disk can leave empty frames behind
+    data = np.stack([np.fromfile(f, np.float32).reshape(-1, 4) for f in kept])
     frames = np.loadtxt(sim / "frames.csv", delimiter=",", skiprows=1, ndmin=2)
+    rows = frames[np.isin(frames[:, 0], [int(f.stem) for f in kept])]
+    if len(rows) != len(data):
+        rows = frames[: len(data)]
     forces = np.loadtxt(sim / "forces.csv", delimiter=",", skiprows=1, ndmin=2)
     cp = (data[..., 0] - 1) / 3 / (0.5 * U**2)
     u = data[..., 1:] / U
@@ -67,12 +70,13 @@ def pack(result: SimResult, cfg: SimConfig, out: Path, meta: dict | None = None)
                     "stats": result.stats,
                     "cost": result.cost,
                     "meta": meta or {},
+                    "frames_dropped": len(files) - len(kept),
                 },
                 default=str,
             )
         )
     )
-    _put(g, "time", frames[: len(data), 1] * U / L, np.float32)
+    _put(g, "time", rows[:, 1] * U / L, np.float32)
     _put(g, "forces", np.column_stack([forces[:, 0] * U / L, forces[:, 1:] / q]), np.float32)
     for name, pts, sl in [
         ("surface", surf, slice(0, len(surf))),
