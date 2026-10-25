@@ -178,7 +178,7 @@ function renderOverview(run, samples) {
   const bar = segs.filter(([, v]) => v).map(([k, v]) => `<span class="seg ${k}" style="flex:${v}" title="${v} ${k}"></span>`).join("");
   const key = segs.map(([k, v]) => `<span class="key ${k}"><i></i>${v} ${k}</span>`).join("");
   const html = `<p class="ov-label">${esc(run.phase || "")} run</p>
-    <h1 class="headline"><span class="num">${done}</span> of ${total} shapes are done.</h1>
+    <h1 class="headline"><span class="num">${done}</span> ${done === 1 ? "shape is" : "shapes are"} done.</h1>
     <p class="lede">${running ? `${running} ${running === 1 ? "is" : "are"} running now. ` : ""}Argon has fixed ${fixes} problem${fixes === 1 ? "" : "s"} on its own${bad + flagged ? `; ${bad + flagged} need${bad + flagged === 1 ? "s" : ""} a look` : ""}.</p>
     <div class="progress" aria-label="Run progress">${bar}</div><div class="progress-key">${key}</div>`;
   const el = $("overview");
@@ -1044,6 +1044,27 @@ $("page-home").addEventListener("click", (e) => {
   e.target.closest(".l-next")?.closest("section").nextElementSibling?.scrollIntoView({ behavior: "smooth" });
 });
 
+// The diversity map as dots only, for the problem slide: the cars are one small patch.
+function miniMap() {
+  const pts = map.points || [];
+  const cars = pts.filter((p) => p.source === "car_baseline");
+  if (!pts.length || !cars.length) return "";
+  const W = 420, H = 300, P = 16;
+  const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const sx = (v) => P + ((v - x0) / (x1 - x0 || 1)) * (W - 2 * P), sy = (v) => H - P - ((v - y0) / (y1 - y0 || 1)) * (H - 2 * P);
+  const ours = pts.filter((p) => p.source !== "car_baseline");
+  const dot = (p, c) => `<circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="4" fill="${c}"/>`;
+  // Label beside the car patch, on the side with more room.
+  const cxs = cars.map((p) => sx(p.x)), cy = cars.reduce((a, p) => a + sy(p.y), 0) / cars.length;
+  const right = Math.max(...cxs) < W - 130;
+  const lx = right ? Math.max(...cxs) + 12 : Math.min(...cxs) - 12, anchor = right ? "start" : "end";
+  return `<figure class="mini-map"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="FlowArc shapes spread wide; the car dataset is one small patch">
+    ${ours.map((p) => dot(p, "var(--series-1)")).join("")}${cars.map((p) => dot(p, "var(--series-2)")).join("")}
+    <text class="mm-label" x="${lx.toFixed(1)}" y="${(cy - 2).toFixed(1)}" text-anchor="${anchor}">DrivAerNet++</text><text class="mm-label sub" x="${lx.toFixed(1)}" y="${(cy + 12).toFixed(1)}" text-anchor="${anchor}">every one a car</text></svg>
+    <figcaption><span><span class="swatch" style="background:var(--series-1)"></span>FlowArc so far</span><span><span class="swatch" style="background:var(--series-2)"></span>DrivAerNet++</span></figcaption></figure>`;
+}
+
 // ---------- about: slides ----------
 // The pitch as slides, with the run's own numbers. ← and → (or space) move between them.
 let slide = 0;
@@ -1058,9 +1079,9 @@ function slides() {
   // About a minute of talk before the live walkthrough, one slide per beat of the script.
   return [
     `<p class="kick">Encode London 2026</p><h2 class="big">FlowArc</h2><p class="lead">Text in. Checked flow simulation out.</p>`,
-    `<p class="kick">The problem</p><h2>AI needs data covering every kind of shape.</h2>
+    `<div class="split"><div class="split-text"><p class="kick">The problem</p><h2>AI needs data covering every kind of shape.</h2>
      <p class="lead">The best-known public dataset, DrivAerNet++, is all cars.</p>
-     <div class="facts"><div><b>8,000</b><span>shapes in DrivAerNet++</span></div><div><b>1</b><span>kind of shape: cars</span></div></div>`,
+     <div class="facts"><div><b>8,000</b><span>shapes in DrivAerNet++</span></div><div><b>1</b><span>kind of shape: cars</span></div></div></div>${miniMap()}</div>`,
     `<p class="kick">How FlowArc does it</p><h2>Weeks of expert work per shape, handed to Argon.</h2>
      <ol class="pipe">${step(1, "Concept", "Gemini 4 Argon", "proposes a shape the dataset is missing")}${step(2, "Images", "Nano Banana", "draws it from several angles")}${step(3, "Mesh", "Image-to-3D", "builds the 3D mesh")}${step(4, "Simulation", "FluidX3D on our GPUs", "simulates the flow around it")}${step(5, "Package", "MongoDB Atlas", "stores every sample, log and fix")}</ol>`,
     `<p class="kick">Argon, the supervisor</p><h2>Argon checks every step, and fixes what goes wrong.</h2>
