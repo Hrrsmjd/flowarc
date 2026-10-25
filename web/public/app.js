@@ -599,13 +599,17 @@ function renderMedia(s) {
   const meshes = s.media?.meshes || [];
   const verdicts = meshVerdicts(s);
   const pick = meshes.find((m) => m.attempt === meshPick[s.id]) || meshes[meshes.length - 1];
-  $("mesh-tabs").innerHTML = meshes.length > 1
-    ? meshes.map((m) => {
+  // An attempt that errored before making a mesh left no file: show it, greyed out, so the
+  // attempts read 1, 2, 3… Only gaps before the latest mesh, never the attempt still running.
+  const tries = Array.from({ length: meshes.length ? meshes[meshes.length - 1].attempt : 0 }, (_, i) => meshes.find((m) => m.attempt === i + 1) || { attempt: i + 1 });
+  $("mesh-tabs").innerHTML = tries.length > 1
+    ? tries.map((m) => {
+        if (!m.url) return `<button class="tab" type="button" disabled title="This attempt errored before it made a mesh">Attempt ${m.attempt} · no mesh</button>`;
         const v = verdicts[m.attempt - 1];
         return `<button class="tab${m === pick ? " on" : ""}" data-attempt="${m.attempt}">Attempt ${m.attempt} ${v === "fail" ? "<span class='bad'>✕</span>" : v === "pass" ? "<span class='ok'>✓</span>" : ""}</button>`;
       }).join("")
     : "";
-  $("mesh-tabs").querySelectorAll("button").forEach((b) =>
+  $("mesh-tabs").querySelectorAll("button[data-attempt]").forEach((b) =>
     b.addEventListener("click", () => {
       meshPick[s.id] = Number(b.dataset.attempt);
       renderMedia(s);

@@ -832,3 +832,5 @@ select option { background: var(--surface); color: var(--ink); }
 .argon-quote .who { display: block; margin-bottom: 8px; font: 500 11.5px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--argon); }
 .argon-quote p { margin: 0; font-size: 19px; line-height: 1.45; }
 .slide .argon-quote small { margin-top: 10px; }
+.tab:disabled { opacity: .45; cursor: default; border-style: dashed; }
+.tab:disabled:hover { color: var(--ink-2); border-color: var(--border); }
