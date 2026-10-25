@@ -808,3 +808,15 @@ select option { background: var(--surface); color: var(--ink); }
 .hero-pic > .hero-empty { display: none; }
 .hero-pic.broken > img { display: none; }
 .hero-pic.broken > .hero-empty { display: grid; }
+
+/* slides on short laptop screens (T14 at 1280×650): the nav stays on screen */
+@media (max-height: 720px) {
+  .slide { padding: 24px clamp(28px, 5vw, 64px); gap: 14px; }
+  .slide h2 { font-size: clamp(28px, 3vw, 40px); }
+  .slide .big { font-size: clamp(56px, 8vw, 104px); }
+  .slide .lead { font-size: 17px; }
+  .slide .facts b { font-size: 30px; }
+  .slide .facts div { padding: 10px 14px; }
+  .strip img { max-height: 150px; }
+  .deck-nav { padding: 8px 14px; }
+}

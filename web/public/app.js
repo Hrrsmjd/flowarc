@@ -1032,26 +1032,23 @@ function slides() {
   const kinds = new Set(done.map((s) => s.bucket)).size;
   const fixes = samples.flatMap((s) => s.log.filter((e) => e.fix).map((e) => ({ s, e })));
   const last = fixes[fixes.length - 1];
-  const flows = done.filter((s) => s.media?.video).length;
   const pics = done.filter((s) => viewUrl(s)).slice(0, 6);
-  const media = samples.reduce((a, s) => a + Object.keys(s.media?.views || {}).length + (s.media?.meshes?.length || 0) + (s.media?.video ? 1 : 0), 0);
   const step = (n, t, who, d) => `<li><span class="n">${n}</span><b>${t}</b><small>${who}</small><p>${d}</p></li>`;
+  // About a minute of talk before the live walkthrough: six slides, in the order of the script.
   return [
     `<p class="kick">Encode London 2026</p><h2 class="big">FlowArc</h2><p class="lead">Text in. Checked flow simulation out.</p>`,
-    `<p class="kick">The problem</p><h2>AI flow models only know shapes like the ones they trained on.</h2>
-     <div class="facts"><div><b>8,000</b><span>shapes in DrivAerNet++</span></div><div><b>1</b><span>kind of shape: cars</span></div><div><b>Months</b><span>of expert work per dataset</span></div></div>`,
-    `<p class="kick">How it works</p><h2>An agent builds each sample and checks every step.</h2>
-     <ol class="pipe">${step(1, "Concept", "Argon", "invents a new shape for a gap in the dataset")}${step(2, "Images", "Nano Banana", "draws it from four sides")}${step(3, "Mesh", "Hunyuan3D", "builds the 3D mesh; Flash checks it against the drawings")}${step(4, "Simulation", "FluidX3D", "runs the airflow on two grids until drag agrees")}${step(5, "Package", "Atlas", "stores the result and remembers the shape")}</ol>`,
-    `<p class="kick">Argon, the supervisor</p><h2>When a check fails, Argon reads why and fixes it.</h2>
-     <div class="facts"><div><b>${fixes.length}</b><span>${fixes.length === 1 ? "problem" : "problems"} fixed without a person</span></div></div>
+    `<p class="kick">The problem</p><h2>A flow simulation dataset takes months to build.</h2>
+     <p class="lead">Cars, aircraft and medical devices are designed with fluid simulations. AI can predict the flow in seconds, but only around shapes like the ones it trained on.</p>
+     <div class="facts"><div><b>8,000</b><span>shapes in DrivAerNet++, every one a car</span></div><div><b>1–2 weeks</b><span>for an engineer to mesh one new shape</span></div><div><b>Months</b><span>to simulate and check a dataset</span></div></div>`,
+    `<p class="kick">How FlowArc does it</p><h2>An agent in every stage.</h2>
+     <ol class="pipe">${step(1, "Concept", "Argon + Atlas", "proposes a shape the dataset is missing")}${step(2, "Images", "Nano Banana", "draws it from four sides, checked for agreement")}${step(3, "Mesh", "Image-to-3D", "viewed from the same angles; regenerated or repaired")}${step(4, "Simulation", "FluidX3D", "runs the flow, checked for physical consistency")}${step(5, "Package", "Atlas + Hugging Face", "text, images and mesh in Atlas; flow fields on Hugging Face")}</ol>
+     <ul class="uses"><li><b>MongoDB Atlas is the agent's memory:</b> Vector Search stops repeats, hybrid search finds any shape, GridFS holds every file</li></ul>`,
+    `<p class="kick">Argon, the supervisor</p><h2>When a check fails, Argon reads why and picks the fix.</h2>
+     <div class="facts"><div><b>${fixes.length}</b><span>${fixes.length === 1 ? "problem" : "problems"} fixed without a person</span></div><div><b>3</b><span>ways to fix: new images, new mesh, or repair</span></div></div>
      ${last ? `<blockquote><b>${esc(last.s.title)}</b>: ${esc(fixText(last.e.msg))}${last.e.diagnosis ? `<small>${esc(last.e.diagnosis)}</small>` : ""}</blockquote>` : ""}`,
-    `<p class="kick">MongoDB Atlas</p><h2>Atlas is the agent's memory.</h2>
-     <ul class="uses"><li><b>Vector Search</b> on 3072-d Gemini embeddings, so Argon never repeats a shape</li><li><b>Hybrid search</b> with Voyage AI and <code>$rankFusion</code>, to find any shape by meaning</li><li><b>GridFS</b> for every view, mesh and flow video</li><li><b>The agent log</b>, every step and every fix</li></ul>
-     <div class="facts"><div><b>${samples.length}</b><span>shapes remembered</span></div><div><b>${media}</b><span>files in GridFS</span></div></div>`,
-    `<p class="kick">So far</p><h2>${done.length} checked shapes, ${kinds} kinds of object${flows ? `, ${flows} airflows` : ""}.</h2>
-     <div class="strip">${pics.map((s) => `<figure><img src="${esc(viewUrl(s))}" alt=""><figcaption>${esc(s.title)}</figcaption></figure>`).join("")}</div>
-     <div class="facts"><div><b>${state ? fmtSpan(runTime()) : "–"}</b><span>start to finish${state?.run.gpus ? `, on ${state.run.gpus} GPUs` : ""}</span></div></div>`,
-    `<p class="kick">Who it's for</p><h2>Diverse, verified flow datasets in days, not months.</h2><p class="lead">For researchers and frontier AI4Physics teams, starting with us.</p>`,
+    `<p class="kick">So far</p><h2>In ${state ? fmtSpan(runTime()) : "–"}, ${done.length} checked simulations of ${kinds} kinds of object.</h2>
+     <div class="strip">${pics.map((s) => `<figure><img src="${esc(viewUrl(s))}" alt=""><figcaption>${esc(s.title)}</figcaption></figure>`).join("")}</div>`,
+    `<p class="kick">Who it's for</p><h2>Diverse flow datasets in days, not months.</h2><p class="lead">For frontier AI teams, researchers, and us.</p>`,
   ];
 }
 function renderDeck() {
