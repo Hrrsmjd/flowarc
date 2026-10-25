@@ -177,7 +177,7 @@ function renderOverview(run, samples) {
   const segs = [["done", done], ["running", running], ["flagged", flagged], ["failed", bad], ["waiting", waiting]];
   const bar = segs.filter(([, v]) => v).map(([k, v]) => `<span class="seg ${k}" style="flex:${v}" title="${v} ${k}"></span>`).join("");
   const key = segs.map(([k, v]) => `<span class="key ${k}"><i></i>${v} ${k}</span>`).join("");
-  const html = `<p class="ov-label">${esc(run.phase || "")} run · ${runSpan()}</p>
+  const html = `<p class="ov-label">${esc(run.phase || "")} run</p>
     <h1 class="headline"><span class="num">${done}</span> of ${total} shapes are done.</h1>
     <p class="lede">${running ? `${running} ${running === 1 ? "is" : "are"} running now. ` : ""}Argon has fixed ${fixes} problem${fixes === 1 ? "" : "s"} on its own${bad + flagged ? `; ${bad + flagged} need${bad + flagged === 1 ? "s" : ""} a look` : ""}.</p>
     <div class="progress" aria-label="Run progress">${bar}</div><div class="progress-key">${key}</div>`;
@@ -217,7 +217,8 @@ const viewUrl = (s) => s.media && (s.media.views["three-quarter"] || Object.valu
 // The last thing worth pointing at: a failed check (Flash) or Argon's fix, if one of the last
 // few events; otherwise the latest event as a caption.
 function bubble(s) {
-  const recent = s.log.slice(-4).reverse();
+  // Only the stage it is on now: an old stage's failure reads as a current problem.
+  const recent = s.log.filter((x) => s.status !== "running" || x.stage === s.stage).slice(-4).reverse();
   const e = recent.find((x) => x.fix || (x.failed && !x.soft)) || s.log[s.log.length - 1];
   if (!e) return "";
   if (e.review) {
@@ -252,11 +253,11 @@ function renderHero() {
   const v = s.status === "done" && s.media?.video;
   const pic = v
     ? `<video src="${esc(v.url)}" muted loop playsinline autoplay></video>`
-    : viewUrl(s) ? `<img src="${esc(viewUrl(s))}" alt="${esc(s.title)}">` : "";
+    : viewUrl(s) ? `<img src="${esc(viewUrl(s))}" alt="" onerror="this.closest('.hero-pic').classList.add('broken')">` : "";
   const c = s.concept || {};
-  // No picture yet: show what Argon asked for and who is working on it, not an empty box.
-  const empty = !pic && `<div class="hero-empty"><p class="he-who">${live ? esc(DOING[s.stage] || `${s.stage}…`) : "No pictures yet"}</p>${c.description ? `<blockquote>${esc(c.description)}</blockquote>` : ""}</div>`;
-  const html = `<div class="hero-pic">${pic || empty}</div>
+  // No picture yet (or it failed to load): show what Argon asked for and who is working on it.
+  const empty = `<div class="hero-empty"><p class="he-who">${live ? esc(DOING[s.stage] || `${s.stage}…`) : "No pictures yet"}</p>${c.description ? `<blockquote>${esc(c.description)}</blockquote>` : ""}</div>`;
+  const html = `<div class="hero-pic${pic ? "" : " broken"}">${pic}${empty}</div>
     <div class="hero-body">
       <div class="hero-kicker">${live ? `<span class="pulse"></span>Now running${s.gpu != null ? ` · GPU ${s.gpu}` : ""}` : "Latest sample"}</div>
       <h2 class="hero-title">${esc(s.title)}</h2>

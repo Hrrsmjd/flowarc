@@ -804,3 +804,7 @@ select option { background: var(--surface); color: var(--ink); }
 .also .more { margin-top: 4px; text-transform: none; letter-spacing: 0; }
 .bubble.human { border-left-color: var(--accent); }
 .bubble.human .who { color: var(--accent); }
+/* The hero's picture until it loads: Argon's description instead of a broken image. */
+.hero-pic > .hero-empty { display: none; }
+.hero-pic.broken > img { display: none; }
+.hero-pic.broken > .hero-empty { display: grid; }
