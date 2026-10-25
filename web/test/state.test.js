@@ -117,3 +117,14 @@ test("the runner's GPU -1 (off the GPU) reads as no GPU", () => {
   reg.samples = reg.samples.map((s) => (s._id === "s0016" ? { ...s, meta: { ...s.meta, gpu: -1 } } : s));
   assert.equal(live(buildState({ ...reg, mode: "mock", now: T0 + 20 })).gpu, null);
 });
+
+test("log lines never name Modal", () => {
+  const samples = [{ _id: "s00001", stage: "sim", status: "running", concept: { name: "s00001" }, meta: {} }];
+  const logs = [
+    { sample: "s00001", t: T0, stage: "sim", msg: "sim: reset, Modal app restarted" },
+    { sample: "s00001", t: T0 + 1, stage: "sim", msg: "sim: started on Modal", reason: "Modal timeout" },
+  ];
+  const log = buildState({ samples, logs, mode: "atlas", now: T0 + 10 }).samples[0].log;
+  assert.deepEqual(log.map((e) => e.msg), ["sim: reset, app restarted", "sim: started"]);
+  assert.equal(log[1].reason, "timeout");
+});

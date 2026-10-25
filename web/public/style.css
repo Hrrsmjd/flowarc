@@ -808,3 +808,29 @@ select option { background: var(--surface); color: var(--ink); }
 .hero-pic > .hero-empty { display: none; }
 .hero-pic.broken > img { display: none; }
 .hero-pic.broken > .hero-empty { display: grid; }
+
+/* slides on short laptop screens (T14 at 1280×650): the nav stays on screen */
+@media (max-height: 720px) {
+  .slide { padding: 24px clamp(28px, 5vw, 64px); gap: 14px; }
+  .slide h2 { font-size: clamp(28px, 3vw, 40px); }
+  .slide .big { font-size: clamp(56px, 8vw, 104px); }
+  .slide .lead { font-size: 17px; }
+  .slide .facts b { font-size: 30px; }
+  .slide .facts div { padding: 10px 14px; }
+  .strip img { max-height: 150px; }
+  .deck-nav { padding: 8px 14px; }
+}
+
+/* Home reads as slides: each section fills the screen, with a ↓ to the next */
+.l-hero, .l-sec { position: relative; scroll-margin-top: 70px; }
+.l-sec { min-height: calc(100vh - 70px); justify-content: center; padding: 48px 0 72px; }
+.l-next { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: 40px; height: 40px; padding: 0; border: 1px solid var(--border); background: transparent; color: var(--ink-2); font: 18px/1 var(--mono); cursor: pointer; }
+.l-next:hover, .l-next:focus-visible { color: var(--accent); border-color: var(--accent); }
+@media (max-width: 860px) { .l-sec { min-height: 0; } .l-next { display: none; } }
+
+/* slide 4: Argon's latest fix, in its own words */
+.argon-quote .who { display: block; margin-bottom: 8px; font: 500 11.5px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--argon); }
+.argon-quote p { margin: 0; font-size: 19px; line-height: 1.45; }
+.slide .argon-quote small { margin-top: 10px; }
+.tab:disabled { opacity: .45; cursor: default; border-style: dashed; }
+.tab:disabled:hover { color: var(--ink-2); border-color: var(--border); }
