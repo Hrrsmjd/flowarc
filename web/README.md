@@ -107,4 +107,4 @@ The dashboard already reads what `Sample.save`, `Sample.log`, `record_check` and
 - an `approvals` document `{_id, kind, title, detail, status: "pending", t}` before publishing or
   an over-budget run, then wait for `status` to change
 - `baseline` documents `{_id, name, embedding}` for car-only concepts, embedded with the same
-  model as the samples; `python scripts/seed_baseline.py` writes 80 DrivAerNet++ variants
+  model as the samples; `python scripts/seed_baseline.py` writes 96 DrivAerNet++ variants (all 24 discrete combinations × 4)
