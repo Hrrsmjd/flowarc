@@ -3,5 +3,6 @@
   "framework": null,
   "buildCommand": "",
   "outputDirectory": "public",
-  "functions": { "api/*.js": { "maxDuration": 10 } }
+  "functions": { "api/*.js": { "maxDuration": 10 } },
+  "git": { "deploymentEnabled": { "**": false, "main": true, "feature/demo-polish": true } }
 }

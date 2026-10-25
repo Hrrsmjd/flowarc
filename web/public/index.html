@@ -47,34 +47,26 @@
     <div class="page" id="page-home" data-page="home" hidden></div>
     <div class="page" id="page-live" data-page="live">
       <section class="overview" id="overview" aria-label="Run overview"></section>
-      <section class="hero" id="hero" aria-live="polite" hidden></section>
-      <section class="kpis" id="kpis" aria-label="Run summary"></section>
-      <section class="card" id="card-now" aria-labelledby="h-now">
-        <div class="card-head">
-          <h2 id="h-now">GPUs</h2>
-          <span class="small" id="now-note"></span>
-        </div>
-        <div class="table-wrap"><table class="now" id="now"></table></div>
-      </section>
-      <div class="grid two">
-        <section class="card" id="card-progress" aria-labelledby="h-progress">
-          <div class="card-head">
-            <h2 id="h-progress">Run progress</h2>
-            <span class="muted small" id="progress-note"></span>
-          </div>
-          <div class="funnel" id="funnel"></div>
-          <div class="dots" id="dots" aria-label="Every sample, coloured by status"></div>
-          <div class="filters" id="stage-filter" role="tablist"></div>
-          <div class="table-wrap stages-wrap"><table class="stages" id="stages"></table></div>
-          <p class="legend small" id="stage-legend"></p>
-        </section>
-        <section class="card" aria-labelledby="h-approve">
-          <div class="card-head">
-            <h2 id="h-approve">Needs your approval</h2>
-            <span class="muted small" id="approve-count"></span>
-          </div>
-          <div id="approvals"></div>
-        </section>
+      <div class="live-main">
+        <section class="hero" id="hero" aria-live="polite" hidden></section>
+        <aside class="live-side">
+          <section class="card" id="card-progress" aria-labelledby="h-progress">
+            <div class="card-head">
+              <h2 id="h-progress">Pipeline</h2>
+              <span class="muted small" id="progress-note"></span>
+            </div>
+            <div class="funnel" id="funnel"></div>
+            <div class="dots" id="dots" aria-label="Every sample, coloured by status"></div>
+            <a class="small all-link" href="#shapes/all">Every sample, stage by stage →</a>
+          </section>
+          <section class="card card-look" aria-labelledby="h-approve">
+            <div class="card-head">
+              <h2 id="h-approve">Needs a look</h2>
+              <span class="muted small" id="approve-count"></span>
+            </div>
+            <div id="approvals"></div>
+          </section>
+        </aside>
       </div>
     </div>
 
@@ -98,6 +90,15 @@
         <h3 class="small">Coverage by shape bucket</h3>
         <div id="coverage"></div>
       </section>
+      <section class="card" id="card-all" aria-labelledby="h-all">
+        <div class="card-head">
+          <h2 id="h-all">Every sample</h2>
+          <span class="muted small" id="all-note"></span>
+        </div>
+        <div class="filters" id="stage-filter" role="tablist"></div>
+        <div class="table-wrap stages-wrap"><table class="stages" id="stages"></table></div>
+        <p class="legend small" id="stage-legend"></p>
+      </section>
     </div>
 
     <div class="page" id="page-shape" data-page="shape" hidden>
@@ -120,7 +121,7 @@
             <div class="mesh-view" id="mesh-view"><p class="muted small" id="mesh-empty">No mesh yet.</p></div>
             <p class="muted small" id="mesh-note">Drag to rotate · scroll to zoom</p>
           </div>
-          <div>
+          <div id="flow-col">
             <h3>Airflow <span class="muted small">FluidX3D · swirling air around the shape (Q-criterion)</span></h3>
             <div class="flow-view" id="flow-view"><p class="muted small" id="flow-empty">Airflow not rendered yet.</p><video id="flow-video" muted loop playsinline autoplay hidden></video></div>
             <p class="muted small" id="flow-note"></p>
@@ -128,7 +129,7 @@
         </div>
         <h3>Details <span class="muted small">checks, mesh fit and the simulation</span></h3>
         <div class="grid three" id="sample-body"></div>
-        <h3>Similar shapes <span class="muted small" id="similar-note"></span></h3>
+        <h3 id="similar-head">Similar shapes <span class="muted small" id="similar-note"></span></h3>
         <div class="similar" id="similar"></div>
         <h3>Prompts <span class="muted small">every Gemini call · click to open</span> <span class="muted small" id="prompts-note"></span></h3>
         <div class="prompts" id="prompts"></div>

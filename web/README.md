@@ -3,7 +3,8 @@
 Live dashboard for the demo, deployed on Vercel. It is a small site with its own links:
 
 - **Home** (`#home`, the logo): the pitch in one scroll, with the run's own numbers
-- **Live** (`#live`): the headline, the shape being made now, GPUs, run progress and approvals
+- **Live** (`#live`): the headline, the shape being made now, the pipeline, and "Needs a look"
+  (flagged and failed shapes, each with Accept / Retry / Drop and a note for Argon)
 - **Dataset** (`#shapes`): the gallery and the diversity map; a click on a shape opens it at its own link (`#shape/<id>`)
 - `#about`: the pitch as slides (← → or space)
 
@@ -13,7 +14,7 @@ Search is in the top bar (`/` to focus, arrow keys and Enter to open a result). 
 - agent activity for the sample running now, including failed checks and Argon's repairs
 - a sample viewer: silhouette IoU per attempt, convergence of drag across grid levels
 - the diversity map, our samples vs a car-only baseline
-- the human approval gate (publish, over-budget runs, flagged samples)
+- the human gate: reviews of flagged and failed shapes, and approvals (publish, over-budget runs)
 
 The page polls `/api/state` every 2 s. The API reads MongoDB Atlas, the same collections the
 pipeline writes (`samples`, `logs`, `approvals`, plus `baseline` for the map and `runs` for the
@@ -29,6 +30,7 @@ deployment is live from the first minute; **Restart** starts the story again.
 | `GET /api/similar?id=` | the 6 nearest concepts, Atlas Vector Search on `concept_vectors` |
 | `GET /api/media?id=` | a view (JPEG) or mesh (GLB) from the GridFS bucket `media`; `?hf=` a view from the HF dataset |
 | `POST /api/approve` | `{id, decision: "approved" \| "rejected"}` sets the approval in Atlas |
+| `POST /api/review` | `{sample, decision: "accept" \| "retry" \| "drop", note?}` queues a review in `reviews` and logs it |
 
 ## Run locally
 
@@ -106,5 +108,10 @@ The dashboard already reads what `Sample.save`, `Sample.log`, `record_check` and
 - `iou: {front, side, top}` on the silhouette or Flash review check
 - an `approvals` document `{_id, kind, title, detail, status: "pending", t}` before publishing or
   an over-budget run, then wait for `status` to change
+- read `reviews` `{sample, decision, note, by, t, status: "new"}` (the dashboard writes them for
+  flagged or failed samples), act on each, then set `status: "done"`: **accept** marks the sample
+  done as it is, **retry** runs its current stage again with `note` passed to Argon as the
+  person's feedback, **drop** marks it failed for good. Log what you did as usual; any log line
+  after the review tells the dashboard it was handled
 - `baseline` documents `{_id, name, embedding}` for car-only concepts, embedded with the same
   model as the samples
