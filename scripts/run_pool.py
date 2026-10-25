@@ -1,10 +1,14 @@
 """Run samples, one per GPU. Resumes unfinished samples first.
-Usage: python scripts/run_pool.py [--new N] [--gpus 0,1,...] [--budget GPU_HOURS]"""
+Usage: python scripts/run_pool.py [--new N] [--gpus 0,1,...] [--budget GPU_HOURS] [--watch]
+
+Reviews from the dashboard (Accept / Retry / Drop) are applied at start; retried samples run
+again. With --watch the pool stays up and picks up new reviews every 15 s (Ctrl-C to stop)."""
 
 import argparse
 import multiprocessing as mp
+import time
 
-from flowarc import config
+from flowarc import config, reviews
 from flowarc.pipeline import BudgetExceeded, new_samples, run_sample
 from flowarc.sample import Sample, all_samples
 
@@ -38,10 +42,12 @@ def main():
     p.add_argument("--budget", type=float, default=config.PHASE_GPU_HOURS, help="GPU hours")
     p.add_argument("--seed", type=int)
     p.add_argument("--skip", default="", help="samples another pool runs, e.g. s00102-s00121")
+    p.add_argument("--watch", action="store_true", help="stay up and run retried samples")
     a = p.parse_args()
     if a.new:
         new_samples(a.new, a.seed)
     skip = set(ids(a.skip)) if a.skip else set()
+    reviews.take(skip)  # retried samples are pending again, so the list below picks them up
     todo = [
         s.id
         for s in all_samples()
@@ -49,11 +55,16 @@ def main():
     ]
     gpus = [int(g) for g in a.gpus.split(",")]
     queue = mp.Queue()
-    for sid in todo + [None] * len(gpus):
+    for sid in todo + ([] if a.watch else [None] * len(gpus)):
         queue.put(sid)
     procs = [mp.Process(target=worker, args=(g, queue, a.budget)) for g in gpus]
     for proc in procs:
         proc.start()
+    while a.watch and any(proc.is_alive() for proc in procs):
+        time.sleep(15)
+        for sid in reviews.take(skip):
+            print(f"review: {sid} queued again", flush=True)
+            queue.put(sid)
     for proc in procs:
         proc.join()
 
