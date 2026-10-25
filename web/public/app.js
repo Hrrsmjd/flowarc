@@ -177,12 +177,10 @@ function renderOverview(run, samples) {
   const segs = [["done", done], ["running", running], ["flagged", flagged], ["failed", bad], ["waiting", waiting]];
   const bar = segs.filter(([, v]) => v).map(([k, v]) => `<span class="seg ${k}" style="flex:${v}" title="${v} ${k}"></span>`).join("");
   const key = segs.map(([k, v]) => `<span class="key ${k}"><i></i>${v} ${k}</span>`).join("");
-  const g = run.gemini || { calls: 0 };
-  const totals = `<span class="key totals">${run.gpu_hours.toFixed(1)} GPU-hours · ${g.calls} Gemini calls</span>`;
   const html = `<p class="ov-label">${esc(run.phase || "")} run · ${runSpan()}</p>
     <h1 class="headline"><span class="num">${done}</span> of ${total} shapes are done.</h1>
     <p class="lede">${running ? `${running} ${running === 1 ? "is" : "are"} running now. ` : ""}Argon has fixed ${fixes} problem${fixes === 1 ? "" : "s"} on its own${bad + flagged ? `; ${bad + flagged} need${bad + flagged === 1 ? "s" : ""} a look` : ""}.</p>
-    <div class="progress" aria-label="Run progress">${bar}</div><div class="progress-key">${key}${totals}</div>`;
+    <div class="progress" aria-label="Run progress">${bar}</div><div class="progress-key">${key}</div>`;
   const el = $("overview");
   if (el.dataset.html !== html) { el.dataset.html = html; el.innerHTML = html; }
 }
