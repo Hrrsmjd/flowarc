@@ -1,0 +1,27 @@
+/* 1. Lab Black — after General Intuition: black, Geist, thin frame lines, a white text card, ASCII flow. */
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;600&display=swap");
+:root {
+  --bg: #000; --fg: #fff; --muted: rgba(255,255,255,.55); --line: rgba(255,255,255,.16); --card: #000; --card-2: #0d0d0d;
+  --accent: #f2e34a; --accent-2: #ff7a2a; --good: #f2e34a; --warn: #ff7a2a; --bad: #ff4d3d; --wait: rgba(255,255,255,.14);
+  --font-display: "Geist", sans-serif; --font-body: "Geist", sans-serif; --font-mono: "Geist Mono", monospace;
+  --display-weight: 400; --display-track: -0.045em; --radius: 0; --radius-sm: 0;
+  --mesh: #d8d8d8; --mesh-bg: #000; --flow-bg: #000;
+  --tile-bg: #000; --img-filter: invert(1) contrast(1.15); --img-blend: screen;
+  --b0: #f2e34a;
+}
+body { color: rgba(255,255,255,.8); }
+main > section.wrap, .foot { border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+main > section.wrap { padding-top: 40px; border-bottom: 1px solid var(--line); }
+.overview { padding-top: 96px; }
+.headline { color: #fff; }
+.mark { border-radius: 0; background: none; border: 2px solid #fff; transform: rotate(45deg) scale(.7); }
+.stats { background: #fff; color: #000; border: 0; gap: 0; }
+.stat { background: #fff; border-right: 1px solid #ddd; border-bottom: 1px solid #ddd; }
+.stat .label, .stat .s { color: #555; }
+.progress { border-radius: 0; height: 6px; }
+.panel { border-color: var(--line); }
+.hero .frame { height: 480px; }
+.chart .pin circle { fill: #000; stroke: #fff; }
+.btn.primary { background: var(--accent); color: #000; border-color: var(--accent); }
+.needs { border-color: var(--accent); color: var(--accent); }
+.gpu .stage { color: var(--accent); }

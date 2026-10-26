@@ -1,0 +1,45 @@
+/* 6. Voxel — after Wild: white, big uppercase grotesk, a hairline grid, and the flow drawn as coloured voxels. */
+@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+:root {
+  --bg: #fff; --fg: #0a0a0a; --muted: #707070; --line: #e4e4e4; --card: #fff; --card-2: #f5f5f5;
+  --accent: #3a5ae8; --accent-2: #f6c51b; --good: #3a5ae8; --warn: #f6c51b; --bad: #e8432c; --wait: #ececec;
+  --font-display: "Archivo", sans-serif; --font-body: "Archivo", sans-serif; --font-mono: "JetBrains Mono", monospace;
+  --display-weight: 400; --display-track: -0.035em; --display-size: clamp(52px, 7.4vw, 112px); --display-line: .92;
+  --radius: 0; --radius-sm: 0;
+  --mesh: #1b2140; --mesh-bg: #fff; --flow-bg: #fff; --img-blend: multiply;
+  --fx-1: #1b2140; --fx-2: #3a5ae8; --fx-3: #e8432c; --fx-4: #f6c51b; --fx-empty: #f4f4f4;
+  --b0: #3a5ae8; --b1: #f6c51b; --b2: #e8432c; --b3: #1b2140; --b4: #3a5ae8; --b5: #f6c51b; --b6: #e8432c; --b7: #1b2140;
+}
+.bar-in { height: 72px; }
+.brand { text-transform: uppercase; font-weight: 500; letter-spacing: .02em; }
+.mark { border-radius: 0; background: conic-gradient(#0a0a0a 0 25%, transparent 0 50%, #0a0a0a 0 75%, transparent 0) 0 0 / 11px 11px; }
+.nav a { text-transform: uppercase; color: #0a0a0a; font-size: 13px; letter-spacing: .04em; }
+.overview { grid-template-columns: 1.4fr 1fr; padding-top: 48px; padding-bottom: 0; border-bottom: 1px solid var(--line); }
+.ov-main { padding-bottom: 48px; }
+.headline { text-transform: uppercase; }
+.stats { border: 0; border-left: 1px solid var(--line); background: none; align-self: stretch; grid-template-columns: 1fr 1fr; padding-left: 40px; gap: 0; }
+.stat { background: none; padding: 20px 0; }
+.stat .n { font-weight: 300; font-size: 56px; }
+.progress { border-radius: 0; height: 16px; gap: 1px; }
+.seg { background-image: linear-gradient(90deg, transparent calc(100% - 1px), #fff 0) !important; background-size: 9px 100% !important; }
+.seg.done { background-color: var(--accent); } .seg.running { background-color: var(--warn); } .seg.failed { background-color: var(--bad); } .seg.waiting { background-color: #eee; }
+.needs { border-radius: 0; text-transform: uppercase; font-size: 12px; letter-spacing: .04em; }
+.hero { padding-top: 0; gap: 0; border-bottom: 1px solid var(--line); margin-bottom: 56px; }
+.hero .panel { border: 0; border-right: 1px solid var(--line); }
+.hero .panel:last-child { border-right: 0; }
+.hero .frame { height: 520px; }
+.hero figcaption strong, .sec-head h2 { text-transform: uppercase; font-weight: 400; }
+.stepper li { border-radius: 0; } .stepper li.done { background: var(--accent); }
+.gpu { border: 0; border-top: 2px solid #0a0a0a; padding: 12px 0; }
+.pips i { border-radius: 0; } .pips i.done { background: var(--accent); } .pips i.now { background: var(--warn); }
+.gbar span { background: #0a0a0a; }
+.gallery { gap: 0; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.tile { padding: 14px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.tile .pic { border: 0; }
+.tile .t-name { text-transform: uppercase; font-weight: 500; font-size: 14px; }
+.chart { border: 0; background: linear-gradient(#f2f2f2 1px, transparent 1px) 0 0 / 12px 12px, linear-gradient(90deg, #f2f2f2 1px, transparent 1px) 0 0 / 12px 12px; }
+.chart circle.ours, .chart circle.base { shape-rendering: crispEdges; }
+.chart .ours.b0, .chart .ours.b4 { fill: #3a5ae8; } .chart .ours.b1, .chart .ours.b5 { fill: #f6c51b; } .chart .ours.b2, .chart .ours.b6 { fill: #e8432c; } .chart .ours.b3, .chart .ours.b7 { fill: #1b2140; }
+.cov .fill.b0, .cov .fill.b4 { background: #3a5ae8; } .cov .fill.b1, .cov .fill.b5 { background: #f6c51b; } .cov .fill.b2, .cov .fill.b6 { background: #e8432c; } .cov .fill.b3, .cov .fill.b7 { background: #1b2140; }
+.cov .track, .cov .fill { border-radius: 0; }
+.btn { border-radius: 0; text-transform: uppercase; }

@@ -1,0 +1,43 @@
+/* 9. Wind Tunnel — from our own FluidX3D renders: the cream of the videos, slate body, teal and red vortices. */
+@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+:root {
+  --bg: #f3f1e8; --fg: #23262b; --muted: #7a776d; --line: rgba(35,38,43,.12); --card: #f8f6ef; --card-2: #ebe8dc;
+  --accent: #1f9e89; --accent-2: #d6336c; --good: #1f9e89; --warn: #d6336c; --bad: #d6336c; --wait: rgba(35,38,43,.1);
+  --font-display: "Instrument Serif", Georgia, serif; --font-body: "Instrument Sans", sans-serif; --font-mono: "JetBrains Mono", monospace;
+  --display-weight: 400; --display-track: -0.02em; --display-size: clamp(52px, 7vw, 108px); --display-line: .95;
+  --radius: 16px; --radius-sm: 10px;
+  --mesh: #33373d; --mesh-bg: #f3f1e8; --flow-bg: #f3f1e8; --flow-zoom: 1.25;
+  --tile-bg: #f3f1e8; --img-blend: multiply;
+  --b0: #1f9e89; --b1: #d6336c; --b2: #33373d; --b3: #59c3b0; --b4: #e57399; --b5: #7a776d; --b6: #157a69; --b7: #a92556;
+}
+.mark { background: radial-gradient(circle at 35% 50%, #23262b 0 30%, transparent 31%), conic-gradient(from 90deg, #1f9e89, #d6336c, #1f9e89); }
+.brand { font: 400 26px var(--font-display); }
+.headline .num { font-style: italic; color: var(--accent); }
+.progress { height: 8px; }
+.seg.running { background: var(--accent-2); }
+.key.running i { background: var(--accent-2); }
+.stats { border: 0; background: none; gap: 10px; }
+.stat { background: var(--card-2); border-radius: var(--radius-sm); }
+.stat .n { font: 400 48px var(--font-display); }
+.hero { grid-template-columns: 1fr 1.8fr; }
+.hero .panel.flow { border: 0; background: none; }
+.hero .flow figcaption { border-top: 0; }
+.hero .frame { height: 480px; }
+.hero figcaption strong, .sec-head h2, .tile .t-name, .d-title { font-family: var(--font-display); font-weight: 400; }
+.hero figcaption strong { font-size: 26px; }
+.sec-head h2 { font-size: 34px; }
+.gpu { background: var(--card-2); border: 0; }
+.gpu .stage { color: var(--accent-2); }
+.pips i.now, .gbar span { background: var(--accent-2); }
+.tile .pic { border: 0; background: var(--card-2); }
+.tile .t-name { font-size: 22px; }
+.chart { border: 0; background: var(--card-2); }
+.chart .ours.b0, .cov .fill.b0 { fill: var(--b0); background: var(--b0); } .chart .ours.b1, .cov .fill.b1 { fill: var(--b1); background: var(--b1); }
+.chart .ours.b2, .cov .fill.b2 { fill: var(--b2); background: var(--b2); } .chart .ours.b3, .cov .fill.b3 { fill: var(--b3); background: var(--b3); }
+.chart .ours.b4, .cov .fill.b4 { fill: var(--b4); background: var(--b4); } .chart .ours.b5, .cov .fill.b5 { fill: var(--b5); background: var(--b5); }
+.chart .ours.b6, .cov .fill.b6 { fill: var(--b6); background: var(--b6); } .chart .ours.b7, .cov .fill.b7 { fill: var(--b7); background: var(--b7); }
+.chart .pin circle { fill: var(--bg); stroke: var(--fg); }
+.btn { border-radius: 99px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.needs { background: var(--card-2); border: 0; }
+.needs-dot { background: var(--accent-2); }

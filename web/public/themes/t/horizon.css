@@ -1,0 +1,52 @@
+/* 8. Horizon — after American Supercritical: night-blue to sunset, wide display type, bracketed spaced labels, ruled columns. */
+@import url("https://fonts.googleapis.com/css2?family=Michroma&family=Roboto:wght@300;400;500&family=Roboto+Mono:wght@400;500&display=swap");
+:root {
+  --bg: #0b1a33; --fg: #f8f8ed; --muted: #8ea0bd; --line: rgba(248,248,237,.18); --card: rgba(11,26,51,.6); --card-2: #0f2240;
+  --accent: #ff7a32; --accent-2: #e2231a; --good: #ffb36b; --warn: #e2231a; --bad: #e2231a; --wait: rgba(248,248,237,.12);
+  --font-display: "Michroma", sans-serif; --font-body: "Roboto", sans-serif; --font-mono: "Roboto Mono", monospace;
+  --display-weight: 400; --display-track: -0.04em; --display-size: clamp(36px, 4.8vw, 70px); --display-line: 1.08;
+  --label-track: .22em; --label-size: 11px; --radius: 0; --radius-sm: 0;
+  --mesh: #d5dceb; --mesh-bg: transparent; --flow-bg: transparent;
+  --flow-filter: invert(1) hue-rotate(180deg) contrast(1.5) saturate(1.6); --flow-blend: screen;
+  --tile-bg: #0a1730; --img-filter: invert(1) sepia(.3) hue-rotate(180deg) contrast(1.1); --img-blend: screen;
+  --bar-bg: rgba(11,26,51,.75);
+}
+html { background: #0a1428; }
+body { background: radial-gradient(1200px 520px at 50% 700px, rgba(255,122,50,.38), transparent 70%), radial-gradient(900px 140px at 50% 720px, rgba(255,170,90,.4), transparent 70%), linear-gradient(#0b1a33 0, #10264a 500px, #0d1d38 1100px, #0a1428 1700px) no-repeat, #0a1428; }
+.bar::before { content: "1 thing needs your approval →"; display: block; text-align: center; background: var(--accent-2); font: 500 12px var(--font-body); padding: 7px; text-decoration: underline; }
+.brand { font: 400 20px var(--font-display); text-transform: uppercase; letter-spacing: .02em; }
+.mark { border-radius: 0; background: #fff; clip-path: polygon(50% 0, 100% 100%, 70% 100%, 50% 50%, 30% 100%, 0 100%); }
+.nav a, .live { font: 500 13px var(--font-mono); text-transform: uppercase; letter-spacing: .12em; color: var(--fg); }
+.nav a::before { content: "["; } .nav a::after { content: "]"; }
+.needs { display: none; }
+.overview { padding-top: 96px; }
+.lede { color: var(--fg); font-size: 19px; font-weight: 300; }
+.progress { height: 4px; border-radius: 0; }
+.progress-key, .stat .s { text-transform: uppercase; letter-spacing: .18em; font-size: 11px; }
+.stats { background: none; border: 0; border-left: 1px solid var(--line); grid-template-columns: 1fr; gap: 0; padding-left: 20px; }
+.stat { background: none; display: flex; justify-content: space-between; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.stat .label { color: var(--fg); order: 0; }
+.stat .n { font: 400 22px var(--font-display); margin: 0; order: 2; }
+.stat .s { display: none; }
+.hero { gap: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 0; margin-bottom: 56px; }
+.hero .panel { background: none; border: 0; border-right: 1px solid var(--line); }
+.hero .panel:last-child { border-right: 0; }
+.hero .frame { height: 520px; }
+.hero figcaption { border-top: 1px solid var(--line); }
+.hero figcaption strong, .sec-head h2 { font: 400 18px var(--font-display); text-transform: uppercase; letter-spacing: .02em; }
+.sec-head h2 { font-size: 20px; }
+.sec-head .note { text-transform: uppercase; letter-spacing: .18em; font: 11px var(--font-mono); }
+.gpu { background: none; border: 0; border-left: 1px solid var(--line); }
+.gpu strong { font-weight: 400; text-transform: uppercase; letter-spacing: .1em; font-size: 12px; }
+.tile .pic { border-color: var(--line); }
+.tile .t-name { text-transform: uppercase; letter-spacing: .14em; font-weight: 500; font-size: 12px; }
+.tile .t-meta { text-transform: uppercase; letter-spacing: .14em; font-size: 11px; }
+.chart { background: #0c1a33; }
+.chart .ours { fill: var(--accent); } .chart .base { fill: #8ea0bd; }
+.chart .pin circle { fill: #0b1a33; stroke: var(--fg); }
+.cov .fill { background: var(--accent); }
+.fold summary { text-transform: uppercase; letter-spacing: .16em; font: 500 13px var(--font-mono); }
+.tbl th, .tbl td { background: transparent; }
+.drawer { --drawer-bg: #0b1a33; }
+.btn { text-transform: uppercase; letter-spacing: .14em; font: 500 12px var(--font-mono); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #0b1a33; }

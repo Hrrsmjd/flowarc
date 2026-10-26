@@ -1,0 +1,55 @@
+/* 7. Press — after Stripe Press: dark plum-brown, editorial serif, shapes stacked as book spines. */
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,400&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400&display=swap");
+:root {
+  --bg: #201819; --fg: #f3ece2; --muted: #a59a90; --line: rgba(243,236,226,.13); --card: #2a2122; --card-2: #2f2627;
+  --accent: #d9b26a; --accent-2: #8fc9c2; --good: #d9b26a; --warn: #d9b26a; --bad: #d0605a; --wait: rgba(243,236,226,.1);
+  --font-display: "Fraunces", Georgia, serif; --font-body: "Source Serif 4", Georgia, serif; --font-mono: "IBM Plex Mono", monospace;
+  --display-weight: 400; --display-track: -0.02em; --display-line: 1.02; --label-case: none; --label-track: .02em; --label-size: 12px;
+  --radius: 3px; --radius-sm: 3px; --maxw: 1180px;
+  --mesh: #d9cbb6; --mesh-bg: #1a1314; --flow-bg: #1a1314;
+  --flow-filter: invert(1) hue-rotate(180deg) contrast(1.5) sepia(.3) saturate(1.5); --flow-blend: screen;
+  --tile-bg: #1a1314; --img-filter: invert(1) sepia(.5) contrast(1.1); --img-blend: screen;
+}
+body { font-size: 16px; }
+.brand { font: 600 19px var(--font-display); }
+.brand .word::after { content: "Ideas in motion"; display: block; font: italic 400 15px var(--font-display); color: var(--fg); }
+.mark { width: 28px; height: 34px; border-radius: 14px; background: none; border: 2px solid var(--fg); }
+.bar { border: 0; background: var(--bg); }
+.bar-in { height: 84px; }
+.headline .num { font-style: italic; color: var(--accent); }
+.lede { font-family: var(--font-display); font-style: italic; font-size: 22px; }
+.stats { border: 0; background: none; gap: 0; }
+.stat { background: none; border-top: 1px solid var(--line); }
+.stat .n { font-weight: 300; }
+.progress { height: 6px; }
+.panel { border: 0; }
+.hero figcaption { border-top: 0; }
+.hero figcaption strong, .sec-head h2 { font-weight: 400; }
+.sec-head h2 { font-size: 30px; }
+.gpu { border: 0; background: var(--card); }
+.gpu strong { font-family: var(--font-display); font-weight: 400; font-size: 16px; }
+/* book spines */
+.gallery { display: flex; flex-direction: column; align-items: center; gap: 0; perspective: 900px; }
+.tile { width: 76%; height: 66px; grid-template-columns: 170px 1fr auto 66px; grid-template-areas: "i n m p"; align-items: center; gap: 0 18px; padding: 0 0 0 24px; background: var(--sp, #444); color: var(--ink, #fff); border-radius: 2px 4px 4px 2px; box-shadow: inset 0 -3px 0 rgba(0,0,0,.25), inset 0 2px 0 rgba(255,255,255,.12); transition: transform .25s ease, width .25s ease; }
+.tile:hover { transform: translateX(28px); }
+.tile .pic { width: 66px; height: 66px; aspect-ratio: auto; margin: 0; border: 0; border-radius: 0 4px 4px 0; background: rgba(0,0,0,.25); }
+.tile .t-id { justify-self: start; font: 400 11px var(--font-mono); letter-spacing: .12em; color: inherit; opacity: .75; }
+.tile .t-name { font: 400 22px var(--font-display); text-align: center; }
+.tile .t-meta { color: inherit; opacity: .75; font-style: italic; font-size: 14px; }
+.tile:nth-child(1) { --sp: #9fd3cb; --ink: #13201f; width: 78%; }
+.tile:nth-child(2) { --sp: #2c6e78; width: 77%; }
+.tile:nth-child(3) { --sp: #b8a560; --ink: #2a2412; width: 75%; }
+.tile:nth-child(4) { --sp: #cfc7a8; --ink: #2a2412; width: 74%; }
+.tile:nth-child(5) { --sp: #253246; width: 73%; }
+.tile:nth-child(6) { --sp: #6f6b70; width: 72%; }
+.tile:nth-child(7) { --sp: #6e2240; width: 71%; }
+.tile:nth-child(8) { --sp: #a87850; width: 70%; }
+.tile.ghost { --sp: #2a2122; width: 68%; opacity: .55; box-shadow: inset 0 0 0 1px var(--line); }
+.tile.ghost .pic { background: none; border: 0; }
+.tile .pic .wait { color: var(--muted); }
+.chart { background: var(--card); }
+.chart .ours { fill: var(--accent); }
+.chart .pin circle { fill: var(--bg); stroke: var(--accent); }
+.cov .fill { background: var(--accent); }
+.d-title { font-weight: 400; font-size: 40px; }
+.btn.primary { background: var(--accent); color: #201819; border-color: var(--accent); }

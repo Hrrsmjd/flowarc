@@ -1,0 +1,39 @@
+/* 2. Nebula — after Aleph: near-black, book serif, glowing flow, four-colour strip. */
+@import url("https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600&display=swap");
+:root {
+  --bg: #0a0b0e; --fg: #ecebe6; --muted: #8b8c93; --line: rgba(255,255,255,.09); --card: #101116; --card-2: #15161c;
+  --accent: #ff9a3c; --accent-2: #b07cff; --good: #b07cff; --warn: #ff9a3c; --bad: #ff4f7b; --wait: rgba(255,255,255,.08);
+  --font-display: "EB Garamond", Georgia, serif; --font-body: "Inter", sans-serif; --font-mono: "Inter", sans-serif;
+  --display-weight: 400; --display-track: -0.015em; --display-size: clamp(44px, 5.6vw, 84px); --display-line: 1.05;
+  --label-track: 0.04em; --label-size: 12px; --radius: 4px; --radius-sm: 4px;
+  --mesh: #c7c2ff; --mesh-bg: radial-gradient(60% 60% at 50% 55%, #1b1530, #0a0b0e);
+  --flow-bg: #0a0b0e; --flow-filter: invert(1) hue-rotate(180deg) contrast(1.5) saturate(2.2); --flow-blend: screen;
+  --tile-bg: #0a0b0e; --img-filter: invert(1) sepia(.4) hue-rotate(210deg) saturate(1.6); --img-blend: screen;
+}
+.headline { font-weight: 400; }
+.headline .num { font-style: italic; color: #fff; }
+.lede { font-family: var(--font-display); font-size: 24px; line-height: 1.35; color: var(--muted); }
+.brand { font: 400 28px var(--font-display); }
+.mark { display: none; }
+.progress { height: 4px; gap: 0; border-radius: 0; }
+.seg.done { background: linear-gradient(90deg, #7b4bd6, #d08a2c, #c43a63, #3d5bc6); }
+.stats { background: none; border: 0; gap: 28px; }
+.stat { background: none; padding: 0; border-top: 1px solid var(--line); padding-top: 14px; }
+.stat .n { font-family: var(--font-display); font-weight: 400; font-size: 48px; }
+.panel, .gpu { border: 0; }
+.hero .frame { height: 520px; }
+.hero figcaption { border-top: 0; }
+.hero figcaption strong, .sec-head h2 { font-family: var(--font-display); font-weight: 400; font-size: 30px; }
+.tile .pic { border: 0; }
+.tile .t-name { font: 400 20px var(--font-display); }
+.chart .ours.b0, .cov .fill.b0 { fill: #7b4bd6; background: #7b4bd6; }
+.chart .ours.b1, .cov .fill.b1 { fill: #d08a2c; background: #d08a2c; }
+.chart .ours.b2, .cov .fill.b2 { fill: #c43a63; background: #c43a63; }
+.chart .ours.b3, .cov .fill.b3 { fill: #3d5bc6; background: #3d5bc6; }
+.chart .ours.b4, .cov .fill.b4 { fill: #a05fe0; background: #a05fe0; }
+.chart .ours.b5, .cov .fill.b5 { fill: #f0a24a; background: #f0a24a; }
+.chart .ours.b6, .cov .fill.b6 { fill: #e05286; background: #e05286; }
+.chart .ours.b7, .cov .fill.b7 { fill: #5a7ae6; background: #5a7ae6; }
+.chart .ours { filter: drop-shadow(0 0 4px currentColor); opacity: .9; }
+.chart .pin circle { fill: #0a0b0e; stroke: #fff; }
+.d-title { font-weight: 400; }

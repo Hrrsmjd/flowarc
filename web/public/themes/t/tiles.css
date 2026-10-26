@@ -1,0 +1,44 @@
+/* 3. Tiles — after BeyondMath: warm grey page, a black rounded stage, labelled black tiles, orange buttons. */
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+:root {
+  --bg: #efeae7; --fg: #0b0b0b; --muted: #6f6a66; --line: rgba(0,0,0,.12); --card: #fff; --card-2: #e6e0dc;
+  --accent: #ff5a36; --accent-2: #0b0b0b; --good: #0b0b0b; --warn: #ff5a36; --bad: #c62f1a; --wait: rgba(0,0,0,.12);
+  --font-display: "Space Grotesk", sans-serif; --font-body: "Space Grotesk", sans-serif; --font-mono: "JetBrains Mono", monospace;
+  --display-weight: 500; --display-track: -0.035em; --radius: 14px; --radius-sm: 4px;
+  --mesh: #bdbdbd; --mesh-bg: #050505; --flow-bg: #050505;
+  --flow-filter: invert(1) hue-rotate(180deg) contrast(1.5) saturate(1.4); --flow-blend: screen;
+  --tile-bg: #050505; --img-filter: invert(1) contrast(1.1); --img-blend: screen;
+}
+.nav a { background: #6b6b6b; color: #fff; padding: 7px 12px; border-radius: 3px; text-transform: uppercase; font-size: 12px; letter-spacing: .04em; }
+.nav a:last-child { background: #fff; color: #000; }
+.live { background: var(--accent); color: #000; padding: 7px 12px; border-radius: 3px; text-transform: uppercase; }
+.live .dot { background: #000; }
+.mark { border-radius: 4px; background: #000; }
+.brand { text-transform: uppercase; letter-spacing: .06em; }
+.overview { text-align: left; }
+.progress { border-radius: 3px; height: 14px; }
+.seg.done { background: #0b0b0b; } .seg.running { background: var(--accent); }
+.stats { border: 0; background: none; gap: 8px; }
+.stat { background: #fff; border-radius: 10px; }
+.hero { background: #000; border-radius: 22px; padding: 14px; margin-bottom: 56px; gap: 8px; max-width: calc(var(--maxw) - 32px); }
+.hero .panel { background: #050505; border: 1px solid #222; color: #fff; border-radius: 12px; }
+.hero figcaption { border-top-color: #222; }
+.hero .label { color: #777; }
+.gpu { border: 0; }
+.gallery { gap: 6px; background: #8e8a87; padding: 6px; border-radius: 16px; }
+.tile { background: #000; border-radius: 10px; padding: 10px; color: #fff; position: relative; grid-template-areas: "i i" "p p" "n n" "m m"; }
+.tile .pic { border: 0; border-radius: 6px; margin: 6px 0 10px; }
+.tile .t-id { justify-self: start; color: #5c5c5c; text-transform: uppercase; }
+.tile .t-id::before { content: "GEN "; }
+.tile .t-meta { color: #777; }
+.tile.ghost { opacity: 1; }
+.tile.ghost .pic { border: 1px dashed #333; }
+.tile.ghost .t-name { color: #888; }
+.chart { background: #000; border: 0; }
+.chart .ours { fill: var(--accent); }
+.chart .base { fill: #888; }
+.chart .pin circle { fill: #000; stroke: #fff; }
+.map-key { color: #888; }
+.cov .fill { background: #0b0b0b; }
+.btn { border-radius: 3px; text-transform: uppercase; font-size: 12px; letter-spacing: .04em; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #000; }
