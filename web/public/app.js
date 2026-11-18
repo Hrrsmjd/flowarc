@@ -1,9 +1,11 @@
 // FlowArc dashboard. Polls /api/state (Atlas, or the mock replay when Atlas isn't set) every
-// five seconds and /api/map every minute, and stops polling while the tab is hidden: each poll
-// is a Vercel function call, and an idle tab polling all day used up the plan's quota.
+// five seconds while a run is live (every two minutes when nothing runs), /api/map every minute
+// while live, and stops polling while the tab is hidden: each poll is a Vercel function call, and
+// an idle tab polling all day used up the plan's quota.
 
 const STAGES = ["concept", "images", "mesh", "sim", "render", "package"];
 const POLL_MS = 5000;
+const QUIET_POLL_MS = 120000; // nothing running: the data won't change
 const MAP_MS = 60000;
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -84,10 +86,15 @@ async function loadMap() {
   } catch {}
 }
 
+// A run is live while a sample runs and the runner isn't paused.
+const isLive = (st) => Boolean(st) && !st.run.paused && st.samples.some((s) => s.status === "running");
+const pollMs = () => (!state || isLive(state) ? POLL_MS : QUIET_POLL_MS);
+
 function liveTick() {
   const age = (Date.now() - lastOk) / 1000;
+  const late = age > pollMs() / 1000 * 2 + 5; // missed two polls
   const el = $("live-status");
-  el.classList.toggle("stale", Boolean(lastError) || !lastOk || age > 10);
+  el.classList.toggle("stale", Boolean(lastError) || !lastOk || late);
   el.title = lastError || (state?.db ? `database ${state.db}` : "");
   if (lastError) return ($("live-text").textContent = `API error: ${lastError.slice(0, 60)}`);
   const src = state?.mode === "atlas" ? "MongoDB Atlas" : "mock replay";
@@ -98,7 +105,7 @@ function liveTick() {
     return ($("live-text").textContent = `Paused · ${src}`);
   }
   el.classList.remove("paused");
-  $("live-text").textContent = !lastOk ? "connecting…" : age > 10 ? `offline ${fmtDur(age)}` : `Live · ${src}`;
+  $("live-text").textContent = !lastOk ? "connecting…" : late ? `offline ${fmtDur(age)}` : isLive(state) ? `Live · ${src}` : `Not running · ${src}`;
 }
 
 // ---------- tooltip ----------
@@ -200,8 +207,7 @@ function renderOverview(run, samples) {
 // How long the run has taken, wall clock: start to now while anything runs, else start to the last event.
 function runTime() {
   const { run, samples } = state;
-  const live = !run.paused && samples.some((s) => s.status === "running");
-  const end = live || !samples.length ? Date.now() / 1000 : Math.max(...samples.map((s) => s.last_t || 0));
+  const end = isLive(state) || !samples.length ? Date.now() / 1000 : Math.max(...samples.map((s) => s.last_t || 0));
   return Math.max(0, end - run.started_at);
 }
 const runSpan = () => `${fmtSpan(runTime())}${state.run.gpus ? ` on ${state.run.gpus} GPUs` : ""}`;
@@ -988,23 +994,34 @@ $("restart").addEventListener("click", () => {
 });
 
 
-// Poll only while the tab is visible; catch up at once when it comes back.
-let pollTimers = [];
+// Poll only while the tab is visible (catching up at once when it comes back), fast while a run
+// is live and slowly when nothing runs. The map changes only while samples are being made.
+let pollTimer = null, tickTimer = null, lastMap = 0;
+async function poll() {
+  await load();
+  if (isLive(state) && Date.now() - lastMap >= MAP_MS) {
+    lastMap = Date.now();
+    await loadMap();
+  }
+  if (tickTimer) pollTimer = setTimeout(poll, pollMs());
+}
 function startPolling() {
-  if (pollTimers.length) return;
-  pollTimers = [setInterval(load, POLL_MS), setInterval(loadMap, MAP_MS), setInterval(liveTick, 1000)];
+  if (tickTimer) return;
+  tickTimer = setInterval(liveTick, 1000);
+  pollTimer = setTimeout(poll, pollMs());
 }
 function stopPolling() {
-  pollTimers.forEach(clearInterval);
-  pollTimers = [];
+  clearTimeout(pollTimer);
+  clearInterval(tickTimer);
+  pollTimer = tickTimer = null;
 }
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) return stopPolling();
-  load().then(loadMap);
+  load().then(() => isLive(state) && loadMap());
   startPolling();
 });
 
-load().then(loadMap);
+load().then(() => ((lastMap = Date.now()), loadMap()));
 if (!document.hidden) startPolling();
 
 // ---------- tabs ----------
