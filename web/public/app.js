@@ -1,9 +1,10 @@
 // FlowArc dashboard. Polls /api/state (Atlas, or the mock replay when Atlas isn't set) every
-// two seconds and /api/map every twenty.
+// five seconds and /api/map every minute, and stops polling while the tab is hidden: each poll
+// is a Vercel function call, and an idle tab polling all day used up the plan's quota.
 
 const STAGES = ["concept", "images", "mesh", "sim", "render", "package"];
-const POLL_MS = 2000;
-const MAP_MS = 20000;
+const POLL_MS = 5000;
+const MAP_MS = 60000;
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const fmtRe = (re) => { const e = Math.floor(Math.log10(re)); const m = re / 10 ** e; return e < 4 ? Math.round(re).toLocaleString() : `${m.toFixed(1)}×10${sup(e)}`; };
@@ -33,9 +34,13 @@ const meshPick = {}; // sample id -> mesh attempt chosen in the tabs
 let viewerP = null; // the 3D viewer loads three.js on first use
 
 // ---------- data ----------
+// Atlas data is the same for every viewer, so leave out the per-viewer start (only the mock
+// replay uses it) and the CDN can serve one cached answer to everyone.
+const startQuery = () => (state?.mode === "atlas" ? "" : `?start=${start}`);
+
 async function load() {
   try {
-    const r = await fetch(`api/state?start=${start}`, { cache: "no-store" });
+    const r = await fetch(`api/state${startQuery()}`);
     if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
     state = await r.json();
     lastOk = Date.now();
@@ -73,7 +78,7 @@ function scopeRun(st) {
 
 async function loadMap() {
   try {
-    const r = await fetch(`api/map?start=${start}`, { cache: "no-store" });
+    const r = await fetch(`api/map${startQuery()}`);
     if (r.ok) map = await r.json();
     if (state) renderDiversity();
   } catch {}
@@ -983,10 +988,24 @@ $("restart").addEventListener("click", () => {
 });
 
 
+// Poll only while the tab is visible; catch up at once when it comes back.
+let pollTimers = [];
+function startPolling() {
+  if (pollTimers.length) return;
+  pollTimers = [setInterval(load, POLL_MS), setInterval(loadMap, MAP_MS), setInterval(liveTick, 1000)];
+}
+function stopPolling() {
+  pollTimers.forEach(clearInterval);
+  pollTimers = [];
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) return stopPolling();
+  load().then(loadMap);
+  startPolling();
+});
+
 load().then(loadMap);
-setInterval(load, POLL_MS);
-setInterval(loadMap, MAP_MS);
-setInterval(liveTick, 1000);
+if (!document.hidden) startPolling();
 
 // ---------- tabs ----------
 // A small site: one job per tab, each with its own link (#live, #shapes, #about), and one per

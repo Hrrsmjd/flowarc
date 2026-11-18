@@ -7,7 +7,7 @@ import { diversityMap } from "../lib/state.js";
 export default async function handler(req, res) {
   try {
     const reg = hasAtlas() ? await atlasRegistry({ withEmbeddings: true }) : mockRegistry(startParam(req));
-    send(res, 200, diversityMap(reg.samples, reg.baseline));
+    send(res, 200, diversityMap(reg.samples, reg.baseline), 50);
   } catch (e) {
     console.error(e);
     send(res, 500, { error: String(e.message || e) });

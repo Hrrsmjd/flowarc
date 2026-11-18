@@ -16,7 +16,7 @@ Search is in the top bar (`/` to focus, arrow keys and Enter to open a result). 
 - the diversity map, our samples vs a car-only baseline
 - the human gate: reviews of flagged and failed shapes, and approvals (publish, over-budget runs)
 
-The page polls `/api/state` every 2 s. The API reads MongoDB Atlas, the same collections the
+The page polls `/api/state` every 5 s while its tab is visible (the CDN shares each answer for 4 s). The API reads MongoDB Atlas, the same collections the
 pipeline writes (`samples`, `logs`, `approvals`, plus `baseline` for the map and `runs` for the
 run summary). Without `MONGODB_URI` it plays a mock batch on a loop (`lib/mock.json`), so a
 deployment is live from the first minute; **Restart** starts the story again.
